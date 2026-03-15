@@ -3,7 +3,7 @@ name: mem-init
 description: Scaffolds the .ai/ directory in the current project. Use once per project to set up persistent memory. Runs npx ai-memory init with chosen options.
 ---
 
-# mem:init — Project Setup
+# mem-init — Project Setup
 
 ## When to use
 
@@ -37,8 +37,8 @@ After scaffolding, open `.ai/IDENTITY.md` and fill in:
 - Hard constraints (what the AI must never do in this codebase)
 - Tech stack overview
 
-### 5. Customize DIRECTION.md
-Open `.ai/DIRECTION.md` and fill in:
+### 5. Customize PROJECT_STATUS.md
+Open `.ai/PROJECT_STATUS.md` and fill in:
 - Current Focus (what's actively being built)
 - Open Questions (what's not decided yet)
 

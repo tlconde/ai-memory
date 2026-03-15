@@ -24,9 +24,9 @@ Or manually copy these files to your project:
 
 ## What each file does
 
-**`CLAUDE.md`** — Claude Code reads this automatically from the project root. It contains the bootstrap instruction: load `.ai/IDENTITY.md`, `.ai/DIRECTION.md`, and `memory-index.md` at session start.
+**`CLAUDE.md`** — Claude Code reads this automatically from the project root. It contains the bootstrap instruction: load `.ai/IDENTITY.md`, `.ai/PROJECT_STATUS.md`, and `memory-index.md` at session start.
 
-**`hooks/SessionStart.js`** — Runs at the start of every session. Reads `.ai/IDENTITY.md`, `.ai/DIRECTION.md`, and `memory-index.md` and outputs them as session context. This ensures the AI has memory even when the CLAUDE.md instruction is in a long context and might be missed.
+**`hooks/SessionStart.js`** — Runs at the start of every session. Reads `.ai/IDENTITY.md`, `.ai/PROJECT_STATUS.md`, and `memory-index.md` and outputs them as session context. This ensures the AI has memory even when the CLAUDE.md instruction is in a long context and might be missed.
 
 **`.claude-plugin/plugin.json`** — Plugin manifest that registers the MCP server. Claude Code reads this when the plugin is installed.
 

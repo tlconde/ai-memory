@@ -35,20 +35,17 @@ export async function evalHookCoverage(projectDir: string): Promise<EvalResult> 
     } catch { /* malformed */ }
   }
 
-  // Check plugin hooks
+  // Check plugin hooks — take the max of settings.json and plugin hooks
   const pluginHooksPath = join(projectDir, "plugins", "adapters", "claude-code", "hooks", "hooks.json");
-  if (existsSync(pluginHooksPath) && found < recommended.length) {
+  if (existsSync(pluginHooksPath)) {
     try {
       const pluginHooks = JSON.parse(await readFile(pluginHooksPath, "utf-8"));
       const hooks = pluginHooks.hooks ?? {};
+      let pluginFound = 0;
       for (const hook of recommended) {
-        if (hooks[hook] && !found) found++;
+        if (hooks[hook]) pluginFound++;
       }
-      // Re-count from plugin
-      found = 0;
-      for (const hook of recommended) {
-        if (hooks[hook]) found++;
-      }
+      found = Math.max(found, pluginFound);
     } catch { /* malformed */ }
   }
 

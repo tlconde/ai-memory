@@ -17,9 +17,9 @@ Thumbs.db
 # Dev artifacts
 chat-history/
 chat-history.md
-experiments/*/node_modules/
-docs/
 experiments/
+docs/
+scripts/
 
 # Experiment sandbox artifacts
 **/sandbox-*/index.sqlite
@@ -35,6 +35,12 @@ coverage/
 # Project memory and local MCP config (never publish)
 .ai/
 .mcp.json
+
+# Tool-generated files (created by ai-memory install, never publish)
+.windsurfrules
+.clinerules
+CLAUDE.md
+.github/copilot-instructions.md
 
 # Tool-specific (never publish)
 plugins/ai-memory/rules/context7-tool-reference.md

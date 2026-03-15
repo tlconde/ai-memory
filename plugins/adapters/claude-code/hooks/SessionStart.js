@@ -32,8 +32,8 @@ async function main() {
   const identity = await safeRead(join(aiDir, "IDENTITY.md"));
   if (identity) sections.push(identity.trim());
 
-  const direction = await safeRead(join(aiDir, "DIRECTION.md"));
-  if (direction) sections.push(direction.trim());
+  const projectStatus = await safeRead(join(aiDir, "PROJECT_STATUS.md"));
+  if (projectStatus) sections.push(projectStatus.trim());
 
   const index = await safeRead(join(aiDir, "memory/memory-index.md"));
   if (index && !index.includes("<!-- Index will be generated")) {

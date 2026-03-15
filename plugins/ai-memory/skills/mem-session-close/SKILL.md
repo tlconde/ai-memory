@@ -3,7 +3,7 @@ name: mem-session-close
 description: Lite session close. Archives the session and updates open items without a full compound run. Use when ending a session that produced no new decisions or patterns worth capturing.
 ---
 
-# mem:session-close — Lite Path
+# mem-session-close — Lite Path
 
 ## When to use
 
@@ -11,7 +11,7 @@ description: Lite session close. Archives the session and updates open items wit
 - Short session not worth a full compound run
 - Want to close cleanly without the full loop
 
-For sessions with real learning, use `/mem:compound` instead.
+For sessions with real learning, use `/mem-compound` instead.
 
 ## Steps
 

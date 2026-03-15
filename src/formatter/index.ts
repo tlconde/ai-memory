@@ -2,17 +2,14 @@ import { readFile, writeFile, readdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 import matter from "gray-matter";
+import { VALID_TYPES, VALID_STATUSES, SKILL_TOOL_NAMES_BLOCKLIST } from "../schema-constants.js";
 
 export interface ValidationError {
   file: string;
   message: string;
+  /** "error" fails validate; "warn" logs but does not fail */
+  severity?: "error" | "warn";
 }
-
-const VALID_TYPES = [
-  "identity", "direction", "project-status", "decision", "pattern", "debugging",
-  "skill", "toolbox", "rule", "agent", "index",
-];
-const VALID_STATUSES = ["active", "deprecated", "experimental"];
 
 // Validate frontmatter of a single file
 export function validateFrontmatter(
@@ -41,14 +38,28 @@ export function validateFrontmatter(
   if (!fm.status) errors.push(`Missing required field: status`);
 
   // Valid enum values
-  if (fm.type && !VALID_TYPES.includes(fm.type as string)) {
+  if (fm.type && !(VALID_TYPES as readonly string[]).includes(fm.type as string)) {
     errors.push(`Invalid type "${fm.type}". Must be one of: ${VALID_TYPES.join(", ")}`);
   }
-  if (fm.status && !VALID_STATUSES.includes(fm.status as string)) {
+  if (fm.status && !(VALID_STATUSES as readonly string[]).includes(fm.status as string)) {
     errors.push(`Invalid status "${fm.status}". Must be one of: ${VALID_STATUSES.join(", ")}`);
   }
 
   return errors;
+}
+
+/** Warn if skill content contains tool names — skills should declare capabilities, not tools. */
+export function validateSkillContent(filePath: string, content: string): string[] {
+  const warnings: string[] = [];
+  if (!filePath.includes("/skills/") || !filePath.endsWith("SKILL.md")) return warnings;
+
+  const body = content.replace(/^---[\s\S]*?---\s*/m, "").toLowerCase();
+  for (const tool of SKILL_TOOL_NAMES_BLOCKLIST) {
+    if (body.includes(tool)) {
+      warnings.push(`Skill references tool "${tool}" — prefer capability-based requires (see [P1] Capability-based skills)`);
+    }
+  }
+  return warnings;
 }
 
 // Auto-add minimal frontmatter if missing
@@ -60,7 +71,7 @@ export function ensureFrontmatter(filePath: string, content: string): string {
   try {
     parsed = matter(content);
   } catch {
-    return content; // can't parse — leave as-is
+    return content;
   }
 
   const fm = parsed.data;
@@ -82,7 +93,6 @@ export function ensureFrontmatter(filePath: string, content: string): string {
     else if (filePath.includes("/rules/")) fm.type = "rule";
     else if (filePath.endsWith("IDENTITY.md")) fm.type = "identity";
     else if (filePath.endsWith("PROJECT_STATUS.md")) fm.type = "project-status";
-    else if (filePath.endsWith("DIRECTION.md")) fm.type = "direction";
     else fm.type = "decision";
     changed = true;
   }
@@ -109,9 +119,13 @@ export async function validateAll(aiDir: string): Promise<ValidationError[]> {
   for (const file of files) {
     const content = await readFile(file, "utf-8");
     const fileErrors = validateFrontmatter(file, content);
+    const skillWarnings = validateSkillContent(file, content);
     const rel = file.replace(aiDir, "").replace(/^[/\\]/, "");
     for (const msg of fileErrors) {
-      errors.push({ file: rel, message: msg });
+      errors.push({ file: rel, message: msg, severity: "error" });
+    }
+    for (const msg of skillWarnings) {
+      errors.push({ file: rel, message: msg, severity: "warn" });
     }
   }
 

@@ -65,9 +65,13 @@ Or run `init` first to scaffold `.ai/` before installing.
 
 ### Verify
 
-After setup, start a session and ask: *"What does `.ai/IDENTITY.md` say about this project?"*
+```bash
+npx @radix-ai/ai-memory verify
+```
 
-If it answers — context loading works. Then ask: *"Search memory for any decisions."* — this confirms MCP is connected.
+Checks: `.ai/` structure, bootstrap installed, MCP configured, harness validity, rule coverage, memory index populated.
+
+Or manually in a session: ask *"Call search_memory with query 'test'"* (confirms MCP). Then *"What does .ai/IDENTITY.md say?"* (confirms context loading).
 
 ### Troubleshooting
 
@@ -86,7 +90,7 @@ If it answers — context loading works. Then ask: *"Search memory for any decis
 ```
 .ai/
 ├── IDENTITY.md             — What this project is; constraints for the AI
-├── PROJECT_STATUS.md       — Current focus, open questions, what's working (legacy: DIRECTION.md)
+├── PROJECT_STATUS.md       — Current focus, open questions, what's working
 ├── memory/
 │   ├── decisions.md        — Architectural decisions [P0/P1/P2 tagged]
 │   ├── patterns.md         — Reusable patterns and anti-patterns
@@ -144,6 +148,7 @@ ai-memory fmt                    # Auto-format YAML frontmatter
 ai-memory eval [--json]          # Memory health report
 ai-memory prune [--dry-run]      # Review stale entries
 ai-memory generate-harness       # Compile rule set from [P0] entries
+ai-memory verify [--json]        # Verify full installation chain (.ai/, bootstrap, MCP, harness)
 
 # Extensibility
 ai-memory agent create <name>    # Scaffold a new agent
@@ -236,7 +241,7 @@ This works in:
 | File | Default | Control |
 |---|---|---|
 | `IDENTITY.md` | Immutable | Set `writable: true` in frontmatter to allow AI writes |
-| `PROJECT_STATUS.md` (or `DIRECTION.md`) | Writable | Set `writable: false` in frontmatter to lock |
+| `PROJECT_STATUS.md` | Writable | Set `writable: false` in frontmatter to lock |
 | `toolbox/`, `acp/`, `rules/` | Always immutable | Structural — no override |
 | Everything else | Writable | Via `commit_memory` tool |
 
@@ -248,7 +253,7 @@ The MCP server starts automatically via `.mcp.json`. Tools exposed:
 
 | Tool | What it does |
 |---|---|
-| `search_memory` | Keyword search across `.ai/` |
+| `search_memory` | Hybrid search across `.ai/` (keyword + semantic + RRF). Params: `limit`, `include_deprecated` |
 | `get_memory` | Summary of a specific topic |
 | `commit_memory` | Write to `.ai/` with immutability + claim-based locking |
 | `get_open_items` | Return open-items.md |

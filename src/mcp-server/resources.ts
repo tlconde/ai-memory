@@ -1,4 +1,4 @@
-import { readFile, readdir, stat } from "fs/promises";
+import { readFile } from "fs/promises";
 import { join, relative, resolve } from "path";
 import { existsSync } from "fs";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -29,22 +29,6 @@ async function safeRead(filePath: string): Promise<string> {
   }
 }
 
-// Recursively list all .md files under a directory
-async function listMdFiles(dir: string): Promise<string[]> {
-  const results: string[] = [];
-  if (!existsSync(dir)) return results;
-  const entries = await readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      results.push(...(await listMdFiles(full)));
-    } else if (entry.name.endsWith(".md")) {
-      results.push(full);
-    }
-  }
-  return results;
-}
-
 export function registerResources(server: Server, aiDir: string): void {
   // List available resources
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
@@ -52,7 +36,7 @@ export function registerResources(server: Server, aiDir: string): void {
       {
         uri: "memory://identity",
         name: "Identity + Project Status",
-        description: "IDENTITY.md and PROJECT_STATUS.md (or DIRECTION.md) — project constraints and current focus",
+        description: "IDENTITY.md and PROJECT_STATUS.md — project constraints and current focus",
         mimeType: "text/markdown",
       },
       {
@@ -98,9 +82,7 @@ export function registerResources(server: Server, aiDir: string): void {
 
     if (uri === "memory://identity") {
       const identity = await safeRead(join(aiDir, "IDENTITY.md"));
-      const projectStatus =
-        (await safeRead(join(aiDir, "PROJECT_STATUS.md"))) ||
-        (await safeRead(join(aiDir, "DIRECTION.md")));
+      const projectStatus = await safeRead(join(aiDir, "PROJECT_STATUS.md"));
       return {
         contents: [
           {
@@ -115,7 +97,7 @@ export function registerResources(server: Server, aiDir: string): void {
     if (uri === "memory://index") {
       const index = await safeRead(join(aiDir, "memory/memory-index.md"));
       return {
-        contents: [{ uri, mimeType: "text/markdown", text: index || "Memory index not yet generated. Run `/mem:compound` to create it." }],
+        contents: [{ uri, mimeType: "text/markdown", text: index || "Memory index not yet generated. Run `/mem-compound` to create it." }],
       };
     }
 
@@ -161,7 +143,7 @@ export function registerResources(server: Server, aiDir: string): void {
 
     // Dynamic: memory://file/{path}
     if (uri.startsWith("memory://file/")) {
-      // L-2: Decode URI BEFORE path traversal check to prevent %2e%2e bypass
+      // Decode before path check to prevent %2e%2e bypass
       let relativePath: string;
       try {
         relativePath = decodeURIComponent(uri.slice("memory://file/".length));

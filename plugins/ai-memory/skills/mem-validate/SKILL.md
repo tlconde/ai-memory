@@ -3,7 +3,7 @@ name: mem-validate
 description: Manually validates proposed code changes or memory entries against project rules. Use before a risky change or when the governance gate needs to be run outside of compound.
 ---
 
-# mem:validate — Manual Validation
+# mem-validate — Manual Validation
 
 ## When to use
 

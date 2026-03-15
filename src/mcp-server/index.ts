@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { join, resolve } from "path";
-import { existsSync } from "fs";
+import { join, resolve, dirname } from "path";
+import { existsSync, readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { timingSafeEqual } from "crypto";
 import { registerResources } from "./resources.js";
 import { registerTools } from "./tools.js";
 
@@ -24,8 +26,15 @@ export async function main(options?: { http?: boolean; port?: number }): Promise
     process.exit(1);
   }
 
+  // Read version from package.json — single source of truth
+  const __dirname_mcp = dirname(fileURLToPath(import.meta.url));
+  const pkgPath = join(__dirname_mcp, "..", "..", "package.json");
+  const version = existsSync(pkgPath)
+    ? JSON.parse(readFileSync(pkgPath, "utf-8")).version
+    : "0.0.0";
+
   const server = new Server(
-    { name: "ai-memory", version: "0.1.0" },
+    { name: "ai-memory", version },
     { capabilities: { resources: {}, tools: {} } }
   );
 
@@ -42,15 +51,12 @@ export async function main(options?: { http?: boolean; port?: number }): Promise
     const port = options.port ?? 3100;
     const httpTransport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
-    // M-2: Optional auth via env var
     const authToken = process.env.AI_MEMORY_AUTH_TOKEN;
     const authTokenBuf = authToken ? Buffer.from(authToken) : null;
-    // M-3: Configurable CORS origins — comma-separated or * (default)
     const corsOriginsRaw = process.env.AI_MEMORY_CORS_ORIGINS ?? "*";
     const allowedOrigins = corsOriginsRaw === "*" ? null : corsOriginsRaw.split(",").map((o) => o.trim());
 
     const httpServer = createServer(async (req, res) => {
-      // M-3: CORS — match request origin against allowed list
       const reqOrigin = req.headers.origin ?? "";
       if (allowedOrigins === null) {
         res.setHeader("Access-Control-Allow-Origin", "*");
@@ -67,21 +73,18 @@ export async function main(options?: { http?: boolean; port?: number }): Promise
         return;
       }
 
-      // Refinement 1: Health check BEFORE auth — always public for load balancers
       if (req.url === "/health" && req.method === "GET") {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ status: "ok" }));
         return;
       }
 
-      // M-2: Enforce auth for all non-health endpoints when token is configured
       if (authTokenBuf) {
         const header = req.headers.authorization;
         const provided = header?.startsWith("Bearer ") ? header.slice(7) : "";
         const providedBuf = Buffer.from(provided);
-        // Refinement 4: Constant-time comparison to prevent timing attacks
         const match = authTokenBuf.length === providedBuf.length &&
-          (await import("crypto")).timingSafeEqual(authTokenBuf, providedBuf);
+          timingSafeEqual(authTokenBuf, providedBuf);
         if (!match) {
           res.writeHead(401, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Unauthorized. Set Authorization: Bearer <AI_MEMORY_AUTH_TOKEN>." }));
@@ -89,7 +92,6 @@ export async function main(options?: { http?: boolean; port?: number }): Promise
         }
       }
 
-      // MCP endpoint
       if (req.url === "/mcp" || req.url === "/") {
         await httpTransport.handleRequest(req, res);
         return;
@@ -116,8 +118,15 @@ export async function main(options?: { http?: boolean; port?: number }): Promise
   }
 }
 
-main().catch((err: unknown) => {
-  const msg = err instanceof Error ? err.stack ?? err.message : String(err);
-  process.stderr.write(`[ai-memory] Fatal error: ${msg}\n`);
-  process.exit(1);
-});
+// Only auto-run when executed directly (not when imported by CLI)
+// import.meta.url is file:///path/to/index.js; process.argv[1] is /path/to/index.js
+if (process.argv[1]) {
+  const entryUrl = new URL(`file://${process.argv[1].replace(/\\/g, "/")}`).href;
+  if (entryUrl === import.meta.url) {
+    main().catch((err: unknown) => {
+      const msg = err instanceof Error ? err.stack ?? err.message : String(err);
+      process.stderr.write(`[ai-memory] Fatal error: ${msg}\n`);
+      process.exit(1);
+    });
+  }
+}

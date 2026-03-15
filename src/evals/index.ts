@@ -142,7 +142,7 @@ async function evalSessionCadence(aiDir: string): Promise<EvalMetric> {
     name: "Session cadence",
     value: `${daysSince} day(s) since last session`,
     status: daysSince <= 7 ? "good" : daysSince <= 30 ? "warn" : "bad",
-    note: daysSince > 7 ? "Consider running /mem:compound soon" : undefined,
+    note: daysSince > 7 ? "Consider running /mem-compound soon" : undefined,
   };
 }
 
