@@ -25,26 +25,21 @@ AI coding assistants forget everything between sessions. Decisions made last wee
 
 ## Install
 
-### Cursor
-```
-/add-plugin ai-memory
-```
+The install command sets up three things: **context loading** (the AI reads `.ai/` at session start), **MCP server** (structured memory tools), and **skills** (slash commands like `/mem-compound`).
 
-### Claude Code
-```
-/plugin install ai-memory
-```
-
-### From source
-```
-/add-plugin /path/to/ai-memory/plugins/ai-memory
-```
+| Tool | Install | Skills |
+|---|---|---|
+| **Cursor** | `/add-plugin ai-memory` | `/mem-compound`, `/mem-session-close`, `/mem-validate`, `/mem-init` |
+| **Claude Code** | `/plugin install ai-memory` | Same slash commands via plugin |
+| **Windsurf** | `npx @radix-ai/ai-memory install --to windsurf` | Ask AI: "run the compound protocol" |
+| **VS Code + Cline** | `npx @radix-ai/ai-memory install --to cline` | Ask AI: "run the compound protocol" |
+| **VS Code + Copilot** | `npx @radix-ai/ai-memory install --to copilot` | Paste SKILL.md content into chat |
+| **Any other tool** | Paste bootstrap instruction into system prompt | Paste SKILL.md content |
 
 ### CLI only
 ```bash
-npm install -g @radix-ai/ai-memory
-# or
-npx @radix-ai/ai-memory init
+npx @radix-ai/ai-memory init            # scaffold .ai/
+npx @radix-ai/ai-memory install --to cursor  # install for your tool
 ```
 
 ---
@@ -58,12 +53,20 @@ npx @radix-ai/ai-memory init
 # 2. Fill in what your project is
 # Edit .ai/IDENTITY.md and .ai/DIRECTION.md
 
-# 3. Start your AI tool — it will read .ai/ automatically
-# The MCP server starts via .mcp.json
+# 3. Install for your tool
+npx @radix-ai/ai-memory install --to cursor    # or claude-code, windsurf, cline, copilot
 
-# 4. At the end of a session with real learning:
-/mem:compound
+# 4. Start your AI tool — it will read .ai/ automatically
+
+# 5. At the end of a session with real learning:
+/mem-compound
 ```
+
+### Verify
+
+After setup, start a session and ask: *"What does `.ai/IDENTITY.md` say about this project?"*
+
+If it answers — context loading works. Then ask: *"Search memory for any decisions."* — this confirms MCP is connected.
 
 ---
 
@@ -102,10 +105,11 @@ npx @radix-ai/ai-memory init --full
 
 | Skill | When to use |
 |---|---|
-| `/mem:compound` | End of any session with real learning |
-| `/mem:session-close` | End of a short/exploratory session |
-| `/mem:init` | First-time project setup |
-| `/mem:validate` | Before a risky change (Full tier) |
+| `/mem-compound` | End of any session with real learning |
+| `/mem-session-close` | End of a short/exploratory session |
+| `/mem-init` | First-time project setup |
+| `/mem-validate` | Before a risky change (Full tier) |
+| `/mem-auto-review` | Automated PR review (Bugbot, CI, automations) |
 
 ---
 
@@ -114,7 +118,8 @@ npx @radix-ai/ai-memory init --full
 ```bash
 ai-memory init [--full]          # Scaffold .ai/
 ai-memory install --to <tool>    # Bootstrap for cursor, windsurf, cline, copilot, claude-code
-ai-memory mcp                    # Start MCP server
+ai-memory mcp                    # Start MCP server (stdio)
+ai-memory mcp --http --port 3100 # Start MCP server (HTTP, for cloud agents)
 ai-memory validate               # Validate all .ai/ files
 ai-memory fmt                    # Auto-format YAML frontmatter
 ai-memory eval [--json]          # Memory health report
@@ -157,24 +162,44 @@ Then:
 ai-memory generate-harness    # Compile .ai/temp/harness.json
 ```
 
-`validate_context` in `/mem:compound` (Step 5) will hard-block any commit that violates a [P0] rule.
+`validate_context` in `/mem-compound` will hard-block any commit that violates a [P0] rule.
 
 ---
 
-## Search
+## Multi-agent & iterative loops
 
-Default: keyword search (BM25). No setup, no downloads.
+### RALPH loops (iterative self-improvement)
 
-To enable semantic search, add to `.ai/config.json`:
-```json
-{ "search": "semantic" }
-```
-This downloads a ~23MB model to `~/.cache/ai-memory/models/` on first use.
+DIRECTION.md is writable by default (`writable: true` in frontmatter). This means:
+1. Agent reads DIRECTION.md, picks a task, does work
+2. Agent updates DIRECTION.md with what it learned
+3. Agent exits (or session ends)
+4. Next iteration reads the updated DIRECTION.md
+5. Natural convergence through iteration
 
-For external API:
-```json
-{ "search": "api", "embeddingProvider": "openai" }
-```
+This follows the [autoresearch](https://github.com/mutable-state-inc/autoresearch-at-home) pattern and the [Ralph Wiggum](https://ralph-wiggum.ai/) approach: **the plan file on disk is the shared state.**
+
+### Concurrent agents (cloud agents, worktrees, background tasks)
+
+`commit_memory` uses claim-based locking:
+- Before writing, the agent acquires a claim on the target path
+- If another agent holds an active claim (5-minute TTL), the write is rejected
+- Claims auto-expire, so crashed agents don't permanently lock files
+- Each write includes a `session_id` header for traceability
+
+This works in:
+- **Cursor Cloud Agents**: `.ai/` is in the git clone, MCP server starts per-agent
+- **Claude Code worktrees**: `.ai/` is copied to the worktree; run `/mem-compound` before exit to persist
+- **Claude Code sandbox**: MCP runs outside sandbox boundary — all memory tools work
+
+### Immutability model
+
+| File | Default | Control |
+|---|---|---|
+| `IDENTITY.md` | Immutable | Set `writable: true` in frontmatter to allow AI writes |
+| `DIRECTION.md` | Writable | Set `writable: false` in frontmatter to lock |
+| `toolbox/`, `acp/`, `rules/` | Always immutable | Structural — no override |
+| Everything else | Writable | Via `commit_memory` tool |
 
 ---
 
@@ -197,59 +222,16 @@ The MCP server starts automatically via `.mcp.json`. Tools exposed:
 | `publish_result` | Publish task result (success/failure) to archive |
 | `sync_memory` | Git commit `.ai/` changes (essential for ephemeral environments) |
 
----
+### HTTP transport (for cloud agents)
 
-## Multi-agent & iterative loops
+```bash
+AI_MEMORY_AUTH_TOKEN=secret ai-memory mcp --http --port 3100
+```
 
-ai-memory is designed for concurrent agents and RALPH-style iteration loops.
-
-### RALPH loops (iterative self-improvement)
-
-DIRECTION.md is writable by default (`writable: true` in frontmatter). This means:
-1. Agent reads DIRECTION.md, picks a task, does work
-2. Agent updates DIRECTION.md with what it learned
-3. Agent exits (or session ends)
-4. Next iteration reads the updated DIRECTION.md
-5. Natural convergence through iteration
-
-This follows the [autoresearch](https://github.com/mutable-state-inc/autoresearch-at-home) pattern and the [Ralph Wiggum](https://ralph-wiggum.ai/) approach: **the plan file on disk is the shared state.**
-
-### Concurrent agents (cloud agents, worktrees, background tasks)
-
-`commit_memory` uses claim-based locking:
-- Before writing, the agent acquires a claim on the target path
-- If another agent holds an active claim (5-minute TTL), the write is rejected
-- Claims auto-expire, so crashed agents don't permanently lock files
-- Each write includes a `session_id` header for traceability
-
-This works in:
-- **Cursor Background Agents**: `.ai/` is in the git clone, MCP server starts per-agent
-- **Claude Code worktrees**: `.ai/` is copied to the worktree; run `/mem:compound` before exit to persist
-- **Claude Code sandbox**: works if sandbox allows subprocess spawning and `.ai/` is within boundaries
-
-### Immutability model
-
-| File | Default | Control |
-|---|---|---|
-| `IDENTITY.md` | Immutable | Set `writable: true` in frontmatter to allow AI writes |
-| `DIRECTION.md` | Writable | Set `writable: false` in frontmatter to lock |
-| `toolbox/`, `acp/`, `rules/` | Always immutable | Structural — no override |
-| Everything else | Writable | Via `commit_memory` tool |
-
-### Sub-agent integration
-
-Work done by sub-agents (skills, background tasks, worktree agents) is only persisted if:
-1. The sub-agent has MCP access (`.mcp.json` present) AND calls `commit_memory`
-2. OR the sub-agent runs `/mem:compound` before exiting
-3. OR the sub-agent commits `.ai/` changes to git (which gets merged back)
-
-The bootstrap instruction explicitly tells sub-agents: *"If running as a sub-agent, run `/mem:compound` before exiting — your memory will be lost otherwise."*
-
----
-
-## ACP (Full tier)
-
-`.ai/acp/manifest.json` declares this agent's capabilities to ACP-aware orchestrators like [`acpx`](https://github.com/openclaw/acpx). The MCP server is the transport layer; ACP is the identity layer.
+| Env var | Purpose |
+|---|---|
+| `AI_MEMORY_AUTH_TOKEN` | Bearer token for HTTP auth (optional, no auth when unset) |
+| `AI_MEMORY_CORS_ORIGINS` | Allowed origins, comma-separated (default: `*`) |
 
 ---
 
@@ -259,7 +241,7 @@ The bootstrap instruction explicitly tells sub-agents: *"If running as a sub-age
 ai-memory eval
 ```
 
-Reports: rule coverage, session cadence, frontmatter coverage, open items, deprecated ratio, memory depth, session count, memory freshness.
+Reports: rule coverage, session cadence, frontmatter coverage, open items, deprecated ratio, memory depth, session count, memory freshness, hook coverage, skill discoverability, cloud readiness, automation readiness, integration coverage.
 
 Add custom metrics:
 ```bash
@@ -269,13 +251,19 @@ ai-memory eval add my-metric
 
 ---
 
+## ACP (Full tier)
+
+`.ai/acp/manifest.json` declares this agent's capabilities to ACP-aware orchestrators like [`acpx`](https://github.com/openclaw/acpx). The MCP server is the transport layer; ACP is the identity layer.
+
+---
+
 ## Related
 
 - [acpx](https://github.com/openclaw/acpx) — Headless CLI for Agent Communication Protocol
 - [Agent Communication Protocol](https://agentclientprotocol.com)
 - [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) — Plugin this system is modeled after
 - [lossless-claw](https://github.com/Martian-Engineering/lossless-claw) — Lossless context compaction (inspiration for session archive design)
-- [autoresearch-at-home](https://github.com/mutable-state-inc/autoresearch-at-home) — Multi-agent iterative research (inspiration for claim system and DIRECTION.md evolution)
+- [autoresearch-at-home](https://github.com/mutable-state-inc/autoresearch-at-home) — Multi-agent iterative research
 - [Ralph Wiggum](https://ralph-wiggum.ai/) — Iterative agent loops via plan file on disk
 
 ---

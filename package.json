@@ -47,8 +47,6 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "mcp": "node dist/mcp-server/index.js",
-    "cli": "node dist/cli/index.js",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },

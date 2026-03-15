@@ -13,3 +13,10 @@ dist/
 # Dev artifacts
 chat-history/
 chat-history.md
+experiments/*/node_modules/
+docs/
+
+# Session transcripts / compound dumps (never publish)
+*.jsonl
+.ai/temp/
+.ai/sessions/archive/*.jsonl

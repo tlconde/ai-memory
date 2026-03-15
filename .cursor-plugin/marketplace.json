@@ -13,7 +13,7 @@
     {
       "name": "ai-memory",
       "source": "ai-memory",
-      "description": "Drop persistent memory into any project. Compound protocol, session-close, governance gate, semantic search. Start with defaults; add governance when your project needs it."
+      "description": "Persistent project memory with multi-agent collaboration. 5 skills, 2 agents, 2 rules, 12 MCP tools."
     }
   ]
 }

@@ -2,7 +2,7 @@
   "name": "ai-memory",
   "displayName": "AI Memory",
   "version": "0.1.0",
-  "description": "Persistent project memory with multi-agent collaboration. 4 skills, 2 agents, 2 rules, 12 MCP tools (search, commit, claim, sync, governance).",
+  "description": "Persistent project memory with multi-agent collaboration. 5 skills, 2 agents, 2 rules, 12 MCP tools (search, commit, claim, sync, governance).",
   "author": {
     "name": "radix-ai",
     "url": "https://github.com/radix-ai/ai-memory"

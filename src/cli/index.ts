@@ -39,24 +39,14 @@ program
     console.log(`Initializing ai-memory in ${targetDir}...`);
     await scaffoldAiDir(aiDir, opts.full ?? false);
 
-    // Write AGENTS.md stub at project root
-    const agentsStub = join(targetDir, "AGENTS.md");
-    if (!existsSync(agentsStub)) {
-      await writeFile(
-        agentsStub,
-        "# Agent Instructions\n\nSee `.ai/IDENTITY.md` for behavioral constraints and `.ai/DIRECTION.md` for current project direction.\nFor ACP agent card, see `.ai/acp/manifest.json`.\n"
-      );
-    }
-
     console.log(`\n✓ Done. Next steps:`);
     console.log(`  1. Edit .ai/IDENTITY.md — describe this project and its constraints`);
     console.log(`  2. Edit .ai/DIRECTION.md — set the current focus`);
+    console.log(`  3. Run \`ai-memory install --to cursor\` or \`--to claude-code\` to connect your tool`);
     if (opts.full) {
-      console.log(`  3. Add [P0] entries with constraint_pattern to decisions.md for governance`);
-      console.log(`  4. Run \`ai-memory generate-harness\` to compile the rule set`);
+      console.log(`  4. Add [P0] entries with constraint_pattern to decisions.md for governance`);
+      console.log(`  5. Run \`ai-memory generate-harness\` to compile the rule set`);
     }
-    console.log(`\nInstall the plugin in Cursor: /add-plugin ai-memory`);
-    console.log(`Install in Claude Code: /plugin install ai-memory`);
   });
 
 async function scaffoldAiDir(aiDir: string, full: boolean): Promise<void> {

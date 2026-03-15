@@ -53,6 +53,16 @@ async function isImmutable(path: string, aiDir: string): Promise<boolean> {
 
 // ─── Session-aware writes ─────────────────────────────────────────────────────
 
+// Shared path validation: ensures a relative path stays within aiDir
+function assertPathWithinAiDir(aiDir: string, relPath: string): string {
+  const fullPath = resolve(aiDir, relPath);
+  const rel = relative(aiDir, fullPath);
+  if (rel.startsWith("..") || rel.startsWith("/") || /\.\.[\\/]/.test(rel)) {
+    throw new McpError(ErrorCode.InvalidRequest, "Path traversal not allowed.");
+  }
+  return fullPath;
+}
+
 function generateSessionId(): string {
   return `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
@@ -493,12 +503,7 @@ export function registerTools(server: Server, aiDir: string): void {
           throw new McpError(ErrorCode.InvalidRequest, reason);
         }
 
-        const fullPath = resolve(aiDir, memPath);
-        // Security: ensure resolved path stays within aiDir
-        const rel = relative(aiDir, fullPath);
-        if (rel.startsWith("..") || rel.startsWith("/") || rel.includes("..")) {
-          throw new McpError(ErrorCode.InvalidRequest, "Path traversal not allowed.");
-        }
+        const fullPath = assertPathWithinAiDir(aiDir, memPath);
 
         // Claim-based locking for multi-agent safety
         await acquireClaim(aiDir, memPath, sessionId);
@@ -640,8 +645,8 @@ export function registerTools(server: Server, aiDir: string): void {
           ? args.source
           : "sessions/open-items.md";
 
-        // Read the task source file
-        const sourceFullPath = join(aiDir, sourcePath);
+        // Validate source path stays within aiDir
+        const sourceFullPath = assertPathWithinAiDir(aiDir, sourcePath);
         let sourceContent = "";
         try { sourceContent = await readFile(sourceFullPath, "utf-8"); } catch { /* no file yet */ }
 
@@ -734,34 +739,29 @@ export function registerTools(server: Server, aiDir: string): void {
           : `ai-memory: auto-sync ${new Date().toISOString().slice(0, 19)}`;
         const shouldPush = args.push === true;
 
-        const { execSync } = await import("child_process");
+        const { execFileSync } = await import("child_process");
         const execOpts = { cwd: resolve(aiDir, ".."), encoding: "utf-8" as const, timeout: 30000 };
 
         try {
-          // Check if we're in a git repo
-          execSync("git rev-parse --git-dir", execOpts);
+          execFileSync("git", ["rev-parse", "--git-dir"], execOpts);
         } catch {
           return { content: [{ type: "text", text: "Not a git repository. sync_memory requires git. Commit .ai/ manually." }] };
         }
 
         try {
-          // Stage all .ai/ changes
-          execSync("git add .ai/", execOpts);
+          execFileSync("git", ["add", ".ai/"], execOpts);
 
-          // Check if there are staged changes
-          const status = execSync("git diff --cached --name-only", execOpts).trim();
+          const status = execFileSync("git", ["diff", "--cached", "--name-only"], execOpts).trim();
           if (!status) {
             return { content: [{ type: "text", text: "No .ai/ changes to sync." }] };
           }
 
-          // Commit
-          execSync(`git commit -m "${commitMsg.replace(/"/g, '\\"')}"`, execOpts);
+          execFileSync("git", ["commit", "-m", commitMsg], execOpts);
           let result = `✓ Committed .ai/ changes: ${commitMsg}\nFiles: ${status.split("\n").length} file(s)`;
 
-          // Push if requested
           if (shouldPush) {
             try {
-              execSync("git push", execOpts);
+              execFileSync("git", ["push"], execOpts);
               result += "\n✓ Pushed to remote.";
             } catch (pushErr) {
               const msg = pushErr instanceof Error ? pushErr.message : String(pushErr);

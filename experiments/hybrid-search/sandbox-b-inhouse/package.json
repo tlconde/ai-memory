@@ -1,0 +1,8 @@
+{
+  "name": "sandbox-b-inhouse",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@huggingface/transformers": "^3.0.0"
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "approach": "qmd",
+  "setup_time_seconds": 266,
+  "queries": [
+    {
+      "query": "PostgreSQL connection pooling",
+      "latency_ms": [
+        45,
+        4,
+        3
+      ],
+      "top3_relevance": 3,
+      "recall": true,
+      "results_preview": [
+        "qmd://memory/memory/decisions.md: ---\r\nid: memory-decisions\r\ntype: decision\r\nlayout: multi-entry\r\nstatus: active\r\n...",
+        "qmd://memory/memory/debugging.md: ---\r\nid: memory-debugging\r\ntype: debugging\r\nlayout: multi-entry\r\nstatus: active\r..."
+      ]
+    },
+    {
+      "query": "database connection management",
+      "latency_ms": [
+        1,
+        1,
+        1
+      ],
+      "top3_relevance": 0,
+      "recall": false,
+      "results_preview": []
+    },
+    {
+      "query": "authentication strategy",
+      "latency_ms": [
+        3,
+        3,
+        2
+      ],
+      "top3_relevance": 3,
+      "recall": true,
+      "results_preview": [
+        "qmd://memory/memory/decisions.md: ---\r\nid: memory-decisions\r\ntype: decision\r\nlayout: multi-entry\r\nstatus: active\r\n..."
+      ]
+    },
+    {
+      "query": "login and signup flow",
+      "latency_ms": [
+        7,
+        1,
+        1
+      ],
+      "top3_relevance": 0,
+      "recall": false,
+      "results_preview": []
+    },
+    {
+      "query": "OOM memory leak",
+      "latency_ms": [
+        2,
+        1,
+        1
+      ],
+      "top3_relevance": 0,
+      "recall": false,
+      "results_preview": []
+    }
+  ],
+  "avg_latency_ms": 5,
+  "notes": "Used searchLex (BM25) - vector search unavailable on Windows (sqlite-vec extension). Setup 266s from initial run (embedding model download). Q2/Q4/Q5 recall false: semantic queries need vector search; BM25 keyword-only."
+}

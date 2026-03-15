@@ -61,26 +61,6 @@ export async function evalSessionCount(aiDir: string): Promise<EvalResult> {
   };
 }
 
-export async function evalConstraintCoverage(aiDir: string): Promise<EvalResult> {
-  try {
-    const { readP0Entries } = await import("../mcp-server/p0-parser.js");
-    const entries = await readP0Entries(aiDir);
-    if (entries.length === 0) {
-      return { name: "constraint_coverage", value: "n/a", status: "warn", note: "No [P0] entries yet" };
-    }
-    const withPattern = entries.filter((e) => e.constraint_pattern !== undefined).length;
-    const pct = Math.round((withPattern / entries.length) * 100);
-    return {
-      name: "constraint_coverage",
-      value: `${pct}%`,
-      status: pct >= 80 ? "good" : pct >= 40 ? "warn" : "bad",
-      note: `${withPattern}/${entries.length} P0 entries have constraint_pattern`,
-    };
-  } catch {
-    return { name: "constraint_coverage", value: "error", status: "bad", note: "Failed to parse P0 entries" };
-  }
-}
-
 export async function evalMemoryFreshness(aiDir: string): Promise<EvalResult> {
   const memDir = join(aiDir, "memory");
   if (!existsSync(memDir)) {

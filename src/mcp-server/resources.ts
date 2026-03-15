@@ -159,11 +159,17 @@ export function registerResources(server: Server, aiDir: string): void {
 
     // Dynamic: memory://file/{path}
     if (uri.startsWith("memory://file/")) {
-      const relativePath = uri.slice("memory://file/".length);
+      // L-2: Decode URI BEFORE path traversal check to prevent %2e%2e bypass
+      let relativePath: string;
+      try {
+        relativePath = decodeURIComponent(uri.slice("memory://file/".length));
+      } catch {
+        throw new McpError(ErrorCode.InvalidRequest, `Invalid URI encoding: ${uri}`);
+      }
       // Security: ensure resolved path stays inside aiDir
       const fullPath = resolve(aiDir, relativePath);
       const rel = relative(aiDir, fullPath);
-      if (rel.startsWith("..") || rel.startsWith("/") || rel.includes("..")) {
+      if (rel.startsWith("..") || rel.startsWith("/") || /\.\.[\\/]/.test(rel)) {
         throw new McpError(ErrorCode.InvalidRequest, `Path traversal not allowed: ${relativePath}`);
       }
       const content = await safeRead(fullPath);

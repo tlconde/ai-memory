@@ -1,0 +1,79 @@
+{
+  "approach": "in-house",
+  "setup_time_seconds": 217.39,
+  "blocker": "Windows x64: onnxruntime-node missing prebuilt bin/napi-v3/win32/x64/onnxruntime_binding.node. Run on Linux/Mac for fresh results.",
+  "queries": [
+    {
+      "query": "PostgreSQL connection pooling",
+      "latency_ms": [
+        33,
+        22,
+        18
+      ],
+      "recall": true,
+      "results_preview": [
+        "memory/decisions.md: ---\r\nid: memory-decisions\r\ntype: decision\r\nlayout: multi-entry\r\nstatus: active\r\n...",
+        "memory/debugging.md: ---\r\nid: memory-debugging\r\ntype: debugging\r\nlayout: multi-entry\r\nstatus: active\r...",
+        "memory/patterns.md: ---\r\nid: memory-patterns\r\ntype: pattern\r\nlayout: multi-entry\r\nstatus: active\r\nla..."
+      ]
+    },
+    {
+      "query": "database connection management",
+      "latency_ms": [
+        26,
+        12,
+        13
+      ],
+      "recall": true,
+      "results_preview": [
+        "memory/debugging.md: ---\r\nid: memory-debugging\r\ntype: debugging\r\nlayout: multi-entry\r\nstatus: active\r...",
+        "memory/patterns.md: ---\r\nid: memory-patterns\r\ntype: pattern\r\nlayout: multi-entry\r\nstatus: active\r\nla...",
+        "memory/decisions.md: ---\r\nid: memory-decisions\r\ntype: decision\r\nlayout: multi-entry\r\nstatus: active\r\n..."
+      ]
+    },
+    {
+      "query": "authentication strategy",
+      "latency_ms": [
+        23,
+        13,
+        14
+      ],
+      "recall": true,
+      "results_preview": [
+        "memory/decisions.md: ---\r\nid: memory-decisions\r\ntype: decision\r\nlayout: multi-entry\r\nstatus: active\r\n...",
+        "memory/patterns.md: ---\r\nid: memory-patterns\r\ntype: pattern\r\nlayout: multi-entry\r\nstatus: active\r\nla...",
+        "memory/debugging.md: ---\r\nid: memory-debugging\r\ntype: debugging\r\nlayout: multi-entry\r\nstatus: active\r..."
+      ]
+    },
+    {
+      "query": "login and signup flow",
+      "latency_ms": [
+        43,
+        27,
+        25
+      ],
+      "recall": true,
+      "results_preview": [
+        "memory/decisions.md: ---\r\nid: memory-decisions\r\ntype: decision\r\nlayout: multi-entry\r\nstatus: active\r\n...",
+        "memory/debugging.md: ---\r\nid: memory-debugging\r\ntype: debugging\r\nlayout: multi-entry\r\nstatus: active\r...",
+        "memory/patterns.md: ---\r\nid: memory-patterns\r\ntype: pattern\r\nlayout: multi-entry\r\nstatus: active\r\nla..."
+      ]
+    },
+    {
+      "query": "OOM memory leak",
+      "latency_ms": [
+        26,
+        17,
+        14
+      ],
+      "recall": true,
+      "results_preview": [
+        "memory/debugging.md: ---\r\nid: memory-debugging\r\ntype: debugging\r\nlayout: multi-entry\r\nstatus: active\r...",
+        "memory/decisions.md: ---\r\nid: memory-decisions\r\ntype: decision\r\nlayout: multi-entry\r\nstatus: active\r\n...",
+        "memory/patterns.md: ---\r\nid: memory-patterns\r\ntype: pattern\r\nlayout: multi-entry\r\nstatus: active\r\nla..."
+      ]
+    }
+  ],
+  "avg_latency_ms": 22,
+  "notes": "Transformers.js feature-extraction + Xenova/all-MiniLM-L6-v2 (~23MB). First run downloads model. BLOCKER on Windows: onnxruntime-node has empty win32/x64 bin folder; use Linux/Mac for fresh runs."
+}
