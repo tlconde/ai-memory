@@ -132,7 +132,7 @@ Creates: `acp/`, `docs-schema.json`, `rules/doc-placement.md`, `agents/docs-mana
 ## CLI
 
 ```bash
-ai-memory init [--full]          # Scaffold .ai/ (--full adds docs-schema, governance, doc-placement rule)
+ai-memory init [--full] [--download-model]  # Scaffold .ai/. Use --download-model to pre-fetch hybrid search model (~23MB).
 ai-memory install --to <tool>    # Bootstrap for cursor, windsurf, cline, copilot, claude-code
 ai-memory mcp                    # Start MCP server (stdio)
 ai-memory mcp --http --port 3100 # Start MCP server (HTTP, for cloud agents)
@@ -151,6 +151,16 @@ ai-memory skill create <name>    # Scaffold a new skill
 ai-memory rule create <name>     # Scaffold a new rule
 ai-memory eval add <name>        # Add a custom eval metric
 ```
+
+---
+
+## Configuration
+
+| Env var | Default | Description |
+|---------|---------|-------------|
+| `AI_DIR` | `./.ai` | Path to the `.ai/` directory |
+| `AI_SEARCH` | `hybrid` | Search mode: `keyword` (TF only, no model), `semantic` (vector only), or `hybrid` (keyword + semantic + RRF). Use `keyword` for faster startup or constrained environments. |
+| `AI_MODEL_PATH` | — | Local path to the embedding model for air-gapped/CI. When set, disables remote model downloads. Model must be in HuggingFace format under this path. |
 
 ---
 
@@ -182,6 +192,13 @@ ai-memory generate-harness    # Compile .ai/temp/harness.json
 ```
 
 `validate_context` in `/mem-compound` will hard-block any commit that violates a [P0] rule.
+
+### Harness features
+
+- **Path filtering:** Rules apply only to files matching `path` (minimatch glob). Example: `path: "src/**/*.ts"` skips `tests/`.
+- **AST constraints:** Use `where` to filter by meta-variable regex (e.g. path traversal checks).
+- **Deletion-aware regex:** Set `scope: "deletions"` to catch removal of protected content (e.g. `[P0]` markers).
+- **Stability Certificate:** On success, returns an audit log of rules checked; on failure, a detailed violation report.
 
 ---
 
@@ -233,7 +250,8 @@ The MCP server starts automatically via `.mcp.json`. Tools exposed:
 | `commit_memory` | Write to `.ai/` with immutability + claim-based locking |
 | `get_open_items` | Return open-items.md |
 | `prune_memory` | Identify stale entries |
-| `validate_context` | Check git diff against [P0] rules (hard block on violations) |
+| `get_repo_root` | Git repo root path (for path resolution when agent runs from subdir) |
+| `validate_context` | Check git diff against [P0] rules; returns Stability Certificate or violation report |
 | `validate_schema` | Validate memory entry frontmatter |
 | `generate_harness` | Compile `harness.json` from [P0] entries |
 | `get_evals` | Return latest eval report |
@@ -280,6 +298,12 @@ ai-memory eval add my-metric
 ## ACP (Full tier)
 
 `.ai/acp/manifest.json` declares this agent's capabilities to ACP-aware orchestrators like [`acpx`](https://github.com/openclaw/acpx). The MCP server is the transport layer; ACP is the identity layer.
+
+---
+
+## Design
+
+- [Environment adaptation plan](docs/design/environment-adaptation-plan.md) — Spec-driven detection and injection for Cursor, VS Code, Claude Code, etc. (plan, not yet implemented)
 
 ---
 

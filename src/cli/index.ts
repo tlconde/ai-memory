@@ -27,6 +27,7 @@ program
   .description("Scaffold .ai/ in the current project")
   .option("--full", "Full tier: adds governance, evals, and ACP")
   .option("--dir <dir>", "Target directory (default: current directory)")
+  .option("--download-model", "Pre-download the hybrid search model (~23MB) for faster first search")
   .action(async (opts) => {
     const targetDir = resolve(opts.dir ?? process.cwd());
     const aiDir = join(targetDir, ".ai");
@@ -41,11 +42,24 @@ program
       } else {
         console.log(`✓ .ai/ already exists. Use --full to add governance, docs schema, and ACP.`);
       }
+      if (opts.downloadModel) {
+        console.log(`\nDownloading hybrid search model...`);
+        const { warmSearchModel } = await import("../hybrid-search/index.js");
+        await warmSearchModel();
+        console.log(`✓ Model ready.`);
+      }
       process.exit(0);
     }
 
     console.log(`Initializing ai-memory in ${targetDir}...`);
     await scaffoldAiDir(aiDir, full);
+
+    if (opts.downloadModel) {
+      console.log(`\nDownloading hybrid search model (~23MB)...`);
+      const { warmSearchModel } = await import("../hybrid-search/index.js");
+      await warmSearchModel();
+      console.log(`✓ Model ready.`);
+    }
 
     console.log(`\n✓ Done. Next steps:`);
     console.log(`  1. Edit .ai/IDENTITY.md — describe this project and its constraints`);

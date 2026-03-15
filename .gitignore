@@ -16,6 +16,10 @@ chat-history.md
 experiments/*/node_modules/
 docs/
 
+# Experiment sandbox artifacts
+**/sandbox-*/index.sqlite
+**/sandbox-*/.wasm/
+
 # Session transcripts / compound dumps (never publish)
 *.jsonl
 .ai/temp/

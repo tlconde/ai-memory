@@ -1,50 +1,47 @@
 #!/usr/bin/env node
 /**
- * Cross-platform runner for hybrid search experiments.
- * On Windows: runs via WSL (fixes sqlite-vec + onnxruntime-node).
- * On Linux/Mac: runs natively.
+ * Runs both hybrid search experiments natively (no WSL).
+ * Approach A (QMD): BM25 on Windows; full hybrid on Linux/Mac.
+ * Approach B (in-house): Transformers.js + keyword + RRF.
  */
 import { spawn } from "child_process";
-import { platform } from "os";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const scriptPath = join(__dirname, "run-all.sh");
 
-if (platform() === "win32") {
-  // Convert Windows path to WSL path: D:\Dev\... -> /mnt/d/Dev/...
-  const wslPath = __dirname.replace(/\\/g, "/").replace(/^([A-Za-z]):/, (_, d) => `/mnt/${d.toLowerCase()}`);
-  const repoRoot = join(wslPath, "..", "..").replace(/\\/g, "/");
-  // Run inline to avoid CRLF issues with run-all.sh on Windows
-  const cmd = `
-    cd "${repoRoot}" || exit 1
-    echo "=== Hybrid Search Experiment ==="
-    echo "Repo root: $PWD"
-    echo ""
-    echo "--- Approach A: QMD ---"
-    cd experiments/hybrid-search/sandbox-a-qmd
-    [ ! -d node_modules ] && npm install
-    node run-qmd-experiment.mjs
-    echo ""
-    echo "--- Approach B: In-house ---"
-    cd "${repoRoot}/experiments/hybrid-search/sandbox-b-inhouse"
-    [ ! -d node_modules ] && npm install
-    node run.js
-    echo ""
-    echo "=== Done. Results ==="
-    ls -la "${repoRoot}/experiments/hybrid-search/results"/*.json
-  `;
-  console.log("[run-all] Windows detected. Running via WSL...\n");
-  const proc = spawn("wsl", ["bash", "-c", cmd], {
-    stdio: "inherit",
-    shell: false,
+async function run(cwd, cmd, args = []) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(cmd, args, { stdio: "inherit", cwd, shell: true });
+    proc.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`Exit ${code}`))));
   });
-  proc.on("exit", (code) => process.exit(code ?? 0));
-} else {
-  const proc = spawn("bash", [scriptPath], {
-    stdio: "inherit",
-    cwd: join(__dirname, "..", ".."),
-  });
-  proc.on("exit", (code) => process.exit(code ?? 0));
 }
+
+async function main() {
+  console.log("=== Hybrid Search Experiment ===\n");
+
+  // Approach A: QMD
+  console.log("--- Approach A: QMD ---");
+  const qmdDir = join(__dirname, "sandbox-a-qmd");
+  await run(qmdDir, "npm", ["install"]);
+  await run(qmdDir, "node", ["run-qmd-experiment.mjs"]);
+  console.log("");
+
+  // Approach B: In-house
+  console.log("--- Approach B: In-house ---");
+  const inhouseDir = join(__dirname, "sandbox-b-inhouse");
+  await run(inhouseDir, "npm", ["install"]);
+  await run(inhouseDir, "node", ["run.js"]);
+  console.log("");
+
+  console.log("=== Done. Results ===");
+  const { readdirSync } = await import("fs");
+  for (const f of readdirSync(join(__dirname, "results")).filter((x) => x.endsWith(".json"))) {
+    console.log(" ", f);
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

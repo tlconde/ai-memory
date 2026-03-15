@@ -1,0 +1,73 @@
+{
+  "sandbox": "ai-memory",
+  "latency_ms": 492,
+  "generated_at": "2026-03-15T17:34:10.858Z",
+  "metrics": [
+    {
+      "n": "Rule coverage",
+      "v": "N/A",
+      "s": "warn"
+    },
+    {
+      "n": "Session cadence",
+      "v": "No sessions recorded",
+      "s": "warn"
+    },
+    {
+      "n": "Frontmatter coverage",
+      "v": "100% (5/5 files valid)",
+      "s": "good"
+    },
+    {
+      "n": "Open items",
+      "v": "0 open, 0 closed",
+      "s": "good"
+    },
+    {
+      "n": "Deprecated entries",
+      "v": "N/A",
+      "s": "good"
+    },
+    {
+      "n": "memory_depth",
+      "v": 0,
+      "s": "bad"
+    },
+    {
+      "n": "session_count",
+      "v": 0,
+      "s": "warn"
+    },
+    {
+      "n": "memory_freshness",
+      "v": "0d",
+      "s": "good"
+    },
+    {
+      "n": "hook_coverage",
+      "v": "0%",
+      "s": "bad"
+    },
+    {
+      "n": "skill_discoverability",
+      "v": "0%",
+      "s": "bad"
+    },
+    {
+      "n": "cloud_readiness",
+      "v": "2/3",
+      "s": "warn"
+    },
+    {
+      "n": "automation_readiness",
+      "v": "n/a",
+      "s": "warn"
+    },
+    {
+      "n": "integration_coverage",
+      "v": "0%",
+      "s": "bad"
+    }
+  ],
+  "notes": "Full .ai/ with memory, MCP config, rules"
+}

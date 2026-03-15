@@ -1,14 +1,13 @@
 {
   "approach": "in-house",
-  "setup_time_seconds": 217.39,
-  "blocker": "Windows x64: onnxruntime-node missing prebuilt bin/napi-v3/win32/x64/onnxruntime_binding.node. Run on Linux/Mac for fresh results.",
+  "setup_time_seconds": 0.56,
   "queries": [
     {
       "query": "PostgreSQL connection pooling",
       "latency_ms": [
-        33,
-        22,
-        18
+        20,
+        11,
+        11
       ],
       "recall": true,
       "results_preview": [
@@ -20,9 +19,9 @@
     {
       "query": "database connection management",
       "latency_ms": [
-        26,
+        10,
         12,
-        13
+        18
       ],
       "recall": true,
       "results_preview": [
@@ -34,9 +33,9 @@
     {
       "query": "authentication strategy",
       "latency_ms": [
-        23,
-        13,
-        14
+        16,
+        9,
+        9
       ],
       "recall": true,
       "results_preview": [
@@ -48,9 +47,9 @@
     {
       "query": "login and signup flow",
       "latency_ms": [
-        43,
-        27,
-        25
+        11,
+        13,
+        12
       ],
       "recall": true,
       "results_preview": [
@@ -62,9 +61,9 @@
     {
       "query": "OOM memory leak",
       "latency_ms": [
-        26,
-        17,
-        14
+        10,
+        8,
+        8
       ],
       "recall": true,
       "results_preview": [
@@ -74,6 +73,6 @@
       ]
     }
   ],
-  "avg_latency_ms": 22,
-  "notes": "Transformers.js feature-extraction + Xenova/all-MiniLM-L6-v2 (~23MB). First run downloads model. BLOCKER on Windows: onnxruntime-node has empty win32/x64 bin folder; use Linux/Mac for fresh runs."
+  "avg_latency_ms": 12,
+  "notes": "Transformers.js feature-extraction + Xenova/all-MiniLM-L6-v2 (~23MB). First run downloads model."
 }

@@ -53,15 +53,13 @@
   },
   "dependencies": {
     "@ast-grep/napi": "^0.30.0",
+    "@huggingface/transformers": "^3.0.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "commander": "^12.1.0",
     "glob": "^11.0.0",
     "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.0",
     "minimatch": "^10.0.0"
-  },
-  "optionalDependencies": {
-    "@xenova/transformers": "^2.17.0"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

@@ -1,6 +1,8 @@
 import { readFile, writeFile, readdir, mkdir, unlink } from "fs/promises";
 import { join, dirname, resolve, relative } from "path";
 import { existsSync } from "fs";
+import { execFileSync } from "child_process";
+import { minimatch } from "minimatch";
 import matter from "gray-matter";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
@@ -21,6 +23,10 @@ import {
   validateDocPlacement,
   listDocTypes,
 } from "../docs-schema.js";
+import {
+  hybridSearch,
+  getSearchMode,
+} from "../hybrid-search/index.js";
 
 // Paths that are ALWAYS immutable (structural, not content)
 const ALWAYS_IMMUTABLE = ["toolbox/", "acp/", "rules/"];
@@ -59,6 +65,20 @@ async function isImmutable(path: string, aiDir: string): Promise<boolean> {
 }
 
 // ─── Session-aware writes ─────────────────────────────────────────────────────
+
+// Returns git repo root (absolute path) or null if not in a git repo
+function getRepoRoot(cwd: string): string | null {
+  try {
+    const out = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd,
+      encoding: "utf-8",
+      timeout: 5000,
+    });
+    return out.trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 // Shared path validation: ensures a relative path stays within aiDir
 function assertPathWithinAiDir(aiDir: string, relPath: string): string {
@@ -180,39 +200,89 @@ async function keywordSearch(
   return results.sort((a, b) => b.score - a.score).slice(0, 10);
 }
 
-// Validate a git diff against harness rules using ast-grep and regex
+// Parse diff into sections with file path (from b/ side) and content
+function parseDiffSections(diff: string): Array<{ path: string; addedLines: string; deletedLines: string }> {
+  const sections: Array<{ path: string; addedLines: string; deletedLines: string }> = [];
+  const parts = diff.split(/^diff --git /m).slice(1);
+  for (const part of parts) {
+    const fileMatch = part.match(/^[^\n]*b\/(.+)$/m);
+    if (!fileMatch) continue;
+    const path = fileMatch[1].trim();
+    const addedLines = part
+      .split("\n")
+      .filter((l) => l.startsWith("+") && !l.startsWith("+++"))
+      .map((l) => l.slice(1))
+      .join("\n");
+    const deletedLines = part
+      .split("\n")
+      .filter((l) => l.startsWith("-") && !l.startsWith("---"))
+      .map((l) => l.slice(1))
+      .join("\n");
+    sections.push({ path, addedLines, deletedLines });
+  }
+  return sections;
+}
+
+export interface ValidationResult {
+  violations: Array<{ rule_id: string; message: string; severity: string }>;
+  audit: Array<{ rule_id: string; path: string; status: "passed" | "failed" | "skipped" }>;
+}
+
+// Validate a git diff against harness rules using ast-grep and regex.
+// repoRoot: git root for path resolution; falls back to aiDir parent if null.
+// Rules are applied ONLY to diff files matching rule.path (minimatch). Default path: "**/*".
 async function validateDiff(
   diff: string,
   rules: HarnessRule[],
-  aiDir: string
-): Promise<Array<{ rule_id: string; message: string; severity: string }>> {
+  aiDir: string,
+  repoRoot: string | null
+): Promise<ValidationResult> {
+  const sections = parseDiffSections(diff);
   const violations: Array<{ rule_id: string; message: string; severity: string }> = [];
+  const audit: Array<{ rule_id: string; path: string; status: "passed" | "failed" | "skipped" }> = [];
 
   for (const rule of rules) {
+    const pathGlob = rule.path?.trim() || "**/*";
+    const matchingSections = sections.filter((s) => minimatch(s.path, pathGlob));
+
     if (rule.type === "regex") {
+      const scope = rule.scope ?? "additions";
+      let content = "";
+      if (scope === "additions") {
+        content = matchingSections.map((s) => s.addedLines).join("\n");
+      } else if (scope === "deletions") {
+        content = matchingSections.map((s) => s.deletedLines).join("\n");
+      } else {
+        content = matchingSections.map((s) => s.addedLines + "\n" + s.deletedLines).join("\n");
+      }
+
+      if (matchingSections.length === 0) {
+        audit.push({ rule_id: rule.id, path: pathGlob, status: "skipped" });
+        continue;
+      }
+
       let regex: RegExp;
       try {
         regex = new RegExp(rule.pattern, "gm");
       } catch {
         violations.push({ rule_id: rule.id, message: `Invalid regex pattern: ${rule.pattern}`, severity: rule.severity });
+        audit.push({ rule_id: rule.id, path: pathGlob, status: "failed" });
         continue;
       }
-      // Check lines added in the diff (lines starting with +)
-      const addedLines = diff
-        .split("\n")
-        .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
-        .map((line) => line.slice(1))
-        .join("\n");
 
-      if (regex.test(addedLines)) {
-        violations.push({
-          rule_id: rule.id,
-          message: rule.message,
-          severity: rule.severity,
-        });
+      const triggered = content.trim() && regex.test(content);
+      if (triggered) {
+        violations.push({ rule_id: rule.id, message: rule.message, severity: rule.severity });
+        audit.push({ rule_id: rule.id, path: pathGlob, status: "failed" });
+      } else {
+        audit.push({ rule_id: rule.id, path: pathGlob, status: "passed" });
       }
     } else if (rule.type === "ast") {
-      // ast-grep: lazy import so it only loads when needed (Full tier)
+      if (matchingSections.length === 0) {
+        audit.push({ rule_id: rule.id, path: pathGlob, status: "skipped" });
+        continue;
+      }
+
       try {
         const { Lang, parse } = await import("@ast-grep/napi");
         const langKey = (rule.language ?? "typescript").toLowerCase();
@@ -225,46 +295,42 @@ async function validateDiff(
         };
         const lang = langMap[langKey] ?? Lang.TypeScript;
 
-        // Extract added code blocks from diff for the relevant file paths
-        const diffSections = diff.split(/^diff --git/m).slice(1);
-        for (const section of diffSections) {
-          // Check if this diff section matches the rule's path pattern
-          const fileMatch = section.match(/^[^\n]*b\/(.+)$/m);
-          if (!fileMatch) continue;
+        const matcher = rule.where && Object.keys(rule.where).length > 0
+          ? { rule: { pattern: rule.pattern }, constraints: rule.where }
+          : rule.pattern;
 
-          // Only process added lines
-          const addedCode = section
-            .split("\n")
-            .filter((l) => l.startsWith("+") && !l.startsWith("+++"))
-            .map((l) => l.slice(1))
-            .join("\n");
-
+        let found = false;
+        for (const section of matchingSections) {
+          const addedCode = section.addedLines;
           if (!addedCode.trim()) continue;
 
           const tree = parse(lang as Parameters<typeof parse>[0], addedCode);
-          const root = tree.root();
-          const matches = root.findAll(rule.pattern);
+          const sgRoot = tree.root();
+          const matches = typeof matcher === "string"
+            ? sgRoot.findAll(matcher)
+            : sgRoot.findAll(matcher as { rule: { pattern: string }; constraints: Record<string, { regex: string }> });
           if (matches.length > 0) {
-            violations.push({
-              rule_id: rule.id,
-              message: rule.message,
-              severity: rule.severity,
-            });
+            found = true;
+            violations.push({ rule_id: rule.id, message: rule.message, severity: rule.severity });
+            audit.push({ rule_id: rule.id, path: pathGlob, status: "failed" });
             break;
           }
         }
+        if (!found) {
+          audit.push({ rule_id: rule.id, path: pathGlob, status: "passed" });
+        }
       } catch {
-        // ast-grep not available or parse error — fall back to regex hint
         violations.push({
           rule_id: rule.id,
           message: `${rule.message} (ast-grep unavailable — manual review required)`,
           severity: rule.severity,
         });
+        audit.push({ rule_id: rule.id, path: pathGlob, status: "failed" });
       }
     }
   }
 
-  return violations;
+  return { violations, audit };
 }
 
 // Validate memory entry frontmatter against canonical schema
@@ -293,8 +359,8 @@ export function registerTools(server: Server, aiDir: string): void {
         name: "search_memory",
         description:
           "Searches across .ai/ memory files (memory/, sessions/, agents/, skills/) and returns ranked results with excerpts. " +
-          "Use this instead of reading files directly when the ai-memory MCP is connected. " +
-          "Each result includes: file path (relative to .ai/), excerpt (best-matching line), and score (term frequency). " +
+          "Uses hybrid search (keyword + semantic + RRF) by default. Set AI_SEARCH=keyword for keyword-only (faster, no model). " +
+          "Each result includes: file path (relative to .ai/), excerpt, and score. " +
           "For best results: use specific terms from the task (e.g. 'MCP launcher Windows', 'claim locking'); optionally filter by tags if the query mentions them.",
         inputSchema: {
           type: "object",
@@ -304,6 +370,14 @@ export function registerTools(server: Server, aiDir: string): void {
           },
           required: ["query"],
         },
+      },
+      {
+        name: "get_repo_root",
+        description:
+          "Returns the git repository root (absolute path) via `git rev-parse --show-toplevel`. " +
+          "Use to resolve paths for validate_context, path traversal checks, or when the agent runs from a subdirectory. " +
+          "Returns null if not in a git repo.",
+        inputSchema: { type: "object", properties: {} },
       },
       {
         name: "validate_context",
@@ -498,14 +572,35 @@ export function registerTools(server: Server, aiDir: string): void {
           throw new McpError(ErrorCode.InvalidParams, "query is required and must be a non-empty string.");
         }
         const tags = args.tags as string[] | undefined;
-        const results = await keywordSearch(aiDir, query, tags);
+        const mode = getSearchMode();
+        let resp: Awaited<ReturnType<typeof hybridSearch>>;
+        try {
+          resp = await hybridSearch(aiDir, query, { mode, limit: 10, tags });
+        } catch (err) {
+          if (mode !== "keyword") {
+            resp = await hybridSearch(aiDir, query, { mode: "keyword", limit: 10, tags });
+          } else {
+            throw err;
+          }
+        }
+        const { results, backend } = resp;
         if (results.length === 0) {
           return { content: [{ type: "text", text: "No results found." }] };
         }
-        const text = results
-          .map((r, i) => `${i + 1}. **${r.file}** (score: ${r.score})\n   ${r.excerpt}`)
-          .join("\n\n");
+        const backendLabel = backend === "keyword" ? "Keyword-only" : backend === "native" ? "Hybrid (Native)" : "Hybrid (WASM)";
+        const text = `Search backend: ${backendLabel}\n\n` +
+          results
+            .map((r, i) => `${i + 1}. **${r.file}** (score: ${r.score})\n   ${r.excerpt}`)
+            .join("\n\n");
         return { content: [{ type: "text", text }] };
+      }
+
+      case "get_repo_root": {
+        const cwd = resolve(aiDir, "..");
+        const root = getRepoRoot(cwd);
+        return {
+          content: [{ type: "text", text: root ?? "null (not a git repository)" }],
+        };
       }
 
       case "validate_context": {
@@ -526,24 +621,49 @@ export function registerTools(server: Server, aiDir: string): void {
         } catch {
           throw new McpError(ErrorCode.InternalError, "Failed to parse harness.json. Run `ai-memory generate-harness` to regenerate.");
         }
-        const violations = await validateDiff(gitDiff, rules, aiDir);
+        const repoRoot = getRepoRoot(resolve(aiDir, ".."));
+        const { violations, audit } = await validateDiff(gitDiff, rules, aiDir, repoRoot);
+
+        const timestamp = new Date().toISOString();
+        const harnessVersion = "1.0";
 
         if (violations.length === 0) {
-          return { content: [{ type: "text", text: "✓ No constraint violations found." }] };
+          const auditLines = audit.map((a) => {
+            const icon = a.status === "passed" ? "✓" : a.status === "skipped" ? "○" : "✗";
+            return `  ${icon} [P0] ${a.rule_id} (${a.path}) — ${a.status}`;
+          });
+          const cert = [
+            "═══ Stability Certificate ═══",
+            `Status: PASSED`,
+            `Harness: ${harnessVersion} | ${timestamp}`,
+            `repo_root: ${repoRoot ?? "null"}`,
+            "",
+            "Audit log:",
+            ...auditLines,
+            "",
+            "Stability Surface is 100% compliant with active [P0] constraints.",
+          ].join("\n");
+          return { content: [{ type: "text", text: cert }] };
         }
 
         // Hard error on P0 violations
         const p0Violations = violations.filter((v) => v.severity === "P0");
         if (p0Violations.length > 0) {
-          throw new McpError(
-            ErrorCode.InvalidRequest,
-            `[HARD BLOCK] ${p0Violations.length} P0 constraint violation(s):\n\n` +
-              p0Violations.map((v) => `• ${v.message}`).join("\n")
-          );
+          const report = [
+            "═══ Constraint Violation Report ═══",
+            `Status: FAILED`,
+            `Harness: ${harnessVersion} | ${timestamp}`,
+            `repo_root: ${repoRoot ?? "null"}`,
+            "",
+            `[HARD BLOCK] ${p0Violations.length} P0 constraint violation(s):`,
+            "",
+            ...p0Violations.map((v) => `• ${v.rule_id}: ${v.message}`),
+          ].join("\n");
+          throw new McpError(ErrorCode.InvalidRequest, report);
         }
 
         const text = violations
-          .map((v) => `[${v.severity}] ${v.message}`)
+          .map((v) => `• [${v.severity}] ${v.rule_id}: ${v.message}`)
           .join("\n");
         return { content: [{ type: "text", text: `Constraint warnings:\n\n${text}` }], isError: true };
       }
@@ -650,14 +770,24 @@ export function registerTools(server: Server, aiDir: string): void {
         if (typeof topic !== "string" || !topic.trim()) {
           throw new McpError(ErrorCode.InvalidParams, "topic is required and must be a non-empty string.");
         }
-        // Use search as the underlying mechanism
-        const results = await keywordSearch(aiDir, topic);
+        const mode = getSearchMode();
+        let resp: Awaited<ReturnType<typeof hybridSearch>>;
+        try {
+          resp = await hybridSearch(aiDir, topic, { mode, limit: 5 });
+        } catch (err) {
+          if (mode !== "keyword") {
+            resp = await hybridSearch(aiDir, topic, { mode: "keyword", limit: 5 });
+          } else {
+            throw err;
+          }
+        }
+        const { results, backend } = resp;
         if (results.length === 0) {
           return { content: [{ type: "text", text: `No memory found for topic: ${topic}` }] };
         }
-        const text = `Memory for "${topic}":\n\n` +
+        const backendLabel = backend === "keyword" ? "Keyword-only" : backend === "native" ? "Hybrid (Native)" : "Hybrid (WASM)";
+        const text = `Search backend: ${backendLabel}\n\nMemory for "${topic}":\n\n` +
           results
-            .slice(0, 5)
             .map((r) => `**${r.file}**: ${r.excerpt}`)
             .join("\n\n");
         return { content: [{ type: "text", text }] };

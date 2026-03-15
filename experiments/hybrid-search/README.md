@@ -26,7 +26,7 @@ cd sandbox-a-qmd && npm install && node run-qmd-experiment.mjs
 cd sandbox-b-inhouse && npm install && node run.js
 ```
 
-**Windows fix:** See [WINDOWS_FIX.md](./WINDOWS_FIX.md). Run via WSL to avoid sqlite-vec and onnxruntime-node blockers.
+**Windows:** In-house uses a loader to redirect onnxruntime-node → onnxruntime-web (WASM). QMD uses BM25 only when sqlite-vec fails.
 
 ## Results
 

@@ -2,12 +2,17 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import yaml from "js-yaml";
 
+/** Regex rules only. Which lines to scan: additions (default), deletions, or both. */
+export type RuleScope = "additions" | "deletions" | "all";
+
 export interface ConstraintPattern {
   type: "ast" | "regex";
   language?: string;
   pattern: string;
   where?: Record<string, { regex: string }>;
   path: string;
+  /** Regex only. Default: "additions". Use "deletions" for rules like "don't remove [P0] markers". */
+  scope?: RuleScope;
   message?: string;
 }
 
@@ -18,6 +23,7 @@ export interface HarnessRule {
   pattern: string;
   where?: Record<string, { regex: string }>;
   path: string;
+  scope?: RuleScope;
   severity: "P0" | "P1" | "P2";
   message: string;
 }
@@ -130,6 +136,7 @@ export function compileHarnessRules(entries: P0Entry[]): HarnessRule[] {
         pattern: cp.pattern,
         where: cp.where,
         path: cp.path,
+        scope: cp.scope,
         severity: "P0",
         message:
           cp.message ??
