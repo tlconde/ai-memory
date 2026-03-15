@@ -234,7 +234,8 @@ program
     }
 
     // Capability injection: detect environments and inject MCP config for requested capabilities
-    const capabilities = (opts.capability as string[] | undefined) ?? [];
+    const rawCap = opts.capability as string | string[] | undefined;
+    const capabilities = Array.isArray(rawCap) ? rawCap : rawCap ? [rawCap] : [];
     if (capabilities.length > 0) {
       const pkgRoot = join(__dirname_cli, "..", "..");
       const envs = detectEnvironments(projectRoot, pkgRoot);
@@ -243,14 +244,19 @@ program
           console.warn(`  [warn] Unknown capability: ${cap}. Skipping.`);
           continue;
         }
+        let injected = 0;
         for (const envId of envs) {
           try {
             if (injectCapabilityConfig(projectRoot, envId, cap, pkgRoot)) {
               console.log(`✓ Injected ${cap} config for ${envId}`);
+              injected++;
             }
           } catch (e) {
             console.warn(`  [warn] Failed to inject ${cap} for ${envId}: ${(e as Error).message}`);
           }
+        }
+        if (cap === "screen_capture" && injected === 0 && envs.length > 0) {
+          console.warn(`  [warn] screen_capture has no MCP config — it uses platform tools (e.g. Peekaboo). See capability-specs.json.`);
         }
       }
     }

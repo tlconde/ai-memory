@@ -19,11 +19,6 @@ export interface CapabilitySpec {
   platforms?: Record<string, unknown>;
 }
 
-export interface Specs {
-  environments?: EnvironmentSpec[];
-  capabilities?: Record<string, CapabilitySpec>;
-}
-
 /** Resolve path to specs. Prefer project .ai/reference/, fallback to package templates. */
 function getSpecsPath(projectRoot: string, packageRoot: string, filename: string): string {
   const projectRef = join(projectRoot, ".ai", "reference", filename);
@@ -131,7 +126,7 @@ function mcpEntryFromCapConfig(capability: string, config: Record<string, unknow
     if (!command) return null;
     return {
       type: "stdio",
-      command: command ?? "npx",
+      command,
       args: args ?? ["-y", "@anthropic-ai/cursor-ide-browser"],
     };
   }
