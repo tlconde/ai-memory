@@ -1,0 +1,81 @@
+{
+  "generated_at": "2026-03-15T01:31:22.752Z",
+  "ai_dir": "D:\\Dev\\Github\\ai-memory\\.ai",
+  "metrics": [
+    {
+      "name": "Rule coverage",
+      "value": "N/A",
+      "status": "warn",
+      "note": "No [P0] entries found"
+    },
+    {
+      "name": "Session cadence",
+      "value": "No sessions recorded",
+      "status": "warn"
+    },
+    {
+      "name": "Frontmatter coverage",
+      "value": "87% (13/15 files valid)",
+      "status": "warn",
+      "note": "Run `ai-memory fmt` to fix 2 file(s)"
+    },
+    {
+      "name": "Open items",
+      "value": "0 open, 0 closed",
+      "status": "good"
+    },
+    {
+      "name": "Deprecated entries",
+      "value": "N/A",
+      "status": "good"
+    },
+    {
+      "name": "memory_depth",
+      "value": 0,
+      "status": "bad",
+      "note": "0 tagged entries across memory files"
+    },
+    {
+      "name": "session_count",
+      "value": 0,
+      "status": "bad",
+      "note": "0 session(s) recorded in archive"
+    },
+    {
+      "name": "memory_freshness",
+      "value": "0d",
+      "status": "good",
+      "note": "Last memory update: 2026-03-15"
+    },
+    {
+      "name": "hook_coverage",
+      "value": "100%",
+      "status": "good",
+      "note": "4/4 recommended hooks (Stop, PreCompact, SubagentStop, WorktreeCreate)"
+    },
+    {
+      "name": "skill_discoverability",
+      "value": "0%",
+      "status": "bad",
+      "note": "0/4 skills found. Run `ai-memory install --to cursor` or `--to claude-code` to install."
+    },
+    {
+      "name": "cloud_readiness",
+      "value": "2/3",
+      "status": "warn",
+      "note": "✓ .ai/ exists; ✗ .mcp.json missing; ✓ HTTP transport supported"
+    },
+    {
+      "name": "automation_readiness",
+      "value": "60%",
+      "status": "warn",
+      "note": "3/5 skills are automation-ready (mention automation/sync_memory)"
+    },
+    {
+      "name": "integration_coverage",
+      "value": "0%",
+      "status": "bad",
+      "note": "0/3 toolbox files (integrations.md, browser.md, shell.md)"
+    }
+  ]
+}

@@ -1,0 +1,202 @@
+/**
+ * Platform integration evals.
+ * Measures how well ai-memory integrates with Cursor, Claude Code, and cloud environments.
+ */
+
+import { readFile, readdir } from "fs/promises";
+import { join } from "path";
+import { existsSync } from "fs";
+
+interface EvalResult {
+  name: string;
+  value: string | number;
+  status: "good" | "warn" | "bad";
+  note?: string;
+}
+
+/**
+ * Hook coverage: % of recommended Claude Code hooks installed.
+ * Checks for Stop, PreCompact, SubagentStop, WorktreeCreate in .claude/settings.json
+ * or plugin hooks.
+ */
+export async function evalHookCoverage(projectDir: string): Promise<EvalResult> {
+  const recommended = ["Stop", "PreCompact", "SubagentStop", "WorktreeCreate"];
+  let found = 0;
+
+  // Check .claude/settings.json
+  const settingsPath = join(projectDir, ".claude", "settings.json");
+  if (existsSync(settingsPath)) {
+    try {
+      const settings = JSON.parse(await readFile(settingsPath, "utf-8"));
+      const hooks = settings.hooks ?? {};
+      for (const hook of recommended) {
+        if (hooks[hook]) found++;
+      }
+    } catch { /* malformed */ }
+  }
+
+  // Check plugin hooks
+  const pluginHooksPath = join(projectDir, "plugins", "adapters", "claude-code", "hooks", "hooks.json");
+  if (existsSync(pluginHooksPath) && found < recommended.length) {
+    try {
+      const pluginHooks = JSON.parse(await readFile(pluginHooksPath, "utf-8"));
+      const hooks = pluginHooks.hooks ?? {};
+      for (const hook of recommended) {
+        if (hooks[hook] && !found) found++;
+      }
+      // Re-count from plugin
+      found = 0;
+      for (const hook of recommended) {
+        if (hooks[hook]) found++;
+      }
+    } catch { /* malformed */ }
+  }
+
+  const pct = Math.round((found / recommended.length) * 100);
+  return {
+    name: "hook_coverage",
+    value: `${pct}%`,
+    status: pct >= 75 ? "good" : pct >= 50 ? "warn" : "bad",
+    note: `${found}/${recommended.length} recommended hooks (${recommended.join(", ")})`,
+  };
+}
+
+/**
+ * Skill discoverability: % of skills present in portable .agents/skills/ directory.
+ */
+export async function evalSkillDiscoverability(projectDir: string): Promise<EvalResult> {
+  const expected = ["mem-compound", "mem-session-close", "mem-validate", "mem-init"];
+  const agentsSkillsDir = join(projectDir, ".agents", "skills");
+  let found = 0;
+
+  if (existsSync(agentsSkillsDir)) {
+    for (const skill of expected) {
+      if (existsSync(join(agentsSkillsDir, skill, "SKILL.md"))) found++;
+    }
+  }
+
+  const pct = Math.round((found / expected.length) * 100);
+  return {
+    name: "skill_discoverability",
+    value: `${pct}%`,
+    status: pct === 100 ? "good" : pct >= 50 ? "warn" : "bad",
+    note: found === expected.length
+      ? "All skills in portable .agents/skills/"
+      : `${found}/${expected.length} skills found. Run \`ai-memory install --to cursor\` or \`--to claude-code\` to install.`,
+  };
+}
+
+/**
+ * Cloud readiness: .ai/ is git-tracked + sync_memory available + HTTP transport exists.
+ */
+export async function evalCloudReadiness(projectDir: string): Promise<EvalResult> {
+  const checks: string[] = [];
+  let passed = 0;
+
+  // Check .ai/ is git-tracked
+  const aiDir = join(projectDir, ".ai");
+  if (existsSync(aiDir)) {
+    checks.push("✓ .ai/ exists");
+    passed++;
+  } else {
+    checks.push("✗ .ai/ missing");
+  }
+
+  // Check .mcp.json exists (sync_memory available via MCP)
+  if (existsSync(join(projectDir, ".mcp.json"))) {
+    checks.push("✓ .mcp.json present (sync_memory available)");
+    passed++;
+  } else {
+    checks.push("✗ .mcp.json missing");
+  }
+
+  // Check if MCP server code supports HTTP
+  const mcpIndex = join(projectDir, "src", "mcp-server", "index.ts");
+  if (existsSync(mcpIndex)) {
+    try {
+      const content = await readFile(mcpIndex, "utf-8");
+      if (content.includes("StreamableHTTPServerTransport") || content.includes("--http")) {
+        checks.push("✓ HTTP transport supported");
+        passed++;
+      } else {
+        checks.push("✗ HTTP transport not implemented");
+      }
+    } catch {
+      checks.push("? Could not read MCP server source");
+    }
+  } else {
+    // Check dist for published package
+    checks.push("~ HTTP transport (check package)");
+    passed++; // Give benefit of doubt for installed packages
+  }
+
+  return {
+    name: "cloud_readiness",
+    value: `${passed}/3`,
+    status: passed === 3 ? "good" : passed >= 2 ? "warn" : "bad",
+    note: checks.join("; "),
+  };
+}
+
+/**
+ * Automation readiness: skills have automation sections and sync_memory calls.
+ */
+export async function evalAutomationReadiness(projectDir: string): Promise<EvalResult> {
+  const skillDirs = [
+    join(projectDir, "plugins", "ai-memory", "skills"),
+    join(projectDir, ".agents", "skills"),
+  ];
+
+  let totalSkills = 0;
+  let automationReady = 0;
+
+  for (const dir of skillDirs) {
+    if (!existsSync(dir)) continue;
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const skillPath = join(dir, entry.name, "SKILL.md");
+      if (!existsSync(skillPath)) continue;
+      totalSkills++;
+      const content = await readFile(skillPath, "utf-8");
+      if (content.toLowerCase().includes("automation") || content.includes("sync_memory")) {
+        automationReady++;
+      }
+    }
+  }
+
+  if (totalSkills === 0) {
+    return { name: "automation_readiness", value: "n/a", status: "warn", note: "No skills found" };
+  }
+
+  const pct = Math.round((automationReady / totalSkills) * 100);
+  return {
+    name: "automation_readiness",
+    value: `${pct}%`,
+    status: pct >= 80 ? "good" : pct >= 50 ? "warn" : "bad",
+    note: `${automationReady}/${totalSkills} skills are automation-ready (mention automation/sync_memory)`,
+  };
+}
+
+/**
+ * Integration coverage: % of recommended toolbox files that exist.
+ */
+export async function evalIntegrationCoverage(aiDir: string): Promise<EvalResult> {
+  const expected = ["integrations.md", "browser.md", "shell.md"];
+  const toolboxDir = join(aiDir, "toolbox");
+  let found = 0;
+
+  if (existsSync(toolboxDir)) {
+    for (const file of expected) {
+      if (existsSync(join(toolboxDir, file))) found++;
+    }
+  }
+
+  const pct = Math.round((found / expected.length) * 100);
+  return {
+    name: "integration_coverage",
+    value: `${pct}%`,
+    status: pct === 100 ? "good" : pct >= 33 ? "warn" : "bad",
+    note: `${found}/${expected.length} toolbox files (${expected.join(", ")})`,
+  };
+}

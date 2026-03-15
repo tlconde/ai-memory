@@ -1,0 +1,19 @@
+{
+  "name": "ai-memory",
+  "description": "Persistent project memory. Compound protocol, governance enforcement, MCP server. 4 skills, 2 agents.",
+  "version": "0.1.0",
+  "author": {
+    "name": "radix-ai",
+    "url": "https://github.com/radix-ai/ai-memory"
+  },
+  "mcpServers": {
+    "ai-memory": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@radix-ai/ai-memory", "mcp"],
+      "env": {
+        "AI_DIR": "${workspaceFolder}/.ai"
+      }
+    }
+  }
+}

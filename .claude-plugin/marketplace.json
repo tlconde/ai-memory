@@ -1,0 +1,19 @@
+{
+  "name": "ai-memory",
+  "owner": {
+    "name": "radix-ai",
+    "url": "https://github.com/radix-ai/ai-memory"
+  },
+  "metadata": {
+    "description": "Persistent AI memory for any project. Multi-agent collaboration, RALPH loops, governance enforcement.",
+    "version": "0.1.0",
+    "pluginRoot": "plugins"
+  },
+  "plugins": [
+    {
+      "name": "ai-memory",
+      "source": "ai-memory",
+      "description": "Persistent project memory. Compound protocol, multi-agent claims, session sync. 4 skills, 2 agents, 12 MCP tools."
+    }
+  ]
+}

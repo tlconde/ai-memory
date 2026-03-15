@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ai-memory": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@radix-ai/ai-memory", "mcp"],
+      "env": {
+        "AI_DIR": "${workspaceFolder}/.ai"
+      }
+    }
+  }
+}

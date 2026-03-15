@@ -1,0 +1,88 @@
+{
+  "name": "@radix-ai/ai-memory",
+  "version": "0.1.0",
+  "description": "Persistent AI memory for any project. MCP server, compound protocol, governance enforcement.",
+  "type": "module",
+  "bin": {
+    "ai-memory": "./dist/cli/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./mcp": {
+      "import": "./dist/mcp-server/index.js"
+    },
+    "./formatter": {
+      "import": "./dist/formatter/index.js"
+    },
+    "./evals": {
+      "import": "./dist/evals/index.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/radix-ai/ai-memory.git"
+  },
+  "homepage": "https://github.com/radix-ai/ai-memory#readme",
+  "bugs": {
+    "url": "https://github.com/radix-ai/ai-memory/issues"
+  },
+  "author": {
+    "name": "Radix AI",
+    "url": "https://github.com/radix-ai"
+  },
+  "files": [
+    "dist/",
+    "plugins/",
+    "templates/",
+    "README.md",
+    "LICENSE",
+    ".cursor-plugin/",
+    ".claude-plugin/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "mcp": "node dist/mcp-server/index.js",
+    "cli": "node dist/cli/index.js",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@ast-grep/napi": "^0.30.0",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "commander": "^12.1.0",
+    "glob": "^11.0.0",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.1.0",
+    "minimatch": "^10.0.0"
+  },
+  "optionalDependencies": {
+    "@xenova/transformers": "^2.17.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "ai",
+    "memory",
+    "mcp",
+    "acp",
+    "compound",
+    "knowledge-management",
+    "agent"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "ai-memory",
+  "owner": {
+    "name": "radix-ai",
+    "url": "https://github.com/radix-ai/ai-memory"
+  },
+  "metadata": {
+    "description": "Persistent AI memory for any project. Compound protocol, governance enforcement, MCP server.",
+    "version": "0.1.0",
+    "pluginRoot": "plugins"
+  },
+  "plugins": [
+    {
+      "name": "ai-memory",
+      "source": "ai-memory",
+      "description": "Drop persistent memory into any project. Compound protocol, session-close, governance gate, semantic search. Start with defaults; add governance when your project needs it."
+    }
+  ]
+}
