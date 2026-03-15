@@ -50,12 +50,12 @@ if (fs.existsSync(localCli)) {
   const nodeDir = path.dirname(process.execPath);
   const npxCli = path.join(nodeDir, "node_modules", "npm", "bin", "npx-cli.js");
   if (fs.existsSync(npxCli)) {
-    child = spawn("node", [npxCli, "-y", "@radix-ai/ai-memory", "mcp"], opts);
+    child = spawn("node", [npxCli, "@radix-ai/ai-memory", "mcp"], opts);
   } else {
-    child = spawn("cmd", ["/c", "npx", "-y", "@radix-ai/ai-memory", "mcp"], { ...opts, windowsHide: true });
+    child = spawn("cmd", ["/c", "npx", "@radix-ai/ai-memory", "mcp"], { ...opts, windowsHide: true });
   }
 } else {
-  child = spawn("npx", ["-y", "@radix-ai/ai-memory", "mcp"], opts);
+  child = spawn("npx", ["@radix-ai/ai-memory", "mcp"], opts);
 }
 
 child.on("error", (err) => {

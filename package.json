@@ -1,5 +1,5 @@
 {
-  "name": "@tlconde/ai-memory",
+  "name": "@radix-ai/ai-memory",
   "version": "0.1.0",
   "description": "Persistent AI memory for any project. MCP server, compound protocol, governance enforcement.",
   "type": "module",
@@ -25,11 +25,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tlconde/ai-memory.git"
+    "url": "https://github.com/radix-ai/ai-memory.git"
   },
-  "homepage": "https://github.com/tlconde/ai-memory#readme",
+  "homepage": "https://github.com/radix-ai/ai-memory#readme",
   "bugs": {
-    "url": "https://github.com/tlconde/ai-memory/issues"
+    "url": "https://github.com/radix-ai/ai-memory/issues"
   },
   "author": {
     "name": "Radix AI",
