@@ -36,5 +36,11 @@ coverage/
 .ai/
 .mcp.json
 
+# Tool-generated files (created by ai-memory install, never publish)
+.windsurfrules
+.clinerules
+CLAUDE.md
+.github/copilot-instructions.md
+
 # Tool-specific (never publish)
 plugins/ai-memory/rules/context7-tool-reference.md
