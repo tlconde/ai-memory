@@ -53,7 +53,7 @@ npx @radix-ai/ai-memory install --to cursor  # install for your tool
 npx @radix-ai/ai-memory install --to cursor    # or claude-code, windsurf, cline, copilot
 
 # 2. Fill in what your project is
-# Edit .ai/IDENTITY.md and .ai/DIRECTION.md
+# Edit .ai/IDENTITY.md and .ai/PROJECT_STATUS.md (project status)
 
 # 3. Restart your AI tool (or start a new chat)
 
@@ -76,6 +76,8 @@ If it answers — context loading works. Then ask: *"Search memory for any decis
 | `'ai-memory' is not recognized` | You're in the ai-memory dev repo. Run `npm run build` then `node dist/cli/index.js init` and `node dist/cli/index.js install --to cursor`. For published users, use `npx @radix-ai/ai-memory` — the package is pre-built. |
 | MCP tools not available | `install` scaffolds `.ai/` if missing. Restart Cursor (or start a new chat) after install. |
 | Cursor not picking up MCP | Cursor reads `.cursor/mcp.json`. The install writes it for Cursor. If you added manually, ensure the config is in `.cursor/mcp.json` (not `.mcp.json` at project root). |
+| `Cannot find module '.ai/mcp-launcher.cjs'` | Run `npx @radix-ai/ai-memory install --to cursor` first — it creates `.ai/` and the launcher. |
+| `'ai-memory' is not recognized` (Windows) | The launcher uses `cmd /c` on Windows. If it still fails, delete `.cursor/mcp.json` and run `install --to cursor` again to refresh the launcher. |
 
 ---
 
@@ -84,7 +86,7 @@ If it answers — context loading works. Then ask: *"Search memory for any decis
 ```
 .ai/
 ├── IDENTITY.md             — What this project is; constraints for the AI
-├── DIRECTION.md            — Current focus, open questions, what's working
+├── PROJECT_STATUS.md       — Current focus, open questions, what's working (legacy: DIRECTION.md)
 ├── memory/
 │   ├── decisions.md        — Architectural decisions [P0/P1/P2 tagged]
 │   ├── patterns.md         — Reusable patterns and anti-patterns
@@ -103,10 +105,11 @@ If it answers — context loading works. Then ask: *"Search memory for any decis
     └── PROJECT.md          — Architecture (loaded on demand only)
 ```
 
-Add governance, evals, and ACP with `--full`:
+Add governance, evals, docs schema, and ACP with `--full`:
 ```bash
 npx @radix-ai/ai-memory init --full
 ```
+Creates: `acp/`, `docs-schema.json`, `rules/doc-placement.md`, `agents/docs-manager.md`.
 
 ---
 
@@ -120,16 +123,23 @@ npx @radix-ai/ai-memory init --full
 | `/mem-validate` | Before a risky change (Full tier) |
 | `/mem-auto-review` | Automated PR review (Bugbot, CI, automations) |
 
+### Project-specific compound
+
+`/mem-compound` runs standard steps (scan, conflict check, update status, archive, sync) plus project-specific doc updates. The skill maps session work to domains (UI, Backend/API, AI/ML, Architecture, Backlog) and updates docs via `get_doc_path` and `validate_doc_placement`. Open items may be broad or categorical. Work done anywhere must be broken down into atomic tasks that fit RALPH loops and avoid conflicts when agents work in parallel. With `init --full`, `.ai/docs-schema.json` defines canonical paths and naming (SCREAMING_SNAKE by default).
+
 ---
 
 ## CLI
 
 ```bash
-ai-memory init [--full]          # Scaffold .ai/
+ai-memory init [--full]          # Scaffold .ai/ (--full adds docs-schema, governance, doc-placement rule)
 ai-memory install --to <tool>    # Bootstrap for cursor, windsurf, cline, copilot, claude-code
 ai-memory mcp                    # Start MCP server (stdio)
 ai-memory mcp --http --port 3100 # Start MCP server (HTTP, for cloud agents)
 ai-memory validate               # Validate all .ai/ files
+ai-memory validate-docs          # Validate doc placement against .ai/docs-schema.json (staged or --paths)
+# Pre-commit: add `ai-memory validate-docs` to validate new docs before commit (e.g. via husky)
+ai-memory index                  # Regenerate memory-index.md from memory files
 ai-memory fmt                    # Auto-format YAML frontmatter
 ai-memory eval [--json]          # Memory health report
 ai-memory prune [--dry-run]      # Review stale entries
@@ -179,11 +189,11 @@ ai-memory generate-harness    # Compile .ai/temp/harness.json
 
 ### RALPH loops (iterative self-improvement)
 
-DIRECTION.md is writable by default (`writable: true` in frontmatter). This means:
-1. Agent reads DIRECTION.md, picks a task, does work
-2. Agent updates DIRECTION.md with what it learned
+PROJECT_STATUS.md is writable by default (`writable: true` in frontmatter). This means:
+1. Agent reads PROJECT_STATUS.md, picks a task, does work
+2. Agent updates PROJECT_STATUS.md with what it learned
 3. Agent exits (or session ends)
-4. Next iteration reads the updated DIRECTION.md
+4. Next iteration reads the updated PROJECT_STATUS.md
 5. Natural convergence through iteration
 
 This follows the [autoresearch](https://github.com/mutable-state-inc/autoresearch-at-home) pattern and the [Ralph Wiggum](https://ralph-wiggum.ai/) approach: **the plan file on disk is the shared state.**
@@ -206,7 +216,7 @@ This works in:
 | File | Default | Control |
 |---|---|---|
 | `IDENTITY.md` | Immutable | Set `writable: true` in frontmatter to allow AI writes |
-| `DIRECTION.md` | Writable | Set `writable: false` in frontmatter to lock |
+| `PROJECT_STATUS.md` (or `DIRECTION.md`) | Writable | Set `writable: false` in frontmatter to lock |
 | `toolbox/`, `acp/`, `rules/` | Always immutable | Structural — no override |
 | Everything else | Writable | Via `commit_memory` tool |
 
@@ -230,6 +240,9 @@ The MCP server starts automatically via `.mcp.json`. Tools exposed:
 | `claim_task` | Claim a task to prevent duplicate work across agents |
 | `publish_result` | Publish task result (success/failure) to archive |
 | `sync_memory` | Git commit `.ai/` changes (essential for ephemeral environments) |
+| `get_doc_path` | Resolve canonical path for a doc type (use before creating docs) |
+| `validate_doc_placement` | Validate doc path against `.ai/docs-schema.json` |
+| `list_doc_types` | List doc types with path and pattern |
 
 ### HTTP transport (for cloud agents)
 

@@ -38,8 +38,16 @@ jobs:
         run: |
           node dist/cli/index.js init --dir /tmp/test-project
           test -f /tmp/test-project/.ai/IDENTITY.md
-          test -f /tmp/test-project/.ai/DIRECTION.md
+          test -f /tmp/test-project/.ai/PROJECT_STATUS.md
           test -f /tmp/test-project/.ai/memory/memory-index.md
+
+      - name: Test init --full
+        run: |
+          rm -rf /tmp/test-full
+          node dist/cli/index.js init --full --dir /tmp/test-full
+          test -f /tmp/test-full/.ai/docs-schema.json
+          test -f /tmp/test-full/.ai/rules/doc-placement.md
+          test -f /tmp/test-full/.ai/agents/docs-manager.md
 
       - name: Test install
         run: |

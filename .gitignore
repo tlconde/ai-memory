@@ -20,3 +20,10 @@ docs/
 *.jsonl
 .ai/temp/
 .ai/sessions/archive/*.jsonl
+
+# Project memory and local MCP config (never publish)
+.ai/
+.mcp.json
+
+# Tool-specific (never publish)
+plugins/ai-memory/rules/context7-tool-reference.md

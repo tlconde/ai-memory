@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { writeFile, mkdir } from "fs/promises";
 import { join, resolve, dirname } from "path";
 import { existsSync } from "fs";
+import { DEFAULT_DOCS_SCHEMA_JSON } from "../docs-schema.js";
 
 const KEBAB_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 function validateKebabCase(name: string, label: string): void {
@@ -29,19 +30,26 @@ program
   .action(async (opts) => {
     const targetDir = resolve(opts.dir ?? process.cwd());
     const aiDir = join(targetDir, ".ai");
+    const full = opts.full ?? false;
 
     if (existsSync(aiDir)) {
-      console.log(`⚠ .ai/ already exists at ${aiDir}`);
-      console.log(`  To reinitialize, remove .ai/ first.`);
-      process.exit(1);
+      const updated = await scaffoldUpdates(aiDir, full);
+      if (updated.length > 0) {
+        console.log(`\n✓ Added ${updated.length} missing file(s) to existing .ai/`);
+      } else if (full) {
+        console.log(`✓ .ai/ already has full tier. Nothing to add.`);
+      } else {
+        console.log(`✓ .ai/ already exists. Use --full to add governance, docs schema, and ACP.`);
+      }
+      process.exit(0);
     }
 
     console.log(`Initializing ai-memory in ${targetDir}...`);
-    await scaffoldAiDir(aiDir, opts.full ?? false);
+    await scaffoldAiDir(aiDir, full);
 
     console.log(`\n✓ Done. Next steps:`);
     console.log(`  1. Edit .ai/IDENTITY.md — describe this project and its constraints`);
-    console.log(`  2. Edit .ai/DIRECTION.md — set the current focus`);
+    console.log(`  2. Edit .ai/PROJECT_STATUS.md — set the current focus`);
     console.log(`  3. Run \`ai-memory install --to cursor\` or \`--to claude-code\` to connect your tool`);
     if (opts.full) {
       console.log(`  4. Add [P0] entries with constraint_pattern to decisions.md for governance`);
@@ -69,7 +77,7 @@ async function scaffoldAiDir(aiDir: string, full: boolean): Promise<void> {
 
   // Core files
   await writeTemplateFile(aiDir, "IDENTITY.md", DEFAULT_IDENTITY);
-  await writeTemplateFile(aiDir, "DIRECTION.md", DEFAULT_DIRECTION);
+  await writeTemplateFile(aiDir, "PROJECT_STATUS.md", DEFAULT_PROJECT_STATUS);
   await writeTemplateFile(aiDir, "memory/decisions.md", DEFAULT_DECISIONS);
   await writeTemplateFile(aiDir, "memory/patterns.md", DEFAULT_PATTERNS);
   await writeTemplateFile(aiDir, "memory/debugging.md", DEFAULT_DEBUGGING);
@@ -87,6 +95,9 @@ async function scaffoldAiDir(aiDir: string, full: boolean): Promise<void> {
     await mkdir(join(aiDir, "temp/rule-tests"), { recursive: true });
     await writeTemplateFile(aiDir, "acp/manifest.json", DEFAULT_ACP_MANIFEST);
     await writeTemplateFile(aiDir, "acp/capabilities.md", DEFAULT_ACP_CAPABILITIES);
+    await writeTemplateFile(aiDir, "docs-schema.json", DEFAULT_DOCS_SCHEMA_JSON);
+    await writeTemplateFile(aiDir, "rules/doc-placement.md", DEFAULT_DOC_PLACEMENT_RULE);
+    await writeTemplateFile(aiDir, "agents/docs-manager.md", DEFAULT_DOCS_MANAGER_AGENT);
   }
 }
 
@@ -97,9 +108,37 @@ async function writeTemplateFile(aiDir: string, relativePath: string, content: s
   console.log(`  + .ai/${relativePath}`);
 }
 
+/** Add only missing files when .ai/ already exists. Never overwrites. Returns paths added. */
+async function scaffoldUpdates(aiDir: string, full: boolean): Promise<string[]> {
+  const added: string[] = [];
+
+  async function addIfMissing(relativePath: string, content: string): Promise<void> {
+    const fullPath = join(aiDir, relativePath);
+    if (!existsSync(fullPath)) {
+      await mkdir(dirname(fullPath), { recursive: true });
+      await writeFile(fullPath, content);
+      console.log(`  + .ai/${relativePath}`);
+      added.push(relativePath);
+    }
+  }
+
+  if (full) {
+    await mkdir(join(aiDir, "acp"), { recursive: true });
+    await mkdir(join(aiDir, "temp"), { recursive: true });
+    await mkdir(join(aiDir, "temp/rule-tests"), { recursive: true });
+    await addIfMissing("acp/manifest.json", DEFAULT_ACP_MANIFEST);
+    await addIfMissing("acp/capabilities.md", DEFAULT_ACP_CAPABILITIES);
+    await addIfMissing("docs-schema.json", DEFAULT_DOCS_SCHEMA_JSON);
+    await addIfMissing("rules/doc-placement.md", DEFAULT_DOC_PLACEMENT_RULE);
+    await addIfMissing("agents/docs-manager.md", DEFAULT_DOCS_MANAGER_AGENT);
+  }
+
+  return added;
+}
+
 // ─── install ─────────────────────────────────────────────────────────────────
 
-import { TOOL_ADAPTERS, MCP_JSON } from "./adapters.js";
+import { TOOL_ADAPTERS, getMCPJson, MCP_LAUNCHER, MCP_LAUNCHER_PATH } from "./adapters.js";
 
 program
   .command("install")
@@ -141,11 +180,17 @@ program
     }
 
     if (adapter.mcp) {
+      const launcherPath = join(projectRoot, MCP_LAUNCHER_PATH);
+      await mkdir(dirname(launcherPath), { recursive: true });
+      await writeFile(launcherPath, MCP_LAUNCHER);
+      console.log(`✓ Wrote ${MCP_LAUNCHER_PATH}`);
+
       const mcpRelPath = adapter.mcpPath ?? ".mcp.json";
       const mcpPath = join(projectRoot, mcpRelPath);
+      const mcpJson = getMCPJson();
       if (!existsSync(mcpPath)) {
         await mkdir(dirname(mcpPath), { recursive: true });
-        await writeFile(mcpPath, MCP_JSON);
+        await writeFile(mcpPath, mcpJson);
         console.log(`✓ Wrote ${mcpRelPath}`);
       } else {
         console.log(`  ${mcpRelPath} already exists — skipped`);
@@ -191,6 +236,23 @@ program
       for (const e of errors) console.error(`  ${e.file}: ${e.message}`);
       process.exit(1);
     }
+  });
+
+// ─── index ───────────────────────────────────────────────────────────────────
+
+program
+  .command("index")
+  .description("Regenerate memory-index.md from decisions, patterns, debugging, improvements")
+  .option("--dir <dir>", "Path to .ai/ directory (default: ./ai)")
+  .action(async (opts) => {
+    const aiDir = resolve(opts.dir ?? join(process.cwd(), ".ai"));
+    if (!existsSync(aiDir)) {
+      console.error(`No .ai/ directory found at ${aiDir}. Run \`ai-memory init\` first.`);
+      process.exit(1);
+    }
+    const { generateMemoryIndex } = await import("../formatter/index.js");
+    await generateMemoryIndex(aiDir);
+    console.log("✓ Regenerated memory-index.md");
   });
 
 // ─── fmt ────────────────────────────────────────────────────────────────────
@@ -304,6 +366,63 @@ program
     if (opts.dryRun !== false) {
       console.log("\nRun with --no-dry-run to archive these entries.");
     }
+  });
+
+// ─── validate-docs ───────────────────────────────────────────────────────────
+
+program
+  .command("validate-docs")
+  .description("Validate documentation file placement and naming against .ai/docs-schema.json")
+  .option("--dir <dir>", "Project root (default: current directory)")
+  .option("--paths <paths>", "Comma-separated paths to check (default: from git diff --name-only)")
+  .action(async (opts: { dir?: string; paths?: string }) => {
+    const projectRoot = resolve(opts.dir ?? process.cwd());
+    const aiDir = join(projectRoot, ".ai");
+    const { loadDocsSchema, validateDocPlacement } = await import("../docs-schema.js");
+
+    const schema = await loadDocsSchema(projectRoot);
+    if (!schema) {
+      console.log("No .ai/docs-schema.json found. Run `ai-memory init --full` to create one.");
+      process.exit(0);
+    }
+
+    let paths: string[] = [];
+    if (opts.paths) {
+      paths = opts.paths.split(",").map((p) => p.trim()).filter(Boolean);
+    } else {
+      try {
+        const { execFileSync } = await import("child_process");
+        const out = execFileSync("git", ["diff", "--cached", "--name-only", "--diff-filter=A"], {
+          cwd: projectRoot,
+          encoding: "utf-8",
+        });
+        paths = out.trim().split("\n").filter(Boolean);
+      } catch {
+        console.log("Not a git repo or no staged files. Use --paths to specify files.");
+        process.exit(0);
+      }
+    }
+
+    const docPaths = paths.filter((p) => p.endsWith(".md") || p.endsWith(".yaml") || p.endsWith(".yml"));
+    if (docPaths.length === 0) {
+      console.log("✓ No documentation files to validate.");
+      process.exit(0);
+    }
+
+    let hasErrors = false;
+    for (const p of docPaths) {
+      const rel = p.replace(/\\/g, "/");
+      const result = validateDocPlacement(schema, rel, projectRoot);
+      if (!result.valid) {
+        hasErrors = true;
+        for (const e of result.errors) console.error(`  ${rel}: ${e}`);
+      }
+    }
+    if (hasErrors) {
+      console.error("\nFix the above or add to .ai/docs-schema.json. Use SCREAMING_SNAKE_CASE for doc filenames.");
+      process.exit(1);
+    }
+    console.log(`✓ ${docPaths.length} doc file(s) validated.`);
   });
 
 // ─── agent create ────────────────────────────────────────────────────────────
@@ -526,15 +645,15 @@ You are a senior developer focused on long-term strategy and production readines
 4. Fetch \`.ai/reference/PROJECT.md\` only when the task requires architecture or data model context
 `;
 
-const DEFAULT_DIRECTION = `---
-id: direction
-type: direction
+const DEFAULT_PROJECT_STATUS = `---
+id: project-status
+type: project-status
 status: active
 writable: true
 last_updated: ${new Date().toISOString().slice(0, 10)}
 ---
 
-# Direction
+# Project Status
 
 > This file evolves with the project. Both humans and AI update it — AI writes what it learned, humans steer the focus. This is your RALPH loop plan file.
 
@@ -636,7 +755,7 @@ last_updated: ${new Date().toISOString().slice(0, 10)}
 
 # Memory Index
 
-**Auto-generated.** Run \`ai-memory fmt\` or \`/mem:compound\` to regenerate.
+**Auto-generated.** Run \`ai-memory index\` or \`/mem-compound\` to regenerate.
 
 ---
 
@@ -715,13 +834,15 @@ last_updated: ${new Date().toISOString().slice(0, 10)}
 
 # Open Items
 
+**Task format:** Items may be broad or categorical. Work done must be broken down into atomic tasks that fit RALPH loops and avoid conflicts when agents work in parallel.
+
 ## Open
 
-<!-- Format: - [ ] Brief description (source) -->
+<!-- Format: \`- [ ] Brief description (source: doc path or BACKLOG)\` -->
 
 ## Closed
 
-<!-- Format: - [x] Brief description (resolved: how) -->
+<!-- Format: \`- [x] Brief description (resolved: how)\` -->
 `;
 
 const DEFAULT_THREAD_ARCHIVE = `---
@@ -812,4 +933,48 @@ Validate memory entries against canonical schema (\`validate_schema\`).
 
 ## compound.run
 Execute the full compound loop: capture → conflict check → governance gate → index.
+`;
+
+const DEFAULT_DOC_PLACEMENT_RULE = `---
+id: doc-placement
+type: rule
+status: active
+---
+
+# Doc placement
+
+When creating or moving documentation files under \`docs/\` or \`.ai/\` (excluding \`.ai/memory/\`):
+
+1. **Before writing:** Call \`get_doc_path\` with the doc type and optional slug. Do not infer paths.
+2. **After writing:** Call \`validate_doc_placement\` for the path(s). Fix any errors before committing.
+3. **Doc types:** Use \`list_doc_types\` to see available types and patterns. Filenames use SCREAMING_SNAKE_CASE by default.
+`;
+
+const DEFAULT_DOCS_MANAGER_AGENT = `---
+id: docs-manager
+type: agent
+status: active
+---
+
+# Docs Manager
+
+You manage project documentation structure and schema. Use when migrating docs, creating schemas, or auditing doc placement.
+
+## When to run
+
+- Migrating existing docs to schema-driven paths
+- Creating or updating \`.ai/docs-schema.json\`
+- Auditing doc placement across the repo
+
+## Tools
+
+- \`list_doc_types\` — see current schema
+- \`get_doc_path\` — resolve canonical path for a doc type
+- \`validate_doc_placement\` — check paths against schema
+
+## Methodology
+
+1. Load schema via \`list_doc_types\`
+2. For each doc to migrate: \`get_doc_path\` → move/update → \`validate_doc_placement\`
+3. Update \`.ai/docs-schema.json\` if new doc types are needed
 `;

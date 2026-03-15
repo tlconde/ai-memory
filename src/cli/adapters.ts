@@ -8,7 +8,7 @@ export const BOOTSTRAP_INSTRUCTION = `## ai-memory — Project Memory
 At the start of every session:
 
 1. Read \`.ai/IDENTITY.md\` — project constraints and how to behave
-2. Read \`.ai/DIRECTION.md\` — current focus and open questions
+2. Read \`.ai/PROJECT_STATUS.md\` (or \`.ai/DIRECTION.md\`) — current focus and open questions
 3. Read \`.ai/memory/memory-index.md\` — priority-ranked index of all active decisions, patterns, and debugging entries
 
 Before starting any task:
@@ -19,30 +19,83 @@ Before starting any task:
 During the session:
 - If connected to the ai-memory MCP server, use \`search_memory\` instead of reading files directly
 - Use \`commit_memory\` to write new entries (never edit memory files directly)
+- When creating docs under \`docs/\` or \`.ai/\`: use \`get_doc_path\` before writing, \`validate_doc_placement\` after. Read \`.ai/rules/doc-placement.md\` if present.
 - Immutable paths (do not write): IDENTITY.md, toolbox/, acp/, rules/
-- DIRECTION.md is writable — update it with what you learned
+- PROJECT_STATUS.md (or DIRECTION.md) is writable — update it with what you learned
 
 At the end of a meaningful session, run /mem-compound to capture learnings.
 If running as a sub-agent (worktree, cloud agent, background task), run /mem-compound before exiting — your memory will be lost otherwise.
 `;
 
-export const MCP_JSON = JSON.stringify({
-  mcpServers: {
-    "ai-memory": {
-      type: "stdio",
-      command: "npx",
-      args: ["@radix-ai/ai-memory", "mcp"],
-      env: { AI_DIR: "${workspaceFolder}/.ai" },
-    },
-    "context7": {
-      type: "http",
-      url: "https://mcp.context7.com/mcp",
-      headers: {
-        "x-api-key": "${CONTEXT7_API_KEY:-}",
+/**
+ * Platform-agnostic MCP launcher. Detects OS at runtime and spawns correctly.
+ * - In ai-memory repo: run local dist directly (avoids npx entirely).
+ * - Windows: npx.cmd fails under spawn; npx-cli.js via node works.
+ * - macOS/Linux/BSD: npx works directly.
+ */
+export const MCP_LAUNCHER = `#!/usr/bin/env node
+const { spawn } = require("child_process");
+const path = require("path");
+const fs = require("fs");
+const platform = process.platform;
+const opts = { stdio: "inherit", env: process.env };
+
+// Prefer local build when in ai-memory repo (avoids npx on Windows)
+const cwd = process.cwd();
+const localCli = path.join(cwd, "dist", "cli", "index.js");
+const localMcp = path.join(cwd, "dist", "mcp-server", "index.js");
+
+let child;
+if (fs.existsSync(localCli)) {
+  child = spawn("node", [localCli, "mcp"], opts);
+} else if (fs.existsSync(localMcp)) {
+  child = spawn("node", [localMcp], opts);
+} else if (platform === "win32") {
+  const nodeDir = path.dirname(process.execPath);
+  const npxCli = path.join(nodeDir, "node_modules", "npm", "bin", "npx-cli.js");
+  if (fs.existsSync(npxCli)) {
+    child = spawn("node", [npxCli, "-y", "@radix-ai/ai-memory", "mcp"], opts);
+  } else {
+    child = spawn("cmd", ["/c", "npx", "-y", "@radix-ai/ai-memory", "mcp"], { ...opts, windowsHide: true });
+  }
+} else {
+  child = spawn("npx", ["-y", "@radix-ai/ai-memory", "mcp"], opts);
+}
+
+child.on("error", (err) => {
+  console.error("[ai-memory-mcp] spawn failed:", err.message);
+  process.exit(1);
+});
+child.on("exit", (code, signal) => {
+  process.exit(code ?? (signal ? 1 : 0));
+});
+`;
+
+/** MCP config path for the launcher (relative to project root). */
+export const MCP_LAUNCHER_PATH = ".ai/mcp-launcher.cjs";
+
+/** Single MCP config for all platforms. Uses launcher that detects OS at runtime. */
+export function getMCPJson(): string {
+  return JSON.stringify(
+    {
+      mcpServers: {
+        "ai-memory": {
+          type: "stdio",
+          command: "node",
+          args: [MCP_LAUNCHER_PATH],
+          env: { AI_DIR: "${workspaceFolder}/.ai" },
+        },
+        context7: {
+          type: "http",
+          url: "https://mcp.context7.com/mcp",
+          headers: { "x-api-key": "${CONTEXT7_API_KEY:-}" },
+        },
       },
     },
-  },
-}, null, 2);
+    null,
+    2
+  );
+}
 
 // ─── Cursor skills (.cursor/skills/<name>/SKILL.md format) ─────────────────
 
@@ -72,7 +125,7 @@ Review conversation, code changes, errors. Identify:
 ### 2. Conflict check
 Before writing: call \`search_memory\` for each topic. If contradictions found, mark old entry \`[DEPRECATED]\`.
 
-### 3. Update DIRECTION.md
+### 3. Update PROJECT_STATUS.md (or DIRECTION.md)
 Update with learnings: move completed items to "What's Working", add new open questions, update "What to Try Next".
 
 ### 4. Archive
@@ -142,7 +195,7 @@ disable-model-invocation: true
 1. Confirm the user wants to initialize ai-memory in this project
 2. Ask: Default tier or Full tier (adds governance, evals, ACP)?
 3. Run: \`ai-memory init\` (or \`ai-memory init --full\`)
-4. Guide the user to edit \`.ai/IDENTITY.md\` and \`.ai/DIRECTION.md\`
+4. Guide the user to edit \`.ai/IDENTITY.md\` and \`.ai/PROJECT_STATUS.md\`
 5. Run \`ai-memory validate\` to confirm setup
 `;
 

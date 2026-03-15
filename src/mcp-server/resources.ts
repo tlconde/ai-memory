@@ -51,8 +51,8 @@ export function registerResources(server: Server, aiDir: string): void {
     const resources = [
       {
         uri: "memory://identity",
-        name: "Identity + Direction",
-        description: "IDENTITY.md and DIRECTION.md — project constraints and current focus",
+        name: "Identity + Project Status",
+        description: "IDENTITY.md and PROJECT_STATUS.md (or DIRECTION.md) — project constraints and current focus",
         mimeType: "text/markdown",
       },
       {
@@ -98,13 +98,15 @@ export function registerResources(server: Server, aiDir: string): void {
 
     if (uri === "memory://identity") {
       const identity = await safeRead(join(aiDir, "IDENTITY.md"));
-      const direction = await safeRead(join(aiDir, "DIRECTION.md"));
+      const projectStatus =
+        (await safeRead(join(aiDir, "PROJECT_STATUS.md"))) ||
+        (await safeRead(join(aiDir, "DIRECTION.md")));
       return {
         contents: [
           {
             uri,
             mimeType: "text/markdown",
-            text: [identity, direction].filter(Boolean).join("\n\n---\n\n"),
+            text: [identity, projectStatus].filter(Boolean).join("\n\n---\n\n"),
           },
         ],
       };

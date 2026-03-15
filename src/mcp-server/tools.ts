@@ -15,16 +15,23 @@ import {
   generateRuleTests,
   type HarnessRule,
 } from "./p0-parser.js";
+import {
+  loadDocsSchema,
+  getDocPath,
+  validateDocPlacement,
+  listDocTypes,
+} from "../docs-schema.js";
 
 // Paths that are ALWAYS immutable (structural, not content)
 const ALWAYS_IMMUTABLE = ["toolbox/", "acp/", "rules/"];
 
 // Paths whose immutability is controlled by frontmatter `writable` field
 // IDENTITY.md: writable defaults to false (immutable unless opted in)
-// DIRECTION.md: writable defaults to true (the AI's evolving program)
-const FRONTMATTER_CONTROLLED = ["IDENTITY.md", "DIRECTION.md"];
+// PROJECT_STATUS.md / DIRECTION.md: writable defaults to true (the AI's evolving program)
+const FRONTMATTER_CONTROLLED = ["IDENTITY.md", "PROJECT_STATUS.md", "DIRECTION.md"];
 const WRITABLE_DEFAULTS: Record<string, boolean> = {
   "IDENTITY.md": false,
+  "PROJECT_STATUS.md": true,
   "DIRECTION.md": true,
 };
 
@@ -264,7 +271,7 @@ async function validateDiff(
 function validateEntrySchema(entry: Record<string, unknown>): string[] {
   const errors: string[] = [];
   const required = ["id", "type", "status"];
-  const validTypes = ["identity", "direction", "decision", "pattern", "debugging", "skill", "toolbox", "rule", "agent", "index"];
+  const validTypes = ["identity", "direction", "project-status", "decision", "pattern", "debugging", "skill", "toolbox", "rule", "agent", "index"];
   const validStatuses = ["active", "deprecated", "experimental"];
 
   for (const field of required) {
@@ -284,46 +291,60 @@ export function registerTools(server: Server, aiDir: string): void {
     tools: [
       {
         name: "search_memory",
-        description: "Search across .ai/ memory files. Returns ranked results with excerpts.",
+        description:
+          "Searches across .ai/ memory files (memory/, sessions/, agents/, skills/) and returns ranked results with excerpts. " +
+          "Use this instead of reading files directly when the ai-memory MCP is connected. " +
+          "Each result includes: file path (relative to .ai/), excerpt (best-matching line), and score (term frequency). " +
+          "For best results: use specific terms from the task (e.g. 'MCP launcher Windows', 'claim locking'); optionally filter by tags if the query mentions them.",
         inputSchema: {
           type: "object",
           properties: {
-            query: { type: "string", description: "Search query" },
-            tags: { type: "array", items: { type: "string" }, description: "Filter by tags (optional)" },
+            query: { type: "string", description: "Search query — use specific terms relevant to the task" },
+            tags: { type: "array", items: { type: "string" }, description: "Filter by tags (optional). Only files containing all tags are returned." },
           },
           required: ["query"],
         },
       },
       {
         name: "validate_context",
-        description: "Check a git diff against active [P0] rules. Returns violations as errors — hard block if any P0 rule is triggered.",
+        description:
+          "Validates a git diff against active [P0] constraint rules. Returns violations as errors — hard blocks if any P0 rule is triggered. " +
+          "You MUST run generate_harness first (or use init --full) to create .ai/temp/harness.json. " +
+          "Each violation includes: rule_id, message, severity (P0/P1/P2). P0 violations cause a hard block; P1/P2 return warnings. " +
+          "For best results: pass the full output of `git diff` (staged or unstaged) before committing.",
         inputSchema: {
           type: "object",
           properties: {
-            git_diff: { type: "string", description: "Output of git diff" },
+            git_diff: { type: "string", description: "Output of git diff (e.g. git diff or git diff --cached)" },
           },
           required: ["git_diff"],
         },
       },
       {
         name: "validate_schema",
-        description: "Check a proposed memory entry against the canonical schema. Returns validation errors.",
+        description:
+          "Validates a proposed memory entry's frontmatter against the canonical schema. Returns validation errors. " +
+          "Required fields: id, type, status. Valid types: identity, direction, project-status, decision, pattern, debugging, skill, toolbox, rule, agent, index. Valid statuses: active, deprecated, experimental. " +
+          "Use before commit_memory when constructing entries programmatically to catch schema errors early.",
         inputSchema: {
           type: "object",
           properties: {
-            entry: { type: "object", description: "Memory entry frontmatter fields to validate" },
+            entry: { type: "object", description: "Memory entry frontmatter fields to validate (id, type, status, etc.)" },
           },
           required: ["entry"],
         },
       },
       {
         name: "commit_memory",
-        description: "Write a memory entry to .ai/. Enforces immutability (IDENTITY.md immutable by default, DIRECTION.md writable by default — configurable via frontmatter `writable` field). Hard-blocks writes to toolbox/, acp/, rules/. Uses claim-based locking for multi-agent safety.",
+        description:
+          "Writes a memory entry to .ai/. Enforces immutability: IDENTITY.md is immutable by default; PROJECT_STATUS.md (or DIRECTION.md) is writable by default (configurable via frontmatter `writable`). Hard-blocks writes to toolbox/, acp/, rules/. Uses claim-based locking for multi-agent safety — if another session holds a claim on the path, wait for the 5-minute TTL or close the other session. " +
+          "Each write appends a session header for traceability. Use append: false to overwrite (creates new file or replaces). " +
+          "For best results: use validate_schema first when constructing entries; pass session_id when coordinating with claim_task or publish_result. When work is done: break down into atomic tasks that fit RALPH loops and avoid conflicts when agents work in parallel.",
         inputSchema: {
           type: "object",
           properties: {
-            path: { type: "string", description: "Relative path within .ai/ (e.g. memory/decisions.md)" },
-            content: { type: "string", description: "Content to append or write" },
+            path: { type: "string", description: "Relative path within .ai/ (e.g. memory/decisions.md, memory/patterns.md)" },
+            content: { type: "string", description: "Content to append or write (include frontmatter for memory entries)" },
             append: { type: "boolean", description: "Append to existing file (true) or overwrite (false). Default: true." },
             session_id: { type: "string", description: "Optional session identifier for multi-agent tracking. Auto-generated if not provided." },
           },
@@ -332,28 +353,38 @@ export function registerTools(server: Server, aiDir: string): void {
       },
       {
         name: "generate_harness",
-        description: "Compile harness.json from current [P0] entries. Writes .ai/temp/harness.json and rule tests.",
+        description:
+          "Compiles harness.json from current [P0] entries in memory/decisions.md. Writes .ai/temp/harness.json and rule tests to .ai/temp/rule-tests/tests.json. " +
+          "Required before validate_context. Run after adding or changing [P0] entries to refresh the rule set.",
         inputSchema: { type: "object", properties: {} },
       },
       {
         name: "get_open_items",
-        description: "Returns current open and closed items from sessions/open-items.md.",
+        description:
+          "Returns the current open and closed items from sessions/open-items.md. " +
+          "Use at session start to see pending tasks, or before claim_task to avoid duplicate work.",
         inputSchema: { type: "object", properties: {} },
       },
       {
         name: "get_memory",
-        description: "Get a summary of a specific memory topic.",
+        description:
+          "Returns a summary of memory for a specific topic. Searches .ai/ and returns top 5 matches with file path and excerpt. " +
+          "Use for quick lookups when you need a focused answer (e.g. 'authentication', 'MCP config'). " +
+          "For broader exploration, use search_memory instead.",
         inputSchema: {
           type: "object",
           properties: {
-            topic: { type: "string", description: "Topic to summarize (e.g. 'authentication', 'database patterns')" },
+            topic: { type: "string", description: "Topic to summarize (e.g. 'authentication', 'database patterns', 'DIRECTION')" },
           },
           required: ["topic"],
         },
       },
       {
         name: "prune_memory",
-        description: "Identify stale or deprecated memory entries for archiving.",
+        description:
+          "Identifies stale or deprecated memory entries for archiving. Scans memory/*.md for [DEPRECATED] entries. " +
+          "Returns a list of candidates with file and entry count. Use dry_run: true (default) to report without modifying; dry_run: false to flag for manual archiving. " +
+          "For best results: run periodically to keep memory lean; review candidates before archiving.",
         inputSchema: {
           type: "object",
           properties: {
@@ -363,40 +394,52 @@ export function registerTools(server: Server, aiDir: string): void {
       },
       {
         name: "get_evals",
-        description: "Returns the latest eval report from .ai/temp/eval-report.json.",
+        description:
+          "Returns the latest eval report from .ai/temp/eval-report.json. " +
+          "Use to check memory health and governance metrics. Run `ai-memory eval` to generate the report.",
         inputSchema: { type: "object", properties: {} },
       },
       // ─── Autoresearch collaboration tools ────────────────────────────────
       {
         name: "claim_task",
-        description: "Claim a task before starting work. Searches any task source file (open-items.md, implementation plans, DIRECTION.md) for matching items. Prevents duplicate work across concurrent agents. Claims expire after 5 minutes.",
+        description:
+          "Claims a task before starting work. Searches the task source file (open-items.md by default, or a plan file, PROJECT_STATUS.md) for a matching unclaimed item and marks it [CLAIMED:session_id]. Prevents duplicate work across concurrent agents. Claims expire after 5 minutes. " +
+          "If no match is found, creates a new claimed task in open-items.md. " +
+          "For best results: use task_description that matches the wording in the source (e.g. 'Add Context7 MCP'); specify source when the task lives in a plan file or PROJECT_STATUS.md.",
         inputSchema: {
           type: "object",
           properties: {
-            task_description: { type: "string", description: "Description of the task to claim" },
-            source: { type: "string", description: "Relative path to task source file within .ai/ (default: sessions/open-items.md). Can be any file with task lists — e.g. a plan file, DIRECTION.md, etc." },
-            session_id: { type: "string", description: "Session identifier. Auto-generated if not provided." },
+            task_description: { type: "string", description: "Description of the task to claim (match wording in source for best match)" },
+            source: { type: "string", description: "Relative path to task source within .ai/ (default: sessions/open-items.md). Can be a plan file, PROJECT_STATUS.md, etc." },
+            session_id: { type: "string", description: "Session identifier. Auto-generated if not provided. Use same ID for publish_result to link result to claim." },
           },
           required: ["task_description"],
         },
       },
       {
         name: "publish_result",
-        description: "Publish an experiment/task result (success or failure) to thread-archive. Every result is recorded for collective learning.",
+        description:
+          "Publishes an experiment or task result (success, failure, or partial) to sessions/archive/thread-archive.md. Every result is recorded for collective learning. " +
+          "If the task was claimed via claim_task with the same session_id, marks the task complete (success) or reopened (failure) in open-items.md. " +
+          "Each entry includes: date, outcome icon, summary, learnings (optional), session_id. " +
+          "For best results: include learnings (patterns, anti-patterns, decisions) to enrich the archive.",
         inputSchema: {
           type: "object",
           properties: {
             summary: { type: "string", description: "What was attempted and what happened" },
-            outcome: { type: "string", enum: ["success", "failure", "partial"], description: "Outcome of the work" },
-            learnings: { type: "string", description: "What was learned (patterns, anti-patterns, decisions)" },
-            session_id: { type: "string", description: "Session identifier. Auto-generated if not provided." },
+            outcome: { type: "string", enum: ["success", "failure", "partial"], description: "Outcome: success, failure, or partial" },
+            learnings: { type: "string", description: "What was learned (patterns, anti-patterns, decisions). Optional but recommended." },
+            session_id: { type: "string", description: "Session identifier. Auto-generated if not provided. Use same ID as claim_task to link." },
           },
           required: ["summary", "outcome"],
         },
       },
       {
         name: "sync_memory",
-        description: "Persist all .ai/ changes to git. Essential for ephemeral environments (worktrees, cloud agents, sandbox). Stages, commits, and optionally pushes.",
+        description:
+          "Persists all .ai/ changes to git. Stages .ai/, commits with a message, and optionally pushes. Essential for ephemeral environments (worktrees, cloud agents, sandbox). " +
+          "Requires a git repository. Returns the commit message and list of files committed. " +
+          "For best results: run after commit_memory or other .ai/ writes; use push: true when in a cloud agent or worktree to persist to remote.",
         inputSchema: {
           type: "object",
           properties: {
@@ -404,6 +447,43 @@ export function registerTools(server: Server, aiDir: string): void {
             push: { type: "boolean", description: "Push to remote after commit. Default: false." },
           },
         },
+      },
+      // ─── Documentation management ───────────────────────────────────────────
+      {
+        name: "get_doc_path",
+        description:
+          "Returns the canonical path for a documentation type from .ai/docs-schema.json. Use before creating or updating docs — do not infer paths. " +
+          "Types: design-system, adr, api-spec, api-guide, model-card, prompts, backlog, decisions-archive, changelog. " +
+          "Returns null if schema missing or type unknown. Pass slug for types with * in pattern (e.g. design-system slug=<Project>).",
+        inputSchema: {
+          type: "object",
+          properties: {
+            type: { type: "string", description: "Doc type (e.g. design-system, backlog, changelog)" },
+            slug: { type: "string", description: "Optional slug for parameterized types (e.g. project name for design-system)" },
+          },
+          required: ["type"],
+        },
+      },
+      {
+        name: "validate_doc_placement",
+        description:
+          "Validates a file path against .ai/docs-schema.json. Checks naming convention (SCREAMING_SNAKE by default) and path. " +
+          "Returns valid: boolean and errors: string[]. Use before writing docs; run in background during compound. " +
+          "If schema missing, returns valid: true.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            path: { type: "string", description: "Relative path to validate (e.g. docs/BACKLOG.md)" },
+            paths: { type: "array", items: { type: "string" }, description: "Multiple paths to validate" },
+          },
+        },
+      },
+      {
+        name: "list_doc_types",
+        description:
+          "Lists all doc types from .ai/docs-schema.json with their path and pattern. " +
+          "Use to discover available types before get_doc_path. Returns empty if schema missing.",
+        inputSchema: { type: "object", properties: {} },
       },
     ],
   }));
@@ -641,9 +721,14 @@ export function registerTools(server: Server, aiDir: string): void {
           throw new McpError(ErrorCode.InvalidParams, "task_description is required.");
         }
         const sessionId = (typeof args.session_id === "string" && args.session_id) || generateSessionId();
-        const sourcePath = typeof args.source === "string" && args.source
+        let sourcePath = typeof args.source === "string" && args.source
           ? args.source
           : "sessions/open-items.md";
+
+        // Resolve PROJECT_STATUS.md to DIRECTION.md for legacy projects
+        if (sourcePath === "PROJECT_STATUS.md" && !existsSync(join(aiDir, "PROJECT_STATUS.md"))) {
+          sourcePath = "DIRECTION.md";
+        }
 
         // Validate source path stays within aiDir
         const sourceFullPath = assertPathWithinAiDir(aiDir, sourcePath);
@@ -774,6 +859,66 @@ export function registerTools(server: Server, aiDir: string): void {
           const msg = err instanceof Error ? err.message : String(err);
           throw new McpError(ErrorCode.InternalError, `sync_memory failed: ${msg}`);
         }
+      }
+
+      case "get_doc_path": {
+        const docType = args.type;
+        if (typeof docType !== "string" || !docType.trim()) {
+          throw new McpError(ErrorCode.InvalidParams, "type is required.");
+        }
+        const projectRoot = resolve(aiDir, "..");
+        const schema = await loadDocsSchema(projectRoot);
+        if (!schema) {
+          return { content: [{ type: "text", text: "No .ai/docs-schema.json found. Run `ai-memory init --full` to create one." }] };
+        }
+        const slug = typeof args.slug === "string" ? args.slug : undefined;
+        const path = getDocPath(schema, docType, slug);
+        if (!path) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Unknown doc type "${docType}". Available: ${Object.keys(schema.docTypes).join(", ")}`,
+              },
+            ],
+          };
+        }
+        return { content: [{ type: "text", text: path }] };
+      }
+
+      case "validate_doc_placement": {
+        const projectRoot = resolve(aiDir, "..");
+        const schema = await loadDocsSchema(projectRoot);
+        if (!schema) {
+          return { content: [{ type: "text", text: "valid: true (no schema)" }] };
+        }
+        const pathsToCheck: string[] = [];
+        if (typeof args.path === "string" && args.path) pathsToCheck.push(args.path);
+        if (Array.isArray(args.paths)) pathsToCheck.push(...(args.paths as string[]).filter((p): p is string => typeof p === "string"));
+        if (pathsToCheck.length === 0) {
+          return { content: [{ type: "text", text: "Provide path or paths to validate." }] };
+        }
+        const allErrors: string[] = [];
+        for (const p of pathsToCheck) {
+          const result = validateDocPlacement(schema, p, projectRoot);
+          if (!result.valid) allErrors.push(...result.errors.map((e) => `${p}: ${e}`));
+        }
+        const valid = allErrors.length === 0;
+        const text = valid
+          ? `valid: true (${pathsToCheck.length} path(s) OK)`
+          : `valid: false\n${allErrors.join("\n")}`;
+        return { content: [{ type: "text", text }] };
+      }
+
+      case "list_doc_types": {
+        const projectRoot = resolve(aiDir, "..");
+        const schema = await loadDocsSchema(projectRoot);
+        if (!schema) {
+          return { content: [{ type: "text", text: "No .ai/docs-schema.json found." }] };
+        }
+        const types = listDocTypes(schema);
+        const text = types.map((t) => `- ${t.type}: ${t.path}/${t.pattern}`).join("\n");
+        return { content: [{ type: "text", text: text || "No doc types defined." }] };
       }
 
       default:

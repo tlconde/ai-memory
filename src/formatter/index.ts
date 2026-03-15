@@ -9,7 +9,7 @@ export interface ValidationError {
 }
 
 const VALID_TYPES = [
-  "identity", "direction", "decision", "pattern", "debugging",
+  "identity", "direction", "project-status", "decision", "pattern", "debugging",
   "skill", "toolbox", "rule", "agent", "index",
 ];
 const VALID_STATUSES = ["active", "deprecated", "experimental"];
@@ -81,6 +81,7 @@ export function ensureFrontmatter(filePath: string, content: string): string {
     else if (filePath.includes("/toolbox/")) fm.type = "toolbox";
     else if (filePath.includes("/rules/")) fm.type = "rule";
     else if (filePath.endsWith("IDENTITY.md")) fm.type = "identity";
+    else if (filePath.endsWith("PROJECT_STATUS.md")) fm.type = "project-status";
     else if (filePath.endsWith("DIRECTION.md")) fm.type = "direction";
     else fm.type = "decision";
     changed = true;
@@ -149,4 +150,63 @@ async function collectMdFiles(dir: string): Promise<string[]> {
   }
 
   return results;
+}
+
+/** Extract [P0]/[P1]/[P2] entry titles from markdown (skip [DEPRECATED]). */
+function extractEntries(content: string): Array<{ priority: string; title: string }> {
+  const entries: Array<{ priority: string; title: string }> = [];
+  const lines = content.split("\n");
+  for (const line of lines) {
+    const m = line.match(/^###\s*\[(P[012])\]\s*(.+?)(?:\s*\[DEPRECATED\])?$/);
+    if (m) {
+      const title = m[2].replace(/\s*\[DEPRECATED\]\s*$/, "").trim();
+      if (!line.includes("[DEPRECATED]")) entries.push({ priority: m[1], title });
+    }
+  }
+  return entries;
+}
+
+/** Regenerate memory-index.md from decisions, patterns, debugging, improvements. */
+export async function generateMemoryIndex(aiDir: string): Promise<void> {
+  const memoryDir = join(aiDir, "memory");
+  if (!existsSync(memoryDir)) return;
+
+  const sections: Array<{ file: string; entries: Array<{ priority: string; title: string }> }> = [];
+  for (const file of ["decisions.md", "patterns.md", "debugging.md", "improvements.md"]) {
+    const path = join(memoryDir, file);
+    if (!existsSync(path)) continue;
+    const content = await readFile(path, "utf-8");
+    const entries = extractEntries(content);
+    if (entries.length > 0) sections.push({ file, entries });
+  }
+
+  const priorityOrder = ["P0", "P1", "P2"];
+  const lines: string[] = [
+    "---",
+    `id: memory-index`,
+    "type: index",
+    "status: active",
+    `last_updated: ${new Date().toISOString().slice(0, 10)}`,
+    "---",
+    "",
+    "# Memory Index",
+    "",
+    "**Auto-generated.** Run `ai-memory index` or `/mem-compound` to regenerate.",
+    "",
+    "---",
+    "",
+  ];
+
+  for (const { file, entries } of sections) {
+    const label = file.replace(".md", "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    lines.push(`## ${label}\n`);
+    const sorted = [...entries].sort((a, b) => priorityOrder.indexOf(a.priority) - priorityOrder.indexOf(b.priority));
+    for (const e of sorted) {
+      lines.push(`- **[${e.priority}]** ${e.title}`);
+    }
+    lines.push("");
+  }
+
+  const indexPath = join(memoryDir, "memory-index.md");
+  await writeFile(indexPath, lines.join("\n").trimEnd() + "\n");
 }

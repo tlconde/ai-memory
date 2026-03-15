@@ -107,10 +107,12 @@ export async function main(options?: { http?: boolean; port?: number }): Promise
       if (corsOriginsRaw !== "*") process.stderr.write(`[ai-memory] CORS: ${corsOriginsRaw}\n`);
     });
   } else {
-    // Default: stdio transport for local IDEs
+    // Default: stdio transport for local IDEs — silent startup (matches Context7/compound style)
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    process.stderr.write(`[ai-memory] MCP server started (stdio). AI_DIR=${aiDir}\n`);
+    if (process.env.AI_MEMORY_DEBUG) {
+      process.stderr.write(`[ai-memory] MCP server started (stdio). AI_DIR=${aiDir}\n`);
+    }
   }
 }
 

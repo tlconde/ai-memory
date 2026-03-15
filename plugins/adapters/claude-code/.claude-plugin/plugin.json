@@ -9,8 +9,8 @@
   "mcpServers": {
     "ai-memory": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["@radix-ai/ai-memory", "mcp"],
+      "command": "node",
+      "args": [".ai/mcp-launcher.cjs"],
       "env": {
         "AI_DIR": "${workspaceFolder}/.ai"
       }
