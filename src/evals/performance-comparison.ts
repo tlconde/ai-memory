@@ -14,15 +14,9 @@
 import { readFile, readdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+import type { EvalMetric } from "./types.js";
 
-interface EvalResult {
-  name: string;
-  value: string | number;
-  status: "good" | "warn" | "bad";
-  note?: string;
-}
-
-export async function evalMemoryDepth(aiDir: string): Promise<EvalResult> {
+export async function evalMemoryDepth(aiDir: string): Promise<EvalMetric> {
   const memDir = join(aiDir, "memory");
   if (!existsSync(memDir)) {
     return { name: "memory_depth", value: 0, status: "warn", note: "No memory/ directory" };
@@ -44,7 +38,7 @@ export async function evalMemoryDepth(aiDir: string): Promise<EvalResult> {
   };
 }
 
-export async function evalSessionCount(aiDir: string): Promise<EvalResult> {
+export async function evalSessionCount(aiDir: string): Promise<EvalMetric> {
   const archivePath = join(aiDir, "sessions", "archive", "thread-archive.md");
   if (!existsSync(archivePath)) {
     return { name: "session_count", value: 0, status: "warn", note: "No thread-archive.md" };
@@ -61,7 +55,7 @@ export async function evalSessionCount(aiDir: string): Promise<EvalResult> {
   };
 }
 
-export async function evalMemoryFreshness(aiDir: string): Promise<EvalResult> {
+export async function evalMemoryFreshness(aiDir: string): Promise<EvalMetric> {
   const memDir = join(aiDir, "memory");
   if (!existsSync(memDir)) {
     return { name: "memory_freshness", value: "n/a", status: "warn", note: "No memory/ directory" };

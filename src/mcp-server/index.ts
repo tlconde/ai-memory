@@ -105,7 +105,14 @@ export async function main(options?: { http?: boolean; port?: number }): Promise
     httpServer.listen(port, () => {
       process.stderr.write(`[ai-memory] MCP HTTP server started on port ${port}.\n`);
       process.stderr.write(`[ai-memory] Endpoint: http://localhost:${port}/mcp\n`);
-      if (authToken) process.stderr.write(`[ai-memory] Auth: Bearer token required\n`);
+      if (authToken) {
+        process.stderr.write(`[ai-memory] Auth: Bearer token required\n`);
+      } else {
+        process.stderr.write(
+          `[ai-memory] WARNING: AI_MEMORY_AUTH_TOKEN not set — HTTP server accepts all requests. ` +
+            `Set AI_MEMORY_AUTH_TOKEN when exposing to untrusted networks.\n`
+        );
+      }
       if (corsOriginsRaw !== "*") process.stderr.write(`[ai-memory] CORS: ${corsOriginsRaw}\n`);
     });
   } else {

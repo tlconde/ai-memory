@@ -18,6 +18,7 @@ This project has persistent AI memory in `.ai/`.
 - **IDENTITY.md** — project constraints and behavioral rules
 - **PROJECT_STATUS.md** — current focus, open questions, what to try next (writable)
 - **memory/** — decisions, patterns, debugging history
+- **skills/** — domain-specific patterns and session protocols
 
 Use `search_memory` (MCP) to find relevant context before starting a task.
 Use `commit_memory` to write new entries — never edit memory files directly.

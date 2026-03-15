@@ -6,20 +6,14 @@
 import { readFile, readdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
-
-interface EvalResult {
-  name: string;
-  value: string | number;
-  status: "good" | "warn" | "bad";
-  note?: string;
-}
+import type { EvalMetric } from "./types.js";
 
 /**
  * Hook coverage: % of recommended Claude Code hooks installed.
  * Checks for Stop, PreCompact, SubagentStop, WorktreeCreate in .claude/settings.json
  * or plugin hooks.
  */
-export async function evalHookCoverage(projectDir: string): Promise<EvalResult> {
+export async function evalHookCoverage(projectDir: string): Promise<EvalMetric> {
   const recommended = ["Stop", "PreCompact", "SubagentStop", "WorktreeCreate"];
   let found = 0;
 
@@ -61,7 +55,7 @@ export async function evalHookCoverage(projectDir: string): Promise<EvalResult> 
 /**
  * Skill discoverability: % of skills present in portable .agents/skills/ directory.
  */
-export async function evalSkillDiscoverability(projectDir: string): Promise<EvalResult> {
+export async function evalSkillDiscoverability(projectDir: string): Promise<EvalMetric> {
   const expected = ["mem-compound", "mem-session-close", "mem-validate", "mem-init"];
   const agentsSkillsDir = join(projectDir, ".agents", "skills");
   let found = 0;
@@ -86,7 +80,7 @@ export async function evalSkillDiscoverability(projectDir: string): Promise<Eval
 /**
  * Cloud readiness: .ai/ is git-tracked + sync_memory available + HTTP transport exists.
  */
-export async function evalCloudReadiness(projectDir: string): Promise<EvalResult> {
+export async function evalCloudReadiness(projectDir: string): Promise<EvalMetric> {
   const checks: string[] = [];
   let passed = 0;
 
@@ -138,7 +132,7 @@ export async function evalCloudReadiness(projectDir: string): Promise<EvalResult
 /**
  * Automation readiness: skills have automation sections and sync_memory calls.
  */
-export async function evalAutomationReadiness(projectDir: string): Promise<EvalResult> {
+export async function evalAutomationReadiness(projectDir: string): Promise<EvalMetric> {
   const skillDirs = [
     join(projectDir, "plugins", "ai-memory", "skills"),
     join(projectDir, ".agents", "skills"),
@@ -178,7 +172,7 @@ export async function evalAutomationReadiness(projectDir: string): Promise<EvalR
 /**
  * Integration coverage: % of recommended toolbox files that exist.
  */
-export async function evalIntegrationCoverage(aiDir: string): Promise<EvalResult> {
+export async function evalIntegrationCoverage(aiDir: string): Promise<EvalMetric> {
   const expected = ["integrations.md", "browser.md", "shell.md"];
   const toolboxDir = join(aiDir, "toolbox");
   let found = 0;

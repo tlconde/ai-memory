@@ -19,7 +19,7 @@ export const VALID_TYPES = [
   "docs-schema",
 ] as const;
 
-export const VALID_STATUSES = ["active", "deprecated", "superseded", "draft"] as const;
+export const VALID_STATUSES = ["active", "deprecated", "superseded", "draft", "experimental"] as const;
 
 /** Tool names to flag in skill content — skills should declare capabilities, not tools. */
 export const SKILL_TOOL_NAMES_BLOCKLIST = [

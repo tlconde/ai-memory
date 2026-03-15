@@ -1,7 +1,8 @@
 import { readFile } from "fs/promises";
-import { join, relative, resolve } from "path";
+import { join } from "path";
 import { existsSync } from "fs";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { safeRead, assertPathWithinAiDir } from "../utils/fs.js";
 import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
@@ -15,15 +16,6 @@ async function tail(filePath: string, lines: number): Promise<string> {
     const content = await readFile(filePath, "utf-8");
     const all = content.split("\n");
     return all.slice(-lines).join("\n");
-  } catch {
-    return "";
-  }
-}
-
-// Read a file safely, returning empty string if not found
-async function safeRead(filePath: string): Promise<string> {
-  try {
-    return await readFile(filePath, "utf-8");
   } catch {
     return "";
   }
@@ -143,19 +135,16 @@ export function registerResources(server: Server, aiDir: string): void {
 
     // Dynamic: memory://file/{path}
     if (uri.startsWith("memory://file/")) {
-      // Decode before path check to prevent %2e%2e bypass
       let relativePath: string;
       try {
         relativePath = decodeURIComponent(uri.slice("memory://file/".length));
       } catch {
         throw new McpError(ErrorCode.InvalidRequest, `Invalid URI encoding: ${uri}`);
       }
-      // Security: ensure resolved path stays inside aiDir
-      const fullPath = resolve(aiDir, relativePath);
-      const rel = relative(aiDir, fullPath);
-      if (rel.startsWith("..") || rel.startsWith("/") || /\.\.[\\/]/.test(rel)) {
-        throw new McpError(ErrorCode.InvalidRequest, `Path traversal not allowed: ${relativePath}`);
+      if (relativePath.includes("\0")) {
+        throw new McpError(ErrorCode.InvalidRequest, "Path must not contain null bytes.");
       }
+      const fullPath = assertPathWithinAiDir(aiDir, relativePath);
       const content = await safeRead(fullPath);
       return {
         contents: [
