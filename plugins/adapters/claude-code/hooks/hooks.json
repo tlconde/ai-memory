@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"const fs=require('fs'),p=require('path'),d=process.env.AI_DIR||p.join(process.cwd(),'.ai');if(!fs.existsSync(d))process.exit(0);try{const{execSync}=require('child_process');const s=execSync('git diff --name-only',{cwd:p.resolve(d,'..'),encoding:'utf-8'});if(s.includes('.ai/')){console.log(JSON.stringify({additionalContext:'Sub-agent made .ai/ changes. Consider running sync_memory to persist them.'}))}}catch{}\"",
+            "command": "node -e \"const fs=require('fs'),p=require('path'),d=process.env.AI_DIR||p.join(process.cwd(),'.ai');if(!fs.existsSync(d))process.exit(0);try{const{execFileSync}=require('child_process');const s=execFileSync('git',['diff','--name-only'],{cwd:p.resolve(d,'..'),encoding:'utf-8'});if(s.includes('.ai/')){console.log(JSON.stringify({additionalContext:'Sub-agent made .ai/ changes. Consider running sync_memory to persist them.'}))}}catch{}\"",
             "timeout": 10,
             "statusMessage": "ai-memory: checking sub-agent memory changes..."
           }
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"const fs=require('fs'),p=require('path'),input=JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')||'{}');const name=input.name||'worktree';process.stderr.write('[ai-memory] Worktree created: '+name+'\\n');process.exit(0)\"",
+            "command": "node -e \"const fs=require('fs'),p=require('path'),input=JSON.parse(require('fs').readFileSync(0,'utf-8')||'{}');const name=input.name||'worktree';process.stderr.write('[ai-memory] Worktree created: '+name+'\\n');process.exit(0)\"",
             "timeout": 10
           }
         ]

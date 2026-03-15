@@ -12,7 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 async function run(cwd, cmd, args = []) {
   return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, { stdio: "inherit", cwd, shell: true });
+    const proc = spawn(cmd, args, { stdio: "inherit", cwd });
     proc.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`Exit ${code}`))));
   });
 }

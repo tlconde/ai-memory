@@ -359,7 +359,9 @@ export function registerTools(server: Server, aiDir: string): void {
         name: "search_memory",
         description:
           "Searches across .ai/ memory files (memory/, sessions/, agents/, skills/) and returns ranked results with excerpts. " +
-          "Uses hybrid search (keyword + semantic + RRF) by default. Set AI_SEARCH=keyword for keyword-only (faster, no model). " +
+          "Uses hybrid search (keyword + semantic + RRF) by default. AI_SEARCH=keyword|semantic|hybrid. " +
+          "On Windows, onnxruntime-node may fail; set AI_SEARCH=keyword for keyword-only, or AI_SEARCH_WASM=1 to try WASM. " +
+          "Semantic/hybrid requires Linux or macOS for native; Windows uses keyword-only or WASM. " +
           "Each result includes: file path (relative to .ai/), excerpt, and score. " +
           "For best results: use specific terms from the task (e.g. 'MCP launcher Windows', 'claim locking'); optionally filter by tags if the query mentions them.",
         inputSchema: {
@@ -574,11 +576,14 @@ export function registerTools(server: Server, aiDir: string): void {
         const tags = args.tags as string[] | undefined;
         const mode = getSearchMode();
         let resp: Awaited<ReturnType<typeof hybridSearch>>;
+        let fallbackNote = "";
         try {
           resp = await hybridSearch(aiDir, query, { mode, limit: 10, tags });
         } catch (err) {
           if (mode !== "keyword") {
             resp = await hybridSearch(aiDir, query, { mode: "keyword", limit: 10, tags });
+            fallbackNote =
+              "Note: Hybrid/semantic search failed (e.g. onnxruntime-node missing on Windows). Using keyword-only. Set AI_SEARCH=keyword to skip, or AI_SEARCH_WASM=1 to try WASM.\n\n";
           } else {
             throw err;
           }
@@ -588,7 +593,7 @@ export function registerTools(server: Server, aiDir: string): void {
           return { content: [{ type: "text", text: "No results found." }] };
         }
         const backendLabel = backend === "keyword" ? "Keyword-only" : backend === "native" ? "Hybrid (Native)" : "Hybrid (WASM)";
-        const text = `Search backend: ${backendLabel}\n\n` +
+        const text = fallbackNote + `Search backend: ${backendLabel}\n\n` +
           results
             .map((r, i) => `${i + 1}. **${r.file}** (score: ${r.score})\n   ${r.excerpt}`)
             .join("\n\n");
@@ -772,11 +777,14 @@ export function registerTools(server: Server, aiDir: string): void {
         }
         const mode = getSearchMode();
         let resp: Awaited<ReturnType<typeof hybridSearch>>;
+        let fallbackNote = "";
         try {
           resp = await hybridSearch(aiDir, topic, { mode, limit: 5 });
         } catch (err) {
           if (mode !== "keyword") {
             resp = await hybridSearch(aiDir, topic, { mode: "keyword", limit: 5 });
+            fallbackNote =
+              "Note: Hybrid/semantic search failed. Using keyword-only. Set AI_SEARCH=keyword or AI_SEARCH_WASM=1.\n\n";
           } else {
             throw err;
           }
@@ -786,7 +794,7 @@ export function registerTools(server: Server, aiDir: string): void {
           return { content: [{ type: "text", text: `No memory found for topic: ${topic}` }] };
         }
         const backendLabel = backend === "keyword" ? "Keyword-only" : backend === "native" ? "Hybrid (Native)" : "Hybrid (WASM)";
-        const text = `Search backend: ${backendLabel}\n\nMemory for "${topic}":\n\n` +
+        const text = fallbackNote + `Search backend: ${backendLabel}\n\nMemory for "${topic}":\n\n` +
           results
             .map((r) => `**${r.file}**: ${r.excerpt}`)
             .join("\n\n");
@@ -1002,7 +1010,15 @@ export function registerTools(server: Server, aiDir: string): void {
           return { content: [{ type: "text", text: "No .ai/docs-schema.json found. Run `ai-memory init --full` to create one." }] };
         }
         const slug = typeof args.slug === "string" ? args.slug : undefined;
-        const path = getDocPath(schema, docType, slug);
+        let path: string | null;
+        try {
+          path = getDocPath(schema, docType, slug);
+        } catch (err) {
+          if (err instanceof Error && err.message.includes("slug")) {
+            throw new McpError(ErrorCode.InvalidParams, err.message);
+          }
+          throw err;
+        }
         if (!path) {
           return {
             content: [

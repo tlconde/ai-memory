@@ -5,25 +5,32 @@ dist/
 *.log
 *.tgz
 .DS_Store
+Thumbs.db
 
 # IDE / personal config
 .cursor/
 .claude/
+.idea/
+.vscode/
+.codex/
 
 # Dev artifacts
 chat-history/
 chat-history.md
 experiments/*/node_modules/
 docs/
+experiments/
 
 # Experiment sandbox artifacts
 **/sandbox-*/index.sqlite
 **/sandbox-*/.wasm/
 
+# Build / test artifacts
+coverage/
+.cache/
+
 # Session transcripts / compound dumps (never publish)
 *.jsonl
-.ai/temp/
-.ai/sessions/archive/*.jsonl
 
 # Project memory and local MCP config (never publish)
 .ai/

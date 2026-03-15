@@ -53,6 +53,9 @@ export async function loadDocsSchema(projectRoot: string): Promise<DocsSchema | 
 }
 
 export function getDocPath(schema: DocsSchema, type: string, slug?: string): string | null {
+  if (slug && /[\/\\]|\.\./.test(slug)) {
+    throw new Error("slug must not contain path separators or ..");
+  }
   const config = schema.docTypes[type];
   if (!config) return null;
   const basePath = config.path;

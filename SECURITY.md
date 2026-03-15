@@ -31,7 +31,8 @@ This policy covers:
 - **Immutability**: IDENTITY.md is immutable by default; structural paths (`toolbox/`, `acp/`, `rules/`) are always immutable. Controlled via YAML frontmatter `writable` field.
 - **Claim locking**: Advisory file locks prevent concurrent write corruption (5-minute TTL).
 - **HTTP auth**: When `AI_MEMORY_AUTH_TOKEN` is set, the HTTP MCP server requires `Authorization: Bearer <token>` on all requests. Unset = no auth (local use only).
-- **CORS**: Configurable via `AI_MEMORY_CORS_ORIGINS` (default: `*`). Restrict for production cloud deployments.
+- **CORS**: Configurable via `AI_MEMORY_CORS_ORIGINS` (default: `*`). Restrict for production cloud deployments. When auth is not configured, any origin can call the API; use auth and/or restrict CORS in production.
+- **AI_DIR**: Resolved from `process.env.AI_DIR` or defaults to `.ai` under the project root. Must be trusted; in shared/cloud contexts, validate it stays within allowed paths.
 - **No secrets in memory**: Never store API keys, tokens, or credentials in `.ai/` files.
 
 ## Trust Boundaries

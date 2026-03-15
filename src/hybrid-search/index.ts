@@ -1,9 +1,12 @@
 /**
  * Hybrid search: keyword (TF) + semantic (Transformers.js) + RRF.
  * Based on experiments/hybrid-search/sandbox-b-inhouse (Approach B).
+ * On Windows, onnxruntime-node may fail; set AI_SEARCH_WASM=1 to prefer WASM, or AI_SEARCH=keyword for keyword-only.
  */
 import { readdir, readFile } from "fs/promises";
-import { join, relative } from "path";
+import { join, relative, dirname } from "path";
+import { createRequire } from "module";
+import { pathToFileURL } from "url";
 
 const RRF_K = 60;
 
@@ -138,17 +141,69 @@ function rrfMerge(rankLists: string[][], k = RRF_K): string[] {
 let extractor: Awaited<ReturnType<typeof import("@huggingface/transformers").pipeline>> | null = null;
 let backendUsed: SearchBackend = "keyword";
 
-async function getExtractor(): Promise<Awaited<ReturnType<typeof import("@huggingface/transformers").pipeline>>> {
-  if (extractor) return extractor;
+function isWindows(): boolean {
+  return process.platform === "win32";
+}
+
+function preferWasm(): boolean {
+  return process.env.AI_SEARCH_WASM === "1" || process.env.AI_SEARCH_WASM === "true";
+}
+
+async function loadNativeExtractor(): Promise<Awaited<ReturnType<typeof import("@huggingface/transformers").pipeline>>> {
   const { pipeline, env } = await import("@huggingface/transformers");
   const modelPath = process.env.AI_MODEL_PATH;
   if (modelPath) {
     env.localModelPath = modelPath;
     env.allowRemoteModels = false;
   }
-  extractor = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
-  backendUsed = "native"; // onnxruntime-node in Node; wasm fallback not implemented yet
-  return extractor;
+  return pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
+}
+
+async function loadWasmExtractor(): Promise<Awaited<ReturnType<typeof import("@huggingface/transformers").pipeline>>> {
+  const require = createRequire(import.meta.url);
+  const pkgRoot = dirname(require.resolve("@huggingface/transformers/package.json"));
+  const webPath = join(pkgRoot, "dist", "transformers.web.js");
+  const mod = await import(pathToFileURL(webPath).href);
+  const { pipeline, env } = mod;
+  const modelPath = process.env.AI_MODEL_PATH;
+  if (modelPath) {
+    env.localModelPath = modelPath;
+    env.allowRemoteModels = false;
+  }
+  return pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
+}
+
+async function getExtractor(): Promise<Awaited<ReturnType<typeof import("@huggingface/transformers").pipeline>>> {
+  if (extractor) return extractor;
+
+  const tryWasmFirst = preferWasm() || (isWindows() && !process.env.AI_SEARCH_FORCE_NATIVE);
+
+  if (tryWasmFirst) {
+    try {
+      extractor = await loadWasmExtractor();
+      backendUsed = "wasm";
+      return extractor;
+    } catch (err) {
+      // Fall through to try native
+    }
+  }
+
+  try {
+    extractor = await loadNativeExtractor();
+    backendUsed = "native";
+    return extractor;
+  } catch (nativeErr) {
+    if (!tryWasmFirst) {
+      try {
+        extractor = await loadWasmExtractor();
+        backendUsed = "wasm";
+        return extractor;
+      } catch {
+        // Re-throw original native error for clearer message
+      }
+    }
+    throw nativeErr;
+  }
 }
 
 /** Pre-warm the semantic model (download + load). Call at init or session start to avoid first-query latency. */

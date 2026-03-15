@@ -79,7 +79,8 @@ export function parseMemoryEntries(
     if (yamlBlockMatch) {
       try {
         const parsed = yaml.load(
-          `constraint_pattern:\n${yamlBlockMatch[1]}`
+          `constraint_pattern:\n${yamlBlockMatch[1]}`,
+          { schema: yaml.JSON_SCHEMA }
         ) as { constraint_pattern: ConstraintPattern };
         constraint_pattern = parsed.constraint_pattern;
       } catch {

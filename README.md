@@ -160,7 +160,10 @@ ai-memory eval add <name>        # Add a custom eval metric
 |---------|---------|-------------|
 | `AI_DIR` | `./.ai` | Path to the `.ai/` directory |
 | `AI_SEARCH` | `hybrid` | Search mode: `keyword` (TF only, no model), `semantic` (vector only), or `hybrid` (keyword + semantic + RRF). Use `keyword` for faster startup or constrained environments. |
+| `AI_SEARCH_WASM` | — | Set to `1` to prefer WASM backend (onnxruntime-web) over native. Use on Windows when onnxruntime-node fails. Slower but cross-platform. |
 | `AI_MODEL_PATH` | — | Local path to the embedding model for air-gapped/CI. When set, disables remote model downloads. Model must be in HuggingFace format under this path. |
+
+**Platform note:** Semantic/hybrid search uses onnxruntime-node on Linux/macOS. On Windows, onnxruntime-node may be unavailable; set `AI_SEARCH=keyword` for keyword-only, or `AI_SEARCH_WASM=1` to try WASM.
 
 ---
 
