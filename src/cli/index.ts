@@ -383,7 +383,7 @@ program
   .option("--dir <dir>", "Path to .ai/ directory (default: ./ai)")
   .action(async (opts) => {
     const aiDir = resolve(opts.dir ?? join(process.cwd(), ".ai"));
-    const { readP0Entries, compileHarnessRules, generateRuleTests } = await import("../mcp-server/p0-parser.js");
+    const { readP0Entries, compileHarnessRules, generateRuleTests } = await import("../governance/p0-parser.js");
 
     const entries = await readP0Entries(aiDir);
     const rules = compileHarnessRules(entries);

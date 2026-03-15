@@ -325,7 +325,7 @@ ai-memory eval add my-metric
 
 ## Design
 
-- [Environment adaptation plan](docs/design/environment-adaptation-plan.md) — Spec-driven detection and injection for Cursor, VS Code, Claude Code, etc. (plan, not yet implemented)
+- [Environment adaptation](docs/design/environment-adaptation-plan.md) — Spec-driven detection and injection. Implemented via `detectEnvironments()` in `src/cli/environment.ts` and `install --capability`.
 
 ---
 
