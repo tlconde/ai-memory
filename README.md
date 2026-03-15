@@ -233,6 +233,10 @@ AI_MEMORY_AUTH_TOKEN=secret ai-memory mcp --http --port 3100
 | `AI_MEMORY_AUTH_TOKEN` | Bearer token for HTTP auth (optional, no auth when unset) |
 | `AI_MEMORY_CORS_ORIGINS` | Allowed origins, comma-separated (default: `*`) |
 
+### Context7 MCP (bundled)
+
+`.mcp.json` includes the [Context7](https://context7.com) MCP server for up-to-date docs (Cursor, Claude Code, Windsurf, etc.). Works without an API key; set `CONTEXT7_API_KEY` for higher rate limits.
+
 ---
 
 ## Evals

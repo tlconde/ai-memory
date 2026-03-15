@@ -34,6 +34,13 @@ export const MCP_JSON = JSON.stringify({
       args: ["@radix-ai/ai-memory", "mcp"],
       env: { AI_DIR: "${workspaceFolder}/.ai" },
     },
+    "context7": {
+      type: "http",
+      url: "https://mcp.context7.com/mcp",
+      headers: {
+        "x-api-key": "${CONTEXT7_API_KEY:-}",
+      },
+    },
   },
 }, null, 2);
 
