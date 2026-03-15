@@ -127,6 +127,20 @@ Creates: `acp/`, `docs-schema.json`, `rules/doc-placement.md`, `agents/docs-mana
 | `/mem-validate` | Before a risky change (Full tier) |
 | `/mem-auto-review` | Automated PR review (Bugbot, CI, automations) |
 
+### How to invoke skills
+
+Skills are stored in `.ai/skills/` (canonical) with stubs in `.agents/skills/`. How you invoke them depends on your tool:
+
+| Tool | How to invoke | Example |
+|------|--------------|---------|
+| **Cursor** | Type `/` in chat to see available skills | `/mem-compound` |
+| **Claude Code** | Say "run" followed by the skill name | `run mem-compound` |
+| **Windsurf / Cline** | Ask the agent to follow the skill | "Run the mem-compound protocol" |
+| **Copilot** | Paste the skill content from `.ai/skills/mem-compound/SKILL.md` | Manual |
+| **Any tool with MCP** | The agent can read `.ai/skills/` and follow instructions | "Follow .ai/skills/mem-compound/SKILL.md" |
+
+If your tool doesn't discover skills automatically, just tell the agent: *"Read `.ai/skills/mem-compound/SKILL.md` and follow the steps."*
+
 ### Project-specific compound
 
 `/mem-compound` runs standard steps (scan, conflict check, update status, archive, sync) plus project-specific doc updates. The skill maps session work to domains (UI, Backend/API, AI/ML, Architecture, Backlog) and updates docs via `get_doc_path` and `validate_doc_placement`. Open items may be broad or categorical. Work done anywhere must be broken down into atomic tasks that fit RALPH loops and avoid conflicts when agents work in parallel. With `init --full`, `.ai/docs-schema.json` defines canonical paths and naming (SCREAMING_SNAKE by default).

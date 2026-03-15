@@ -28,6 +28,11 @@ import {
   hybridSearch,
   getSearchMode,
 } from "../hybrid-search/index.js";
+import { assertPathWithinAiDir } from "../utils/fs.js";
+
+// Input limits (security)
+const MAX_COMMIT_CONTENT_BYTES = 1024 * 1024; // 1MB
+const MAX_GIT_DIFF_BYTES = 512 * 1024; // 500KB
 
 // Paths that are ALWAYS immutable (structural, not content)
 const ALWAYS_IMMUTABLE = ["toolbox/", "acp/", "rules/"];
@@ -80,18 +85,17 @@ function getRepoRoot(cwd: string): string | null {
   }
 }
 
-// Shared path validation: ensures a relative path stays within aiDir
-function assertPathWithinAiDir(aiDir: string, relPath: string): string {
-  const fullPath = resolve(aiDir, relPath);
-  const rel = relative(aiDir, fullPath);
-  if (rel.startsWith("..") || rel.startsWith("/") || /\.\.[\\/]/.test(rel)) {
-    throw new McpError(ErrorCode.InvalidRequest, "Path traversal not allowed.");
-  }
-  return fullPath;
-}
-
 function generateSessionId(): string {
   return `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function sanitizeCommitMessage(msg: string): string {
+  return msg
+    .replace(/\0/g, "")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/["`]/g, "'")
+    .slice(0, 2000)
+    .trim() || "ai-memory: sync";
 }
 
 // Claim system: prevents concurrent writes to the same path
@@ -567,11 +571,18 @@ export function registerTools(server: Server, aiDir: string): void {
       }
 
       case "validate_context": {
-        const gitDiff = args.git_diff;
-        if (typeof gitDiff !== "string" || !gitDiff.trim()) {
+        const gitDiffRaw = args.git_diff;
+        if (typeof gitDiffRaw !== "string" || !gitDiffRaw.trim()) {
           throw new McpError(ErrorCode.InvalidParams, "git_diff is required and must be a non-empty string.");
         }
-        const harnessPath = join(aiDir, "temp/harness.json");
+        const gitDiffSize = Buffer.byteLength(gitDiffRaw, "utf-8");
+        if (gitDiffSize > MAX_GIT_DIFF_BYTES) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `git_diff exceeds ${MAX_GIT_DIFF_BYTES / 1024}KB limit (got ${Math.round(gitDiffSize / 1024)}KB). Trim the diff or validate in chunks.`
+          );
+        }
+        const harnessPath = join(aiDir, "temp", "harness.json");
         if (!existsSync(harnessPath)) {
           return {
             content: [{ type: "text", text: "No harness.json found. Run generate_harness to create one, or initialize with --full." }],
@@ -585,7 +596,7 @@ export function registerTools(server: Server, aiDir: string): void {
           throw new McpError(ErrorCode.InternalError, "Failed to parse harness.json. Run `ai-memory generate-harness` to regenerate.");
         }
         const repoRoot = getRepoRoot(resolve(aiDir, ".."));
-        const { violations, audit } = await validateDiff(gitDiff, rules, aiDir, repoRoot);
+        const { violations, audit } = await validateDiff(gitDiffRaw, rules, aiDir, repoRoot);
 
         const timestamp = new Date().toISOString();
         const harnessVersion = "1.0";
@@ -655,6 +666,13 @@ export function registerTools(server: Server, aiDir: string): void {
         if (typeof memContent !== "string") {
           throw new McpError(ErrorCode.InvalidParams, "content is required and must be a string.");
         }
+        const contentBytes = Buffer.byteLength(memContent, "utf-8");
+        if (contentBytes > MAX_COMMIT_CONTENT_BYTES) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `content exceeds ${MAX_COMMIT_CONTENT_BYTES / 1024 / 1024}MB limit (got ${Math.round(contentBytes / 1024)}KB). Split into smaller entries.`
+          );
+        }
         const append = (args.append as boolean) ?? true;
         const sessionId = (typeof args.session_id === "string" && args.session_id) || generateSessionId();
 
@@ -706,13 +724,15 @@ export function registerTools(server: Server, aiDir: string): void {
           await writeFile(join(testsDir, "tests.json"), JSON.stringify(tests, null, 2));
         }
 
+        const harnessOk = `✓ Governance gate active: ${rules.length} rule(s) compiled from ${entries.length} [P0] entries. Run validate_context with your git diff to enforce.`;
+        const testsLine = tests.length > 0
+          ? `✓ Rule tests: ${tests.length} test(s) written to temp/rule-tests/tests.json`
+          : `○ Rule tests: none (optional). Add **Should trigger:** and **Should not trigger:** to [P0] entries to generate tests.`;
         return {
           content: [
             {
               type: "text",
-              text: `✓ Harness generated: ${rules.length} rule(s) compiled from ${entries.length} [P0] entries.\n${
-                tests.length > 0 ? `${tests.length} rule test(s) written to temp/rule-tests/tests.json` : "No rule tests found — add **Should trigger:** and **Should not trigger:** examples to [P0] entries."
-              }`,
+              text: `${harnessOk}\n${testsLine}`,
             },
           ],
         };
@@ -910,9 +930,10 @@ export function registerTools(server: Server, aiDir: string): void {
       }
 
       case "sync_memory": {
-        const commitMsg = typeof args.message === "string" && args.message
+        const rawMsg = typeof args.message === "string" && args.message
           ? args.message
           : `ai-memory: auto-sync ${new Date().toISOString().slice(0, 19)}`;
+        const commitMsg = sanitizeCommitMessage(rawMsg);
         const shouldPush = args.push === true;
 
         const { execFileSync } = await import("child_process");

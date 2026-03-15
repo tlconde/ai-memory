@@ -1,13 +1,9 @@
 import { readFile, writeFile, readdir, mkdir } from "fs/promises";
 import { join, resolve } from "path";
 import { existsSync } from "fs";
+import type { EvalMetric } from "./types.js";
 
-export interface EvalMetric {
-  name: string;
-  value: string | number;
-  status: "good" | "warn" | "bad";
-  note?: string;
-}
+export type { EvalMetric } from "./types.js";
 
 export interface EvalReport {
   generated_at: string;

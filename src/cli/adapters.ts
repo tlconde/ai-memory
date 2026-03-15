@@ -250,6 +250,40 @@ See \`.ai/reference/capability-specs.json\` for platform-specific install (e.g. 
 - Capture → save to \`.ai/temp/\` → agent reads via file or \`get_memory\`
 - Handoff: write path to \`.ai/temp/request-for-*.md\` for another agent
 `,
+  "mem-auto-review": `---
+name: mem-auto-review
+description: Automated PR review using ai-memory governance rules. For Cursor automations, Bugbot, CI pipelines. No user interaction required.
+---
+
+# mem-auto-review — Automated PR Review
+
+## When to use
+- PR creation (Bugbot, Cursor automation, GitHub webhook)
+- CI pipeline step
+- Any automated code review context
+
+This skill requires NO user interaction. It runs autonomously.
+
+## Instructions
+
+### 1. Get the diff
+Run \`git diff origin/main...HEAD\` to get all changes in the PR.
+
+### 2. Search memory for context
+Call \`search_memory\` with keywords from the changed files. Check for relevant decisions, patterns, and known bugs.
+
+### 3. Validate governance
+Call \`generate_harness\` to refresh rules, then \`validate_context\` with the diff.
+
+### 4. Produce review
+Generate a structured report: governance result, memory context, suggestions.
+
+### 5. Record result
+Call \`publish_result\` with summary and outcome.
+
+### 6. Sync
+Call \`sync_memory\` to persist any new learnings.
+`,
 };
 
 // ─── Claude Code hooks ──────────────────────────────────────────────────────
@@ -357,6 +391,7 @@ export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
       ".agents/skills/mem-init/SKILL.md": skillStub("mem-init", "Initialize ai-memory in a new project."),
       ".agents/skills/browser/SKILL.md": skillStub("browser", "Browser automation (screenshots, navigate, interact)."),
       ".agents/skills/screen-capture/SKILL.md": skillStub("screen-capture", "Desktop/app window screenshot for vision analysis."),
+      ".agents/skills/mem-auto-review/SKILL.md": skillStub("mem-auto-review", "Automated PR review using ai-memory governance rules."),
     },
   },
   windsurf: {
@@ -386,6 +421,7 @@ export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
       ".agents/skills/mem-init/SKILL.md": skillStub("mem-init", "Initialize ai-memory in a new project."),
       ".agents/skills/browser/SKILL.md": skillStub("browser", "Browser automation (screenshots, navigate, interact)."),
       ".agents/skills/screen-capture/SKILL.md": skillStub("screen-capture", "Desktop/app window screenshot for vision analysis."),
+      ".agents/skills/mem-auto-review/SKILL.md": skillStub("mem-auto-review", "Automated PR review using ai-memory governance rules."),
       // Claude Code hooks (SessionStart, PreCompact)
       ".claude/hooks/SessionStart.js": SESSION_START_HOOK,
       ".claude/hooks/PreCompact.js": PRE_COMPACT_HOOK,
