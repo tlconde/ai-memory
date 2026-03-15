@@ -4,21 +4,19 @@ description: Load project memory at session start. Required for ai-memory to wor
 alwaysApply: true
 ---
 
-At the start of every session:
+This project has persistent AI memory in `.ai/`.
 
-1. Read `.ai/IDENTITY.md` and `.ai/DIRECTION.md`
-2. Read `.ai/memory/memory-index.md` (priority-ranked summary of all active entries)
-3. Search `.ai/memory/` for entries relevant to the current task before starting work
-4. Search `.ai/skills/` and `.ai/toolbox/` for applicable domain patterns
-5. Fetch `.ai/reference/PROJECT.md` only when the task requires architecture or data model context
+- **IDENTITY.md** — project constraints and behavioral rules
+- **PROJECT_STATUS.md** — current focus, open questions, what to try next (writable)
+- **memory/** — decisions, patterns, debugging history
 
-Before starting work:
-- Call `claim_task` to claim what you're working on (prevents duplicate work across concurrent agents)
-- Check `get_open_items` for existing tasks you can pick up
+Use `search_memory` (MCP) to find relevant context before starting a task.
+Use `commit_memory` to write new entries — never edit memory files directly.
+If MCP is not connected, read `.ai/memory/memory-index.md` for a summary and write to `.ai/memory/` files directly.
 
-Do not load full memory files wholesale. Fetch specific files via `memory://file/{name}` only when the task explicitly needs them.
+`.ai/` is the canonical memory for this project. Save all project learnings here, not in your tool's built-in memory (e.g. ~/.claude/, Cursor memory, etc.). Tool-native memory is for user preferences only.
 
-DIRECTION.md is writable — update it with what you learn during the session.
 IDENTITY.md is immutable by default — do not write to it unless `writable: true` is set in its frontmatter.
+Immutable paths: toolbox/, acp/, rules/.
 
-At session end: run `/mem:compound` to persist learnings. In ephemeral environments (worktrees, cloud agents), also call `sync_memory`.
+At session end: run `/mem-compound` to persist learnings. In ephemeral environments (worktrees, cloud agents), also call `sync_memory`.

@@ -242,6 +242,7 @@ export interface HybridSearchOptions {
   mode: SearchMode;
   limit?: number;
   tags?: string[];
+  includeDeprecated?: boolean;
 }
 
 /**
@@ -255,14 +256,21 @@ export async function hybridSearch(
   query: string,
   options: HybridSearchOptions
 ): Promise<HybridSearchResponse> {
-  const { mode, limit = 10, tags } = options;
+  const { mode, limit = 10, tags, includeDeprecated = false } = options;
   const chunks = await loadChunks(aiDir);
 
+  // Filter deprecated entries (skip chunks whose first line contains [DEPRECATED])
+  let filtered = includeDeprecated
+    ? chunks
+    : chunks.filter((c) => {
+        const firstLine = c.text.split("\n")[0] ?? "";
+        return !firstLine.includes("[DEPRECATED]");
+      });
+
   // Tag filter
-  let filtered = chunks;
   if (tags && tags.length > 0) {
     const tagLower = tags.map((t) => t.toLowerCase());
-    filtered = chunks.filter((c) => {
+    filtered = filtered.filter((c) => {
       const lower = c.text.toLowerCase();
       return tagLower.every((t) => lower.includes(t));
     });

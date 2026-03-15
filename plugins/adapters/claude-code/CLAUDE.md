@@ -2,24 +2,20 @@
 
 This project uses [ai-memory](https://github.com/radix-ai/ai-memory) for persistent AI memory.
 
-## At session start
+## ai-memory — Project Memory
 
-1. Read `.ai/IDENTITY.md` — project constraints and how to behave
-2. Read `.ai/DIRECTION.md` — current focus and open questions
-3. Read `.ai/memory/memory-index.md` — priority-ranked summary of all active decisions, patterns, and bugs
+This project has persistent AI memory in `.ai/`.
 
-## Before starting any task
+- **IDENTITY.md** — project constraints and behavioral rules
+- **PROJECT_STATUS.md** — current focus, open questions, what to try next (writable)
+- **memory/** — decisions, patterns, debugging history
 
-- Search `.ai/memory/` for relevant decisions, patterns, or known bugs
-- Search `.ai/skills/` for domain-specific patterns
-- Fetch `.ai/reference/PROJECT.md` only when the task requires architecture or integration context
+Use `search_memory` (MCP) to find relevant context before starting a task.
+Use `commit_memory` to write new entries — never edit memory files directly.
+If MCP is not connected, read `.ai/memory/memory-index.md` for a summary and write to `.ai/memory/` files directly.
 
-## During the session
+`.ai/` is the canonical memory for this project. Save all project learnings here, not in your tool's built-in memory (e.g. ~/.claude/, Cursor memory, etc.). Tool-native memory is for user preferences only.
 
-- Use `search_memory` (MCP) instead of reading memory files directly when available
-- Use `commit_memory` (MCP) to write new entries — never edit memory files directly
-- Immutable (do not write): `IDENTITY.md`, `DIRECTION.md`, `toolbox/`, `acp/`, `rules/`
+Immutable paths (do not write): IDENTITY.md, toolbox/, acp/, rules/.
 
-## At the end of a meaningful session
-
-Run `/mem:compound` to capture decisions, patterns, and bugs from this session.
+At the end of a meaningful session, run /mem-compound to capture learnings.

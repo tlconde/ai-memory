@@ -1,4 +1,4 @@
-import { readFile, writeFile, readdir, mkdir, unlink } from "fs/promises";
+import { readFile, writeFile, readdir, mkdir, unlink, open } from "fs/promises";
 import { join, dirname, resolve, relative } from "path";
 import { existsSync } from "fs";
 import { execFileSync } from "child_process";
@@ -17,6 +17,7 @@ import {
   generateRuleTests,
   type HarnessRule,
 } from "./p0-parser.js";
+import { VALID_TYPES, VALID_STATUSES } from "../schema-constants.js";
 import {
   loadDocsSchema,
   getDocPath,
@@ -33,12 +34,11 @@ const ALWAYS_IMMUTABLE = ["toolbox/", "acp/", "rules/"];
 
 // Paths whose immutability is controlled by frontmatter `writable` field
 // IDENTITY.md: writable defaults to false (immutable unless opted in)
-// PROJECT_STATUS.md / DIRECTION.md: writable defaults to true (the AI's evolving program)
-const FRONTMATTER_CONTROLLED = ["IDENTITY.md", "PROJECT_STATUS.md", "DIRECTION.md"];
+// PROJECT_STATUS.md: writable defaults to true (the AI's evolving program)
+const FRONTMATTER_CONTROLLED = ["IDENTITY.md", "PROJECT_STATUS.md"];
 const WRITABLE_DEFAULTS: Record<string, boolean> = {
   "IDENTITY.md": false,
   "PROJECT_STATUS.md": true,
-  "DIRECTION.md": true,
 };
 
 async function isImmutable(path: string, aiDir: string): Promise<boolean> {
@@ -108,6 +108,7 @@ async function acquireClaim(aiDir: string, path: string, sessionId: string): Pro
   await mkdir(locksDir, { recursive: true });
   const lockFile = join(locksDir, path.replace(/[/\\]/g, "_") + ".lock");
 
+  // Check for existing valid claim
   if (existsSync(lockFile)) {
     try {
       const existing: Claim = JSON.parse(await readFile(lockFile, "utf-8"));
@@ -119,85 +120,37 @@ async function acquireClaim(aiDir: string, path: string, sessionId: string): Pro
           `Wait for the claim to expire (${Math.round(CLAIM_TTL_MS / 1000)}s TTL) or close the other session.`
         );
       }
+      // Expired or same session — remove stale lock before re-creating
+      await unlink(lockFile).catch(() => {});
     } catch (err) {
       if (err instanceof McpError) throw err;
-      // Corrupt lock file — overwrite
+      // Corrupt lock file — remove and re-create
+      await unlink(lockFile).catch(() => {});
     }
   }
 
+  // Atomic file creation with O_EXCL — prevents TOCTOU race
   const claim: Claim = { session_id: sessionId, timestamp: Date.now(), pid: process.pid };
-  await writeFile(lockFile, JSON.stringify(claim));
+  const data = JSON.stringify(claim);
+  try {
+    const fd = await open(lockFile, "wx"); // O_WRONLY | O_CREAT | O_EXCL
+    await fd.writeFile(data);
+    await fd.close();
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+      // Another process created the lock between our check and creation
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        `Path "${path}" was just claimed by another session. Retry shortly.`
+      );
+    }
+    throw err;
+  }
 }
 
 async function releaseClaim(aiDir: string, path: string): Promise<void> {
   const lockFile = join(aiDir, "temp", "locks", path.replace(/[/\\]/g, "_") + ".lock");
   try { await unlink(lockFile); } catch { /* already gone */ }
-}
-
-// BM25-style keyword search across .ai/ files
-async function keywordSearch(
-  aiDir: string,
-  query: string,
-  tags?: string[]
-): Promise<Array<{ file: string; excerpt: string; score: number }>> {
-  const results: Array<{ file: string; excerpt: string; score: number }> = [];
-  const queryTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (queryTerms.length === 0) return [];
-
-  async function searchDir(dir: string): Promise<void> {
-    if (!existsSync(dir)) return;
-    const entries = await readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const full = join(dir, entry.name);
-      // Skip temp/ — auto-generated files
-      if (entry.name === "temp") continue;
-      if (entry.isDirectory()) {
-        await searchDir(full);
-      } else if (entry.name.endsWith(".md")) {
-        try {
-          const content = await readFile(full, "utf-8");
-          const lower = content.toLowerCase();
-
-          // Tag filter: if tags provided, file must mention all tags
-          if (tags && tags.length > 0) {
-            const hasAllTags = tags.every((tag) => lower.includes(tag.toLowerCase()));
-            if (!hasAllTags) continue;
-          }
-
-          // Score: count term occurrences
-          let score = 0;
-          for (const term of queryTerms) {
-            const matches = lower.split(term).length - 1;
-            score += matches;
-          }
-          if (score === 0) continue;
-
-          // Extract best excerpt: find line with most term hits
-          const lines = content.split("\n");
-          let bestLine = "";
-          let bestLineScore = 0;
-          for (const line of lines) {
-            let lineScore = 0;
-            for (const term of queryTerms) {
-              if (line.toLowerCase().includes(term)) lineScore++;
-            }
-            if (lineScore > bestLineScore) {
-              bestLineScore = lineScore;
-              bestLine = line;
-            }
-          }
-
-          const relativePath = relative(aiDir, full);
-          results.push({ file: relativePath, excerpt: bestLine.trim(), score });
-        } catch {
-          // unreadable file — skip
-        }
-      }
-    }
-  }
-
-  await searchDir(aiDir);
-  return results.sort((a, b) => b.score - a.score).slice(0, 10);
 }
 
 // Parse diff into sections with file path (from b/ side) and content
@@ -337,17 +290,15 @@ async function validateDiff(
 function validateEntrySchema(entry: Record<string, unknown>): string[] {
   const errors: string[] = [];
   const required = ["id", "type", "status"];
-  const validTypes = ["identity", "direction", "project-status", "decision", "pattern", "debugging", "skill", "toolbox", "rule", "agent", "index"];
-  const validStatuses = ["active", "deprecated", "experimental"];
 
   for (const field of required) {
     if (!entry[field]) errors.push(`Missing required field: ${field}`);
   }
-  if (entry.type && !validTypes.includes(entry.type as string)) {
-    errors.push(`Invalid type: ${entry.type}. Must be one of: ${validTypes.join(", ")}`);
+  if (entry.type && !(VALID_TYPES as readonly string[]).includes(entry.type as string)) {
+    errors.push(`Invalid type: ${entry.type}. Must be one of: ${VALID_TYPES.join(", ")}`);
   }
-  if (entry.status && !validStatuses.includes(entry.status as string)) {
-    errors.push(`Invalid status: ${entry.status}. Must be one of: ${validStatuses.join(", ")}`);
+  if (entry.status && !(VALID_STATUSES as readonly string[]).includes(entry.status as string)) {
+    errors.push(`Invalid status: ${entry.status}. Must be one of: ${VALID_STATUSES.join(", ")}`);
   }
   return errors;
 }
@@ -369,6 +320,8 @@ export function registerTools(server: Server, aiDir: string): void {
           properties: {
             query: { type: "string", description: "Search query — use specific terms relevant to the task" },
             tags: { type: "array", items: { type: "string" }, description: "Filter by tags (optional). Only files containing all tags are returned." },
+            limit: { type: "number", description: "Max results to return (default 10, max 20). Use lower values for focused queries." },
+            include_deprecated: { type: "boolean", description: "Include [DEPRECATED] entries in results (default false). Set true for auditing or history review." },
           },
           required: ["query"],
         },
@@ -400,7 +353,7 @@ export function registerTools(server: Server, aiDir: string): void {
         name: "validate_schema",
         description:
           "Validates a proposed memory entry's frontmatter against the canonical schema. Returns validation errors. " +
-          "Required fields: id, type, status. Valid types: identity, direction, project-status, decision, pattern, debugging, skill, toolbox, rule, agent, index. Valid statuses: active, deprecated, experimental. " +
+          "Required fields: id, type, status. Valid types: identity, project-status, decision, pattern, debugging, improvement, index, session, reference, agent, skill, rule, acp, toolbox, docs-schema. Valid statuses: active, deprecated, experimental. " +
           "Use before commit_memory when constructing entries programmatically to catch schema errors early.",
         inputSchema: {
           type: "object",
@@ -413,7 +366,7 @@ export function registerTools(server: Server, aiDir: string): void {
       {
         name: "commit_memory",
         description:
-          "Writes a memory entry to .ai/. Enforces immutability: IDENTITY.md is immutable by default; PROJECT_STATUS.md (or DIRECTION.md) is writable by default (configurable via frontmatter `writable`). Hard-blocks writes to toolbox/, acp/, rules/. Uses claim-based locking for multi-agent safety — if another session holds a claim on the path, wait for the 5-minute TTL or close the other session. " +
+          "Writes a memory entry to .ai/. Enforces immutability: IDENTITY.md is immutable by default; PROJECT_STATUS.md is writable by default (configurable via frontmatter `writable`). Hard-blocks writes to toolbox/, acp/, rules/. Uses claim-based locking for multi-agent safety — if another session holds a claim on the path, wait for the 5-minute TTL or close the other session. " +
           "Each write appends a session header for traceability. Use append: false to overwrite (creates new file or replaces). " +
           "For best results: use validate_schema first when constructing entries; pass session_id when coordinating with claim_task or publish_result. When work is done: break down into atomic tasks that fit RALPH loops and avoid conflicts when agents work in parallel.",
         inputSchema: {
@@ -450,7 +403,7 @@ export function registerTools(server: Server, aiDir: string): void {
         inputSchema: {
           type: "object",
           properties: {
-            topic: { type: "string", description: "Topic to summarize (e.g. 'authentication', 'database patterns', 'DIRECTION')" },
+            topic: { type: "string", description: "Topic to summarize (e.g. 'authentication', 'database patterns', 'project status')" },
           },
           required: ["topic"],
         },
@@ -574,14 +527,16 @@ export function registerTools(server: Server, aiDir: string): void {
           throw new McpError(ErrorCode.InvalidParams, "query is required and must be a non-empty string.");
         }
         const tags = args.tags as string[] | undefined;
+        const userLimit = Math.min(Number(args.limit) || 10, 20);
+        const includeDeprecated = (args.include_deprecated as boolean) ?? false;
         const mode = getSearchMode();
         let resp: Awaited<ReturnType<typeof hybridSearch>>;
         let fallbackNote = "";
         try {
-          resp = await hybridSearch(aiDir, query, { mode, limit: 10, tags });
+          resp = await hybridSearch(aiDir, query, { mode, limit: userLimit, tags, includeDeprecated });
         } catch (err) {
           if (mode !== "keyword") {
-            resp = await hybridSearch(aiDir, query, { mode: "keyword", limit: 10, tags });
+            resp = await hybridSearch(aiDir, query, { mode: "keyword", limit: userLimit, tags, includeDeprecated });
             fallbackNote =
               "Note: Hybrid/semantic search failed (e.g. onnxruntime-node missing on Windows). Using keyword-only. Set AI_SEARCH=keyword to skip, or AI_SEARCH_WASM=1 to try WASM.\n\n";
           } else {
@@ -595,7 +550,10 @@ export function registerTools(server: Server, aiDir: string): void {
         const backendLabel = backend === "keyword" ? "Keyword-only" : backend === "native" ? "Hybrid (Native)" : "Hybrid (WASM)";
         const text = fallbackNote + `Search backend: ${backendLabel}\n\n` +
           results
-            .map((r, i) => `${i + 1}. **${r.file}** (score: ${r.score})\n   ${r.excerpt}`)
+            .map((r, i) => {
+              const excerpt = r.excerpt.length > 200 ? r.excerpt.slice(0, 200) + "…" : r.excerpt;
+              return `${i + 1}. **${r.file}** (score: ${r.score})\n   ${excerpt}`;
+            })
             .join("\n\n");
         return { content: [{ type: "text", text }] };
       }
@@ -700,7 +658,7 @@ export function registerTools(server: Server, aiDir: string): void {
         const append = (args.append as boolean) ?? true;
         const sessionId = (typeof args.session_id === "string" && args.session_id) || generateSessionId();
 
-        // Check immutability (reads frontmatter for IDENTITY.md/DIRECTION.md)
+        // Check immutability (reads frontmatter for IDENTITY.md/PROJECT_STATUS.md)
         if (await isImmutable(memPath, aiDir)) {
           const reason = FRONTMATTER_CONTROLLED.includes(memPath)
             ? `${memPath} is immutable (set \`writable: true\` in its frontmatter to allow AI writes).`
@@ -863,11 +821,6 @@ export function registerTools(server: Server, aiDir: string): void {
           ? args.source
           : "sessions/open-items.md";
 
-        // Resolve PROJECT_STATUS.md to DIRECTION.md for legacy projects
-        if (sourcePath === "PROJECT_STATUS.md" && !existsSync(join(aiDir, "PROJECT_STATUS.md"))) {
-          sourcePath = "DIRECTION.md";
-        }
-
         // Validate source path stays within aiDir
         const sourceFullPath = assertPathWithinAiDir(aiDir, sourcePath);
         let sourceContent = "";
@@ -904,7 +857,7 @@ export function registerTools(server: Server, aiDir: string): void {
         // No match in source file — add as new claimed item to open-items.md
         const openItemsPath = join(aiDir, "sessions/open-items.md");
         let openItems = "";
-        try { openItems = await readFile(openItemsPath, "utf-8"); } catch { /* */ }
+        try { openItems = await readFile(openItemsPath, "utf-8"); } catch {}
         const newItem = `- [~] ${taskDesc} [CLAIMED:${sessionId}]`;
         const updated = openItems.includes("## Open")
           ? openItems.replace("## Open", `## Open\n\n${newItem}`)

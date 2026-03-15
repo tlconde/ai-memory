@@ -17,9 +17,9 @@ Thumbs.db
 # Dev artifacts
 chat-history/
 chat-history.md
-experiments/*/node_modules/
-docs/
 experiments/
+docs/
+scripts/
 
 # Experiment sandbox artifacts
 **/sandbox-*/index.sqlite

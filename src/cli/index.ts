@@ -2,8 +2,18 @@
 import { Command } from "commander";
 import { writeFile, mkdir } from "fs/promises";
 import { join, resolve, dirname } from "path";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
+import { fileURLToPath } from "url";
 import { DEFAULT_DOCS_SCHEMA_JSON } from "../docs-schema.js";
+import { TOOL_ADAPTERS, getMCPJson, MCP_LAUNCHER, MCP_LAUNCHER_PATH, CANONICAL_SKILLS } from "./adapters.js";
+import { detectEnvironments, injectCapabilityConfig } from "./environment.js";
+
+// Read version from package.json — single source of truth
+const __dirname_cli = dirname(fileURLToPath(import.meta.url));
+const pkgPath = join(__dirname_cli, "..", "..", "package.json");
+const PKG_VERSION: string = existsSync(pkgPath)
+  ? JSON.parse(readFileSync(pkgPath, "utf-8")).version
+  : "0.0.0";
 
 const KEBAB_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 function validateKebabCase(name: string, label: string): void {
@@ -18,7 +28,7 @@ const program = new Command();
 program
   .name("ai-memory")
   .description("Persistent AI memory for any project.")
-  .version("0.1.0");
+  .version(PKG_VERSION);
 
 // ─── init ───────────────────────────────────────────────────────────────────
 
@@ -152,13 +162,12 @@ async function scaffoldUpdates(aiDir: string, full: boolean): Promise<string[]> 
 
 // ─── install ─────────────────────────────────────────────────────────────────
 
-import { TOOL_ADAPTERS, getMCPJson, MCP_LAUNCHER, MCP_LAUNCHER_PATH } from "./adapters.js";
-
 program
   .command("install")
   .description("Install the ai-memory bootstrap for a specific tool")
   .requiredOption("--to <tool>", `Target tool (${Object.keys(TOOL_ADAPTERS).join(", ")})`)
   .option("--dir <dir>", "Project root (default: current directory)")
+  .option("--capability <cap>", "Inject capability config (browser, screen_capture). Repeatable.", (v, acc: string[]) => (acc ?? []).concat(v), [])
   .action(async (opts) => {
     const tool = opts.to.toLowerCase();
     const adapter = TOOL_ADAPTERS[tool];
@@ -183,7 +192,7 @@ program
     await writeFile(destPath, adapter.content);
     console.log(`✓ Wrote ${adapter.dest}`);
 
-    // Write extra files (e.g., skill rules for Cursor)
+    // Write extra files (e.g., skill stubs, hooks)
     if (adapter.extraFiles) {
       for (const [relPath, content] of Object.entries(adapter.extraFiles)) {
         const extraPath = join(projectRoot, relPath);
@@ -191,6 +200,19 @@ program
         await writeFile(extraPath, content);
         console.log(`✓ Wrote ${relPath}`);
       }
+    }
+
+    // Write canonical skill definitions to .ai/skills/
+    for (const [skillName, content] of Object.entries(CANONICAL_SKILLS)) {
+      const skillPath = join(projectRoot, ".ai", "skills", skillName, "SKILL.md");
+      await mkdir(dirname(skillPath), { recursive: true });
+      await writeFile(skillPath, content);
+      console.log(`✓ Wrote .ai/skills/${skillName}/SKILL.md (canonical)`);
+    }
+
+    if (tool === "claude-code") {
+      console.log(`\n  Hooks installed: SessionStart (context injection), PreCompact (state preservation)`);
+      console.log(`  Note: Restart Claude Code for hooks to take effect.`);
     }
 
     if (adapter.mcp) {
@@ -211,8 +233,32 @@ program
       }
     }
 
-    console.log(`\nDone. Start a new ${opts.to} session and verify with:`);
-    console.log(`  "What does .ai/IDENTITY.md say about this project?"`);
+    // Capability injection: detect environments and inject MCP config for requested capabilities
+    const capabilities = (opts.capability as string[] | undefined) ?? [];
+    if (capabilities.length > 0) {
+      const pkgRoot = join(__dirname_cli, "..", "..");
+      const envs = detectEnvironments(projectRoot, pkgRoot);
+      for (const cap of capabilities) {
+        if (cap !== "browser" && cap !== "screen_capture") {
+          console.warn(`  [warn] Unknown capability: ${cap}. Skipping.`);
+          continue;
+        }
+        for (const envId of envs) {
+          try {
+            if (injectCapabilityConfig(projectRoot, envId, cap, pkgRoot)) {
+              console.log(`✓ Injected ${cap} config for ${envId}`);
+            }
+          } catch (e) {
+            console.warn(`  [warn] Failed to inject ${cap} for ${envId}: ${(e as Error).message}`);
+          }
+        }
+      }
+    }
+
+    console.log(`\nDone. Start a new ${opts.to} session and verify:`);
+    console.log(`  1. MCP connected: "Call search_memory with query 'test'" (should return results, not an error)`);
+    console.log(`  2. Memory loaded:  "What does .ai/IDENTITY.md say about this project?"`);
+    console.log(`\nIf search_memory is not available, restart your editor — MCP servers load at startup.`);
   });
 
 // ─── mcp ────────────────────────────────────────────────────────────────────
@@ -242,12 +288,17 @@ program
       process.exit(1);
     }
     const { validateAll } = await import("../formatter/index.js");
-    const errors = await validateAll(aiDir);
-    if (errors.length === 0) {
+    const results = await validateAll(aiDir);
+    const errs = results.filter((e) => e.severity !== "warn");
+    const warns = results.filter((e) => e.severity === "warn");
+    if (warns.length > 0) {
+      for (const w of warns) console.warn(`  [warn] ${w.file}: ${w.message}`);
+    }
+    if (errs.length === 0) {
       console.log("✓ All files valid.");
     } else {
-      console.error(`${errors.length} validation error(s):\n`);
-      for (const e of errors) console.error(`  ${e.file}: ${e.message}`);
+      console.error(`${errs.length} validation error(s):\n`);
+      for (const e of errs) console.error(`  ${e.file}: ${e.message}`);
       process.exit(1);
     }
   });
@@ -504,6 +555,119 @@ program
       })
   );
 
+// ─── verify ─────────────────────────────────────────────────────────────────
+
+program
+  .command("verify")
+  .description("Verify ai-memory installation: .ai/ structure, bootstrap, MCP config")
+  .option("--dir <dir>", "Project root (default: current directory)")
+  .option("--json", "Output as JSON")
+  .action(async (opts) => {
+    const projectRoot = resolve(opts.dir ?? process.cwd());
+    const aiDir = join(projectRoot, ".ai");
+    const checks: Array<{ name: string; status: "pass" | "fail" | "warn"; detail: string }> = [];
+
+    // 1. .ai/ exists with core files
+    const aiExists = existsSync(aiDir);
+    checks.push({ name: ".ai/ directory", status: aiExists ? "pass" : "fail", detail: aiExists ? "Found" : "Missing — run `ai-memory init`" });
+    if (aiExists) {
+      for (const f of ["IDENTITY.md", "PROJECT_STATUS.md", "memory/memory-index.md"]) {
+        const exists = existsSync(join(aiDir, f));
+        checks.push({ name: f, status: exists ? "pass" : "fail", detail: exists ? "Found" : "Missing" });
+      }
+    }
+
+    // 2. MCP launcher + config
+    const launcherExists = existsSync(join(projectRoot, ".ai/mcp-launcher.cjs"));
+    checks.push({ name: "MCP launcher", status: launcherExists ? "pass" : "fail", detail: launcherExists ? "Found" : "Missing — run `ai-memory install --to <tool>`" });
+
+    const mcpLocations = [".mcp.json", ".cursor/mcp.json"].filter((p) => existsSync(join(projectRoot, p)));
+    checks.push({ name: "MCP config", status: mcpLocations.length > 0 ? "pass" : "warn", detail: mcpLocations.length > 0 ? mcpLocations.join(", ") : "None found — MCP tools won't be available" });
+
+    // 3. Bootstrap installed for at least one tool
+    const bootstrapMap: Record<string, string> = { "claude-code": "CLAUDE.md", cursor: ".cursor/rules/00-load-ai-memory.mdc", windsurf: ".windsurfrules", cline: ".clinerules", copilot: ".github/copilot-instructions.md" };
+    const installed = Object.entries(bootstrapMap).filter(([, p]) => existsSync(join(projectRoot, p))).map(([t]) => t);
+    checks.push({ name: "Bootstrap", status: installed.length > 0 ? "pass" : "warn", detail: installed.length > 0 ? `Installed for: ${installed.join(", ")}` : "None — run `ai-memory install --to <tool>`" });
+
+    // 4. Bootstrap has canonical redirect
+    if (installed.length > 0) {
+      const content = readFileSync(join(projectRoot, bootstrapMap[installed[0]]), "utf-8");
+      const hasRedirect = content.includes("canonical memory") || content.includes("not in your tool");
+      checks.push({ name: "Canonical memory directive", status: hasRedirect ? "pass" : "warn", detail: hasRedirect ? "Agent told to save to .ai/, not tool-native memory" : "Missing — re-run install to update" });
+    }
+
+    // 5. Memory index populated
+    const idxPath = join(aiDir, "memory/memory-index.md");
+    if (existsSync(idxPath)) {
+      const idx = readFileSync(idxPath, "utf-8");
+      const populated = idx.includes("[P0]") || idx.includes("[P1]");
+      checks.push({ name: "Memory index", status: populated ? "pass" : "warn", detail: populated ? "Has entries" : "Empty — run /mem-compound after a session" });
+    }
+
+    // 6. Harness validity
+    const harnessPath = join(aiDir, "temp/harness.json");
+    if (existsSync(harnessPath)) {
+      try {
+        const rules = JSON.parse(readFileSync(harnessPath, "utf-8")) as Array<{ id?: string; type?: string; pattern?: string; severity?: string }>;
+        if (!Array.isArray(rules)) throw new Error("not an array");
+        checks.push({ name: "Harness rules", status: "pass", detail: `${rules.length} rules loaded` });
+
+        // Check rules compile
+        let broken = 0;
+        for (const rule of rules) {
+          if (!rule.id || !rule.type || !rule.pattern || !rule.severity) { broken++; continue; }
+          if (rule.type === "regex") {
+            try { new RegExp(rule.pattern); } catch { broken++; }
+          }
+        }
+        checks.push({ name: "Rules compile", status: broken === 0 ? "pass" : "fail", detail: broken === 0 ? "All rules valid" : `${broken} rules have errors` });
+
+        // P0 rule coverage
+        let p0Count = 0;
+        for (const mf of ["memory/decisions.md", "memory/debugging.md"]) {
+          const fp = join(aiDir, mf);
+          if (existsSync(fp)) { p0Count += (readFileSync(fp, "utf-8").match(/### \[P0\]/g) ?? []).length; }
+        }
+        const cov = p0Count > 0 ? Math.round((rules.length / p0Count) * 100) : 0;
+        checks.push({ name: "P0 rule coverage", status: cov >= 80 ? "pass" : cov >= 50 ? "warn" : "fail", detail: `${rules.length}/${p0Count} P0 entries have enforceable patterns (${cov}%)` });
+
+        // Rule tests
+        const testsPath = join(aiDir, "temp/rule-tests/tests.json");
+        if (existsSync(testsPath)) {
+          try {
+            const tests = JSON.parse(readFileSync(testsPath, "utf-8")) as Array<{ rule_id: string }>;
+            const testedIds = new Set(tests.map((t) => t.rule_id));
+            const untested = rules.filter((r) => r.id && !testedIds.has(r.id));
+            checks.push({ name: "Rule test coverage", status: untested.length === 0 ? "pass" : "warn", detail: untested.length === 0 ? `All ${rules.length} rules have tests` : `${untested.length} rules without tests` });
+          } catch { checks.push({ name: "Rule tests", status: "warn", detail: "tests.json failed to parse" }); }
+        } else {
+          checks.push({ name: "Rule tests", status: "warn", detail: "No tests.json — run generate-harness to create" });
+        }
+      } catch (e) {
+        checks.push({ name: "Harness rules", status: "fail", detail: `harness.json parse error: ${(e as Error).message}` });
+      }
+    } else {
+      checks.push({ name: "Harness rules", status: "warn", detail: "No harness.json — run `ai-memory generate-harness` or init --full" });
+    }
+
+    // Output
+    if (opts.json) {
+      const p = checks.filter((c) => c.status === "pass").length;
+      console.log(JSON.stringify({ checks, summary: { total: checks.length, passed: p, failed: checks.filter((c) => c.status === "fail").length, warnings: checks.filter((c) => c.status === "warn").length } }, null, 2));
+    } else {
+      console.log("=== ai-memory verify ===\n");
+      for (const c of checks) {
+        const icon = c.status === "pass" ? "✓" : c.status === "fail" ? "✗" : "⚠";
+        console.log(`  ${icon} ${c.name}: ${c.detail}`);
+      }
+      const p = checks.filter((c) => c.status === "pass").length;
+      const f = checks.filter((c) => c.status === "fail").length;
+      const w = checks.filter((c) => c.status === "warn").length;
+      console.log(`\n  ${p} passed, ${f} failed, ${w} warnings`);
+      if (f > 0) { console.log("\n  Fix failures, then run `ai-memory verify` again."); process.exit(1); }
+    }
+  });
+
 // ─── eval add (subcommand of eval) ──────────────────────────────────────────
 
 evalCmd.addCommand(
@@ -560,9 +724,13 @@ name: ${name}
 description: Describe what this skill does and when to use it.
 type: skill
 status: active
+requires:
+  capabilities: []
 ---
 
 # ${name}
+
+Declare capabilities in frontmatter \`requires.capabilities\` — do not reference specific tools. Tool-specific config lives in capability-spec.
 
 ## When to use
 
@@ -933,7 +1101,7 @@ writable: false
 Human-readable description of this agent's capabilities for ACP orchestrators.
 
 ## memory.read
-Read memory entries, identity, direction, and session archive.
+Read memory entries, identity, project status, and session archive.
 
 ## memory.write
 Write new memory entries via \`commit_memory\`. Immutable paths are enforced.

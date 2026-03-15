@@ -1,15 +1,10 @@
 ---
 name: mem-init
-description: Initialize ai-memory in a new project. Scaffolds the .ai/ directory structure.
-disable-model-invocation: true
+description: Initialize ai-memory in a new project.
 ---
 
-# mem-init — Project Setup
+# mem-init
 
-## Instructions
+Canonical definition: `.ai/skills/mem-init/SKILL.md`
 
-1. Confirm the user wants to initialize ai-memory in this project
-2. Ask: Default tier or Full tier (adds governance, evals, ACP)?
-3. Run: `ai-memory init` (or `ai-memory init --full`)
-4. Guide the user to edit `.ai/IDENTITY.md` and `.ai/DIRECTION.md`
-5. Run `ai-memory validate` to confirm setup
+Read the canonical file for full instructions.

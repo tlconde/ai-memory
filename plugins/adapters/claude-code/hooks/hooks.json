@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "The session is ending. Check if meaningful work was done (decisions, patterns, bugs fixed, approaches corrected). If yes, run the compound protocol: scan for learnings, write entries via commit_memory, update PROJECT_STATUS.md (or DIRECTION.md), call publish_result, and call sync_memory. If the session was trivial, just call publish_result with a brief summary. Context: $ARGUMENTS",
+            "prompt": "The session is ending. Check if meaningful work was done (decisions, patterns, bugs fixed, approaches corrected). If yes, run the compound protocol: scan for learnings, write entries via commit_memory, update PROJECT_STATUS.md, call publish_result, and call sync_memory. If the session was trivial, just call publish_result with a brief summary. Context: $ARGUMENTS",
             "model": "claude-sonnet",
             "timeout": 120,
             "statusMessage": "ai-memory: capturing session learnings..."
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"const fs=require('fs'),p=require('path'),d=process.env.AI_DIR||p.join(process.cwd(),'.ai');if(fs.existsSync(d)){const t=p.join(d,'temp');fs.mkdirSync(t,{recursive:true});const s={timestamp:new Date().toISOString(),event:'pre-compact'};for(const f of['PROJECT_STATUS.md','DIRECTION.md','memory/memory-index.md','sessions/open-items.md']){const fp=p.join(d,f);if(fs.existsSync(fp))s[f]=fs.readFileSync(fp,'utf-8').slice(0,2000)}fs.writeFileSync(p.join(t,'pre-compact-dump.json'),JSON.stringify(s,null,2))}\"",
+            "command": "node -e \"const fs=require('fs'),p=require('path'),d=process.env.AI_DIR||p.join(process.cwd(),'.ai');if(fs.existsSync(d)){const t=p.join(d,'temp');fs.mkdirSync(t,{recursive:true});const s={timestamp:new Date().toISOString(),event:'pre-compact'};for(const f of['PROJECT_STATUS.md','PROJECT_STATUS.md','memory/memory-index.md','sessions/open-items.md']){const fp=p.join(d,f);if(fs.existsSync(fp))s[f]=fs.readFileSync(fp,'utf-8').slice(0,2000)}fs.writeFileSync(p.join(t,'pre-compact-dump.json'),JSON.stringify(s,null,2))}\"",
             "timeout": 10,
             "statusMessage": "ai-memory: saving state before compaction..."
           }

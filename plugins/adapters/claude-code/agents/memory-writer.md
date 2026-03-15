@@ -22,7 +22,7 @@ You are a memory writer agent. Your job is to capture learnings from the current
 
 3. **Write entries**: Call `commit_memory` for each learning. Tag with `[P0]`, `[P1]`, or `[P2]`. Include context, decision, rationale.
 
-4. **Update DIRECTION.md**: Call `commit_memory` to update DIRECTION.md with what was learned. Move completed items to "What's Working", add new open questions.
+4. **Update PROJECT_STATUS.md**: Call `commit_memory` to update PROJECT_STATUS.md with what was learned. Move completed items to "What's Working", add new open questions.
 
 5. **Archive**: Call `publish_result` with a summary of what was captured.
 

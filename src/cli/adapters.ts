@@ -5,26 +5,22 @@
 
 export const BOOTSTRAP_INSTRUCTION = `## ai-memory — Project Memory
 
-At the start of every session:
+This project has persistent AI memory in \`.ai/\`.
 
-1. Read \`.ai/IDENTITY.md\` — project constraints and how to behave
-2. Read \`.ai/PROJECT_STATUS.md\` (or \`.ai/DIRECTION.md\`) — current focus and open questions
-3. Read \`.ai/memory/memory-index.md\` — priority-ranked index of all active decisions, patterns, and debugging entries
+- **IDENTITY.md** — project constraints and behavioral rules
+- **PROJECT_STATUS.md** — current focus, open questions, what to try next (writable)
+- **memory/** — decisions, patterns, debugging history
+- **skills/** — domain-specific patterns and session protocols
 
-Before starting any task:
-- Search \`.ai/memory/\` for decisions, patterns, or bugs relevant to the task
-- Search \`.ai/skills/\` for domain-specific patterns
-- Fetch \`.ai/reference/PROJECT.md\` only when the task requires architecture or data model context
+Use \`search_memory\` (MCP) to find relevant context before starting a task.
+Use \`commit_memory\` to write new entries — never edit memory files directly.
+If MCP is not connected, read \`.ai/memory/memory-index.md\` for a summary and write to \`.ai/memory/\` files directly.
 
-During the session:
-- If connected to the ai-memory MCP server, use \`search_memory\` instead of reading files directly
-- Use \`commit_memory\` to write new entries (never edit memory files directly)
-- When creating docs under \`docs/\` or \`.ai/\`: use \`get_doc_path\` before writing, \`validate_doc_placement\` after. Read \`.ai/rules/doc-placement.md\` if present.
-- Immutable paths (do not write): IDENTITY.md, toolbox/, acp/, rules/
-- PROJECT_STATUS.md (or DIRECTION.md) is writable — update it with what you learned
+\`.ai/\` is the canonical memory for this project. Save all project learnings here, not in your tool's built-in memory (e.g. ~/.claude/, Cursor memory, etc.). Tool-native memory is for user preferences only.
+
+Immutable paths (do not write): IDENTITY.md, toolbox/, acp/, rules/.
 
 At the end of a meaningful session, run /mem-compound to capture learnings.
-If running as a sub-agent (worktree, cloud agent, background task), run /mem-compound before exiting — your memory will be lost otherwise.
 `;
 
 /**
@@ -97,9 +93,15 @@ export function getMCPJson(): string {
   );
 }
 
-// ─── Cursor skills (.cursor/skills/<name>/SKILL.md format) ─────────────────
+// ─── Canonical skills (written to .ai/skills/) ─────────────────────────────
 
-const CURSOR_COMPOUND_SKILL = `---
+function skillStub(name: string, description: string): string {
+  return `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n\nCanonical definition: \`.ai/skills/${name}/SKILL.md\`\n\nRead the canonical file for full instructions.\n`;
+}
+
+/** Full skill content — written to .ai/skills/<name>/SKILL.md by install */
+export const CANONICAL_SKILLS: Record<string, string> = {
+  "mem-compound": `---
 name: mem-compound
 description: Captures session learnings into persistent memory. Use after a bug fix, pattern discovery, corrected approach, or at the end of any meaningful session.
 ---
@@ -125,7 +127,7 @@ Review conversation, code changes, errors. Identify:
 ### 2. Conflict check
 Before writing: call \`search_memory\` for each topic. If contradictions found, mark old entry \`[DEPRECATED]\`.
 
-### 3. Update PROJECT_STATUS.md (or DIRECTION.md)
+### 3. Update PROJECT_STATUS.md
 Update with learnings: move completed items to "What's Working", add new open questions, update "What to Try Next".
 
 ### 4. Archive
@@ -140,9 +142,8 @@ If in worktree/cloud agent: call \`sync_memory\` to git commit .ai/ changes.
 
 ### 7. Report
 Summarize: entries written, items opened/closed, gate result.
-`;
-
-const CURSOR_SESSION_CLOSE_SKILL = `---
+`,
+  "mem-session-close": `---
 name: mem-session-close
 description: Quick session close for sessions with no major learnings. Archives and updates open items.
 ---
@@ -160,9 +161,8 @@ description: Quick session close for sessions with no major learnings. Archives 
 2. Update \`sessions/open-items.md\`: close resolved items, add new ones
 3. If in ephemeral environment: call \`sync_memory\`
 4. Report: "Session closed. [N] items updated."
-`;
-
-const CURSOR_VALIDATE_SKILL = `---
+`,
+  "mem-validate": `---
 name: mem-validate
 description: Validate memory entries and code changes against governance rules. Use before risky changes.
 ---
@@ -180,9 +180,8 @@ description: Validate memory entries and code changes against governance rules. 
 2. Call \`validate_context\` with the current git diff
 3. Call \`validate_schema\` on any new memory entries
 4. Report violations and recommendations
-`;
-
-const CURSOR_INIT_SKILL = `---
+`,
+  "mem-init": `---
 name: mem-init
 description: Initialize ai-memory in a new project. Scaffolds the .ai/ directory structure.
 disable-model-invocation: true
@@ -197,7 +196,140 @@ disable-model-invocation: true
 3. Run: \`ai-memory init\` (or \`ai-memory init --full\`)
 4. Guide the user to edit \`.ai/IDENTITY.md\` and \`.ai/PROJECT_STATUS.md\`
 5. Run \`ai-memory validate\` to confirm setup
+`,
+  browser: `---
+name: browser
+description: Use browser automation (screenshots, navigate, interact). Requires browser MCP.
+type: skill
+status: active
+requires:
+  capabilities: [browser]
+---
+
+# browser — Browser Automation Skill
+
+## When to use
+
+- Take screenshots of web pages
+- Navigate, fill forms, click elements
+- Verify visual changes or UI state
+
+## Setup
+
+Ensure browser capability is enabled for your environment. See \`.ai/reference/capability-specs.json\` or run \`ai-memory install --capability browser\` when available.
+
+## Usage patterns
+
+- **Failures** → write to \`debugging.md\` via \`commit_memory\` with symptom, screenshot path, root cause
+- **Screenshots** → reference path in memory entries; include URL and viewport
+- **Visual regression** → \`search_memory\` for known changes; create debugging entry if unexpected
+`,
+  "screen-capture": `---
+name: screen-capture
+description: Capture desktop or app window for vision analysis. Platform-dependent (e.g. Peekaboo on macOS).
+type: skill
+status: active
+requires:
+  capabilities: [screen_capture]
+---
+
+# screen-capture — Desktop/App Screenshot Skill
+
+## When to use
+
+- Read another app's screen (e.g. IDE, browser window)
+- Capture for vision analysis or handoff
+- Save to \`.ai/temp/\` for cross-tool handoff
+
+## Setup
+
+See \`.ai/reference/capability-specs.json\` for platform-specific install (e.g. Peekaboo on macOS). Manual fallback: screenshot to \`.ai/temp/screen.png\`.
+
+## Usage
+
+- Capture → save to \`.ai/temp/\` → agent reads via file or \`get_memory\`
+- Handoff: write path to \`.ai/temp/request-for-*.md\` for another agent
+`,
+};
+
+// ─── Claude Code hooks ──────────────────────────────────────────────────────
+
+export const SESSION_START_HOOK = `#!/usr/bin/env node
+/**
+ * ai-memory — Claude Code SessionStart hook
+ * Injects minimal .ai/ context at session start (lazy loading).
+ * Full context available via search_memory MCP tool.
+ */
+const { readFileSync, existsSync } = require("fs");
+const { join } = require("path");
+
+const aiDir = process.env.AI_DIR || join(process.cwd(), ".ai");
+
+function safeRead(filePath, maxLines) {
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    if (maxLines) return content.split("\\n").slice(0, maxLines).join("\\n");
+    return content;
+  } catch { return ""; }
+}
+
+if (!existsSync(aiDir)) process.exit(0);
+
+const sections = [];
+
+const identity = safeRead(join(aiDir, "IDENTITY.md"));
+if (identity) sections.push(identity.trim());
+
+const status = safeRead(join(aiDir, "PROJECT_STATUS.md"));
+if (status) sections.push(status.trim());
+
+const index = safeRead(join(aiDir, "memory/memory-index.md"));
+if (index && !index.includes("<!-- Index will be generated")) {
+  sections.push("## Memory Index (priority-ranked)\\n\\n" + index.trim());
+}
+
+if (sections.length === 0) process.exit(0);
+
+process.stdout.write(JSON.stringify({
+  type: "context",
+  content: sections.join("\\n\\n---\\n\\n"),
+}));
 `;
+
+// Pre-compact hook as a separate script to avoid escaping issues in JSON
+export const PRE_COMPACT_HOOK = `#!/usr/bin/env node
+const fs = require("fs");
+const path = require("path");
+const aiDir = process.env.AI_DIR || path.join(process.cwd(), ".ai");
+if (!fs.existsSync(aiDir)) process.exit(0);
+const tempDir = path.join(aiDir, "temp");
+fs.mkdirSync(tempDir, { recursive: true });
+const dump = { timestamp: new Date().toISOString(), event: "pre-compact" };
+for (const f of ["PROJECT_STATUS.md", "memory/memory-index.md", "sessions/open-items.md"]) {
+  const fp = path.join(aiDir, f);
+  if (fs.existsSync(fp)) dump[f] = fs.readFileSync(fp, "utf-8").slice(0, 2000);
+}
+fs.writeFileSync(path.join(tempDir, "pre-compact-dump.json"), JSON.stringify(dump, null, 2));
+`;
+
+export const CLAUDE_HOOKS_CONFIG = JSON.stringify({
+  hooks: {
+    SessionStart: [{
+      hooks: [{
+        type: "command",
+        command: "node .claude/hooks/SessionStart.js",
+        timeout: 10000,
+      }],
+    }],
+    PreCompact: [{
+      hooks: [{
+        type: "command",
+        command: "node .claude/hooks/PreCompact.js",
+        timeout: 10000,
+      }],
+    }],
+  },
+}, null, 2);
 
 // ─── Adapter definitions ───────────────────────────────────────────────────
 
@@ -218,11 +350,13 @@ export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
     mcp: true,
     mcpPath: ".cursor/mcp.json",
     extraFiles: {
-      // Portable skill directory (.agents/skills/) — works in both Cursor and Claude Code
-      ".agents/skills/mem-compound/SKILL.md": CURSOR_COMPOUND_SKILL,
-      ".agents/skills/mem-session-close/SKILL.md": CURSOR_SESSION_CLOSE_SKILL,
-      ".agents/skills/mem-validate/SKILL.md": CURSOR_VALIDATE_SKILL,
-      ".agents/skills/mem-init/SKILL.md": CURSOR_INIT_SKILL,
+      // Stubs in .agents/skills/ point to canonical .ai/skills/
+      ".agents/skills/mem-compound/SKILL.md": skillStub("mem-compound", "Captures session learnings into persistent memory."),
+      ".agents/skills/mem-session-close/SKILL.md": skillStub("mem-session-close", "Quick session close for sessions with no major learnings."),
+      ".agents/skills/mem-validate/SKILL.md": skillStub("mem-validate", "Validate memory entries and code changes against governance rules."),
+      ".agents/skills/mem-init/SKILL.md": skillStub("mem-init", "Initialize ai-memory in a new project."),
+      ".agents/skills/browser/SKILL.md": skillStub("browser", "Browser automation (screenshots, navigate, interact)."),
+      ".agents/skills/screen-capture/SKILL.md": skillStub("screen-capture", "Desktop/app window screenshot for vision analysis."),
     },
   },
   windsurf: {
@@ -245,11 +379,17 @@ export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
     content: `# Claude Code — Project Memory\n\n${BOOTSTRAP_INSTRUCTION}`,
     mcp: true,
     extraFiles: {
-      // Portable skills (same dir Cursor uses)
-      ".agents/skills/mem-compound/SKILL.md": CURSOR_COMPOUND_SKILL,
-      ".agents/skills/mem-session-close/SKILL.md": CURSOR_SESSION_CLOSE_SKILL,
-      ".agents/skills/mem-validate/SKILL.md": CURSOR_VALIDATE_SKILL,
-      ".agents/skills/mem-init/SKILL.md": CURSOR_INIT_SKILL,
+      // Stubs in .agents/skills/ point to canonical .ai/skills/
+      ".agents/skills/mem-compound/SKILL.md": skillStub("mem-compound", "Captures session learnings into persistent memory."),
+      ".agents/skills/mem-session-close/SKILL.md": skillStub("mem-session-close", "Quick session close for sessions with no major learnings."),
+      ".agents/skills/mem-validate/SKILL.md": skillStub("mem-validate", "Validate memory entries and code changes against governance rules."),
+      ".agents/skills/mem-init/SKILL.md": skillStub("mem-init", "Initialize ai-memory in a new project."),
+      ".agents/skills/browser/SKILL.md": skillStub("browser", "Browser automation (screenshots, navigate, interact)."),
+      ".agents/skills/screen-capture/SKILL.md": skillStub("screen-capture", "Desktop/app window screenshot for vision analysis."),
+      // Claude Code hooks (SessionStart, PreCompact)
+      ".claude/hooks/SessionStart.js": SESSION_START_HOOK,
+      ".claude/hooks/PreCompact.js": PRE_COMPACT_HOOK,
+      ".claude/settings.local.json": CLAUDE_HOOKS_CONFIG,
     },
   },
 };

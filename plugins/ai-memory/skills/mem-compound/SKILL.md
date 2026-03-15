@@ -3,7 +3,7 @@ name: mem-compound
 description: Captures session learnings into persistent memory. Use after a non-obvious bug fix, a pattern discovery, a corrected approach, or at the end of any meaningful session.
 ---
 
-# mem:compound — Full Compound Loop
+# mem-compound — Full Compound Loop
 
 ## When to run
 
@@ -44,8 +44,8 @@ Write each entry with:
 
 For `[P0]` entries, add a `constraint_pattern` in frontmatter if the rule can be expressed as a code check (see `.ai/temp/harness.json` format).
 
-### 3. Update DIRECTION.md
-DIRECTION.md is writable by default. Update it with what you learned:
+### 3. Update PROJECT_STATUS.md
+PROJECT_STATUS.md is writable by default. Update it with what you learned:
 - Move completed focus items to "What's Working"
 - Add new open questions discovered during the session
 - Update "What to Try Next" based on results
@@ -69,11 +69,30 @@ If any check fails: resolve the violation before proceeding. The gate does not w
 ### 7. Sync (ephemeral environments)
 If running in a worktree, cloud agent, or sandbox: call `sync_memory` to git commit all `.ai/` changes. Without this, your work will be lost when the environment is cleaned up.
 
-### 8. Report
-Summarize what was captured:
-- Entries written (type, priority, title)
-- Items opened or closed
-- Gate result (if applicable): "Passed" or list of violations resolved
+### 8. Report & memory hygiene
+
+Summarize the session in a structured report:
+
+**Session summary:**
+- Entries written: list each (type, priority, title)
+- Items: N opened, N closed
+- Gate: passed / N violations resolved
+
+**Memory hygiene check:**
+Call `prune_memory` with `dry_run: true`. Then report:
+
+- **Clean** (no deprecated entries): "Memory is clean — no stale entries found."
+- **Stale entries found**: List them clearly:
+  ```
+  Found N deprecated entries:
+    1. [topic-file.md] "Entry title" — deprecated on YYYY-MM-DD
+    2. ...
+
+  To clean up, say: "prune these deprecated entries"
+  Or ignore — they're already excluded from search results.
+  ```
+
+Keep the report concise. The user should be able to act on it immediately or move on.
 
 ---
 
