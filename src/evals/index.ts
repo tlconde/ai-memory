@@ -110,7 +110,7 @@ async function safeRead(filePath: string): Promise<string> {
 // ─── Built-in eval functions ──────────────────────────────────────────────────
 
 async function evalRuleCoverage(aiDir: string): Promise<EvalMetric> {
-  const { readP0Entries } = await import("../mcp-server/p0-parser.js");
+  const { readP0Entries } = await import("../governance/p0-parser.js");
   const entries = await readP0Entries(aiDir);
   if (entries.length === 0) {
     return { name: "Rule coverage", value: "N/A", status: "warn", note: "No [P0] entries found" };

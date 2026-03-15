@@ -8,4 +8,4 @@ export {
   ensureFrontmatter,
   type ValidationError,
 } from "./formatter/index.js";
-export { readP0Entries, compileHarnessRules, generateRuleTests, type P0Entry, type HarnessRule, type RuleTest } from "./mcp-server/p0-parser.js";
+export { readP0Entries, compileHarnessRules, generateRuleTests, type P0Entry, type HarnessRule, type RuleTest } from "./governance/p0-parser.js";

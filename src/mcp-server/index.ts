@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { timingSafeEqual } from "crypto";
 import { registerResources } from "./resources.js";
-import { registerTools } from "./tools.js";
+import { registerTools } from "./tools/index.js";
 
 function resolveAiDir(): string {
   // Priority: AI_DIR env var → cwd/.ai
