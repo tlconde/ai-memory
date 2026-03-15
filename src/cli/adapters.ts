@@ -152,6 +152,8 @@ export interface ToolAdapter {
   dest: string;
   content: string;
   mcp: boolean;
+  /** MCP config path (default: .mcp.json). Cursor uses .cursor/mcp.json */
+  mcpPath?: string;
   /** Additional files to write (path relative to project root → content) */
   extraFiles?: Record<string, string>;
 }
@@ -161,6 +163,7 @@ export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
     dest: ".cursor/rules/00-load-ai-memory.mdc",
     content: `---\ndescription: Load ai-memory project context at session start\nalwaysApply: true\n---\n\n${BOOTSTRAP_INSTRUCTION}`,
     mcp: true,
+    mcpPath: ".cursor/mcp.json",
     extraFiles: {
       // Portable skill directory (.agents/skills/) — works in both Cursor and Claude Code
       ".agents/skills/mem-compound/SKILL.md": CURSOR_COMPOUND_SKILL,

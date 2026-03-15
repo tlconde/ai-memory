@@ -46,27 +46,36 @@ npx @radix-ai/ai-memory install --to cursor  # install for your tool
 
 ## Quick start
 
+`install` runs `init` automatically if `.ai/` is missing, so you can run either order.
+
 ```bash
-# 1. Scaffold .ai/ in your project
-npx @radix-ai/ai-memory init
+# 1. Install for your tool (scaffolds .ai/ if needed)
+npx @radix-ai/ai-memory install --to cursor    # or claude-code, windsurf, cline, copilot
 
 # 2. Fill in what your project is
 # Edit .ai/IDENTITY.md and .ai/DIRECTION.md
 
-# 3. Install for your tool
-npx @radix-ai/ai-memory install --to cursor    # or claude-code, windsurf, cline, copilot
+# 3. Restart your AI tool (or start a new chat)
 
-# 4. Start your AI tool — it will read .ai/ automatically
-
-# 5. At the end of a session with real learning:
+# 4. At the end of a session with real learning:
 /mem-compound
 ```
+
+Or run `init` first to scaffold `.ai/` before installing.
 
 ### Verify
 
 After setup, start a session and ask: *"What does `.ai/IDENTITY.md` say about this project?"*
 
 If it answers — context loading works. Then ask: *"Search memory for any decisions."* — this confirms MCP is connected.
+
+### Troubleshooting
+
+| Issue | What to do |
+|-------|------------|
+| `'ai-memory' is not recognized` | You're in the ai-memory dev repo. Run `npm run build` then `node dist/cli/index.js init` and `node dist/cli/index.js install --to cursor`. For published users, use `npx @radix-ai/ai-memory` — the package is pre-built. |
+| MCP tools not available | `install` scaffolds `.ai/` if missing. Restart Cursor (or start a new chat) after install. |
+| Cursor not picking up MCP | Cursor reads `.cursor/mcp.json`. The install writes it for Cursor. If you added manually, ensure the config is in `.cursor/mcp.json` (not `.mcp.json` at project root). |
 
 ---
 

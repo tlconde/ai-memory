@@ -116,6 +116,14 @@ program
     }
 
     const projectRoot = resolve(opts.dir ?? process.cwd());
+    const aiDir = join(projectRoot, ".ai");
+
+    if (!existsSync(aiDir)) {
+      console.log(`.ai/ not found — running init first...`);
+      await scaffoldAiDir(aiDir, false);
+      console.log(`✓ Scaffolded .ai/\n`);
+    }
+
     const destPath = join(projectRoot, adapter.dest);
 
     await mkdir(dirname(destPath), { recursive: true });
@@ -133,12 +141,14 @@ program
     }
 
     if (adapter.mcp) {
-      const mcpPath = join(projectRoot, ".mcp.json");
+      const mcpRelPath = adapter.mcpPath ?? ".mcp.json";
+      const mcpPath = join(projectRoot, mcpRelPath);
       if (!existsSync(mcpPath)) {
+        await mkdir(dirname(mcpPath), { recursive: true });
         await writeFile(mcpPath, MCP_JSON);
-        console.log(`✓ Wrote .mcp.json`);
+        console.log(`✓ Wrote ${mcpRelPath}`);
       } else {
-        console.log(`  .mcp.json already exists — skipped`);
+        console.log(`  ${mcpRelPath} already exists — skipped`);
       }
     }
 
