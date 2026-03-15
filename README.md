@@ -235,7 +235,7 @@ PROJECT_STATUS.md is writable by default (`writable: true` in frontmatter). This
 4. Next iteration reads the updated PROJECT_STATUS.md
 5. Natural convergence through iteration
 
-This follows the [autoresearch](https://github.com/mutable-state-inc/autoresearch-at-home) pattern and the [Ralph Wiggum](https://ralph-wiggum.ai/) approach: **the plan file on disk is the shared state.**
+This follows the [autoresearch](https://github.com/mutable-state-inc/autoresearch-at-home) pattern and the [Ralph Wiggum](https://ralph-wiggum.ai/) approach: **the status file on disk is the shared state.**
 
 ### Concurrent agents (cloud agents, worktrees, background tasks)
 
@@ -325,7 +325,7 @@ ai-memory eval add my-metric
 
 ## Design
 
-- [Environment adaptation](docs/design/environment-adaptation-plan.md) — Spec-driven detection and injection. Implemented via `detectEnvironments()` in `src/cli/environment.ts` and `install --capability`.
+- **Environment adaptation** — Spec-driven detection and injection. Implemented via `detectEnvironments()` in `src/cli/environment.ts` and `install --capability`.
 
 ---
 
@@ -336,7 +336,7 @@ ai-memory eval add my-metric
 - [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) — Plugin this system is modeled after
 - [lossless-claw](https://github.com/Martian-Engineering/lossless-claw) — Lossless context compaction (inspiration for session archive design)
 - [autoresearch-at-home](https://github.com/mutable-state-inc/autoresearch-at-home) — Multi-agent iterative research
-- [Ralph Wiggum](https://ralph-wiggum.ai/) — Iterative agent loops via plan file on disk
+- [Ralph Wiggum](https://ralph-wiggum.ai/) — Iterative agent loops via status file on disk
 
 ---
 
