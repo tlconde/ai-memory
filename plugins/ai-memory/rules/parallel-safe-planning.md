@@ -1,6 +1,6 @@
 ---
 name: parallel-safe-planning
-description: When coordinating sub-agents or parallel execution, design tasks that do not create code conflicts.
+description: When creating plans, coordinating sub-agents or parallel execution, design tasks that do not create code conflicts.
 alwaysApply: true
 ---
 
