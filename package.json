@@ -1,6 +1,6 @@
 {
   "name": "@radix-ai/ai-memory",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Persistent AI memory for any project. MCP server, compound protocol, governance enforcement.",
   "type": "module",
   "bin": {
