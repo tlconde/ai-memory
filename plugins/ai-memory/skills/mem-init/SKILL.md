@@ -83,6 +83,8 @@ Tell the user:
 
 Present each section with what it does and — based on your scan — suggest specific entries:
 
+**Role** — Propose a role based on detected tech stack (e.g., "Senior TypeScript Engineer" if package.json has TypeScript, "Senior iOS Developer" if Podfile/xcodeproj found, "Full-Stack Engineer" if both frontend and backend detected). Ask the user to confirm or adjust.
+
 **Mindset** — How the agent approaches work. The default is production-grade and strategic. Customize if the project has a different pace (e.g., research/exploration, rapid prototyping).
 
 **Autonomy Level** — How much the agent asks vs acts independently. Options:

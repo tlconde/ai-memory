@@ -217,7 +217,7 @@ First time setting up ai-memory, or re-run to refresh recommendations.
 ## Steps
 1. **Scaffold** — Run \`npx @radix-ai/ai-memory init\` (or \`--full\`), then \`install --to <tool>\`. Skip if \`.ai/\` exists.
 2. **Codebase scan** — Read: manifest (package.json etc.), README, directory listing, CI config, build config, git log, existing MCPs, existing rules files, existing docs. Summarize internally.
-3. **Guide IDENTITY.md** — Explain each section (Mindset, Autonomy Level, Constraints, Permissions). Suggest project-specific constraints from scan. Ask autonomy level preference (HIGH/MEDIUM/LOW TOUCH). User edits the file. Skippable.
+3. **Guide IDENTITY.md** — Propose a Role based on detected tech stack. Explain each section (Role, Mindset, Autonomy Level, Constraints, Permissions). Suggest project-specific constraints from scan. Ask autonomy level preference (HIGH/MEDIUM/LOW TOUCH). User edits the file. Skippable.
 4. **Guide reference/PROJECT.md** — Present scan findings as suggestions for: Project Overview, Tech Stack, Architecture, Data Models, Integrations, Dev Setup. User edits the file. Skippable.
 5. **Guide PROJECT_STATUS.md** — Suggest Current Focus from git log, Open Questions from scan gaps, What's Working from observed patterns. User edits. Skippable.
 6. **Knowledge audit** — Report existing docs (ARCHITECTURE.md, CONTRIBUTING.md, CHANGELOG.md, .env.example, TODO comments, existing MCPs/rules). Suggest what to import into .ai/memory/. Do not import automatically.
