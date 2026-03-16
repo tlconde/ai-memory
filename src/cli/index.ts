@@ -845,6 +845,7 @@ level: HIGH_TOUCH
 - Never delete user data without explicit request
 - Never deploy to production without explicit request
 - Never write full protocols to tool directories — canonical content goes in \`.ai/\`, stubs in tool dirs
+- Always use \`commit_memory\` MCP tool for writing to \`.ai/memory/\`. Never edit memory files directly.
 - [Add project-specific constraints here]
 
 ## Permissions (ASK before doing)
