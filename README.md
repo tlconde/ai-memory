@@ -31,8 +31,7 @@ The install command sets up three things: **context loading** (the AI reads `.ai
 |---|---|---|
 | **Cursor** | `/add-plugin ai-memory` | `/mem-compound`, `/mem-session-close`, `/mem-validate`, `/mem-init` |
 | **Claude Code** | `/plugin install ai-memory` | Same slash commands via plugin |
-| **Windsurf** | `npx @radix-ai/ai-memory install --to windsurf` | Ask AI: "run the compound protocol" |
-| **VS Code + Cline** | `npx @radix-ai/ai-memory install --to cline` | Ask AI: "run the compound protocol" |
+| **Antigravity** | `npx @radix-ai/ai-memory install --to antigravity` | Ask AI: "run the compound protocol" |
 | **VS Code + Copilot** | `npx @radix-ai/ai-memory install --to copilot` | Paste SKILL.md content into chat |
 | **Any other tool** | Paste bootstrap instruction into system prompt | Paste SKILL.md content |
 
@@ -50,7 +49,7 @@ npx @radix-ai/ai-memory install --to cursor  # install for your tool
 
 ```bash
 # 1. Install for your tool (scaffolds .ai/ if needed)
-npx @radix-ai/ai-memory install --to cursor    # or claude-code, windsurf, cline, copilot
+npx @radix-ai/ai-memory install --to cursor    # or claude-code, antigravity, copilot
 
 # 2. Fill in what your project is
 # Edit .ai/IDENTITY.md and .ai/PROJECT_STATUS.md (project status)
@@ -154,7 +153,7 @@ If your tool doesn't discover skills automatically, just tell the agent: *"Read 
 
 ```bash
 ai-memory init [--full] [--download-model]  # Scaffold .ai/. Use --download-model to pre-fetch hybrid search model (~23MB).
-ai-memory install --to <tool>    # Bootstrap for cursor, windsurf, cline, copilot, claude-code
+ai-memory install --to <tool>    # Bootstrap for cursor, claude-code, antigravity, copilot
 ai-memory mcp                    # Start MCP server (stdio)
 ai-memory mcp --http --port 3100 # Start MCP server (HTTP, for cloud agents)
 ai-memory validate               # Validate all .ai/ files
