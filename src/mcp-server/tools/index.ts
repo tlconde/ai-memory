@@ -145,14 +145,14 @@ export function registerTools(server: Server, aiDir: string): void {
       {
         name: "claim_task",
         description:
-          "Claims a task before starting work. Searches the task source file (open-items.md by default, or a plan file, PROJECT_STATUS.md) for a matching unclaimed item and marks it [CLAIMED:session_id]. Prevents duplicate work across concurrent agents. Claims expire after 5 minutes. " +
+          "Claims a task before starting work. Searches the task source file (open-items.md by default, or PROJECT_STATUS.md) for a matching unclaimed item and marks it [CLAIMED:session_id]. Prevents duplicate work across concurrent agents. Claims expire after 5 minutes. " +
           "If no match is found, creates a new claimed task in open-items.md. " +
-          "For best results: use task_description that matches the wording in the source (e.g. 'Add Context7 MCP'); specify source when the task lives in a plan file or PROJECT_STATUS.md.",
+          "For best results: use task_description that matches the wording in the source (e.g. 'Add Context7 MCP'); specify source when the task lives in PROJECT_STATUS.md.",
         inputSchema: {
           type: "object",
           properties: {
             task_description: { type: "string", description: "Description of the task to claim (match wording in source for best match)" },
-            source: { type: "string", description: "Relative path to task source within .ai/ (default: sessions/open-items.md). Can be a plan file, PROJECT_STATUS.md, etc." },
+            source: { type: "string", description: "Relative path to task source within .ai/ (default: sessions/open-items.md). Can be PROJECT_STATUS.md or another task list file." },
             session_id: { type: "string", description: "Session identifier. Auto-generated if not provided. Use same ID for publish_result to link result to claim." },
           },
           required: ["task_description"],
