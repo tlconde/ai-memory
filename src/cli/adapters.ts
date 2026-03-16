@@ -99,6 +99,26 @@ function skillStub(name: string, description: string): string {
   return `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n\nCanonical definition: \`.ai/skills/${name}/SKILL.md\`\n\nRead the canonical file for full instructions.\n`;
 }
 
+const SKILL_STUBS: Array<[string, string]> = [
+  ["mem-compound", "Captures session learnings into persistent memory."],
+  ["mem-session-close", "Quick session close for sessions with no major learnings."],
+  ["mem-validate", "Validate memory entries and code changes against governance rules."],
+  ["mem-init", "Initialize ai-memory in a new project."],
+  ["browser", "Browser automation (screenshots, navigate, interact)."],
+  ["screen-capture", "Desktop/app window screenshot for vision analysis."],
+  ["desktop-automation", "Desktop UI automation — mouse, keyboard, OCR. For desktop applications, Electron apps."],
+  ["mem-auto-review", "Automated PR review using ai-memory governance rules."],
+];
+
+/** Generate skill stub files for a given tool-specific skills directory */
+function skillStubsForDir(dir: string): Record<string, string> {
+  const stubs: Record<string, string> = {};
+  for (const [name, desc] of SKILL_STUBS) {
+    stubs[`${dir}/${name}/SKILL.md`] = skillStub(name, desc);
+  }
+  return stubs;
+}
+
 /** Full skill content — written to .ai/skills/<name>/SKILL.md by install */
 export const CANONICAL_SKILLS: Record<string, string> = {
   "mem-compound": `---
@@ -211,6 +231,7 @@ type: skill
 status: active
 requires:
   capabilities: [browser]
+  permission: read   # read | edit | write — only request what the task needs
 ---
 
 # browser — Browser Automation Skill
@@ -256,6 +277,42 @@ See \`.ai/reference/capability-specs.json\` for platform-specific install (e.g. 
 
 - Capture → save to \`.ai/temp/\` → agent reads via file or \`get_memory\`
 - Handoff: write path to \`.ai/temp/request-for-*.md\` for another agent
+`,
+  "desktop-automation": `---
+name: desktop-automation
+description: Desktop UI automation — mouse, keyboard, OCR. For any desktop application, Electron apps, legacy software. Requires desktop_automation capability.
+type: skill
+status: active
+requires:
+  capabilities: [desktop_automation]
+---
+
+# desktop-automation — Desktop UI Automation Skill
+
+## When to use
+
+- Type into any desktop application or Electron apps
+- Automate legacy desktop apps without APIs
+- UI testing, data entry, accessibility tools
+
+## Permissions
+
+Declare the minimal permission needed for the task (see capability-specs.json):
+- **read** — Observe, screenshot, OCR only
+- **edit** — Click, type, navigate (no destructive actions)
+- **write** — Full control (submit, delete, etc.)
+
+Only request the permission the task requires.
+
+## Setup
+
+- **Cursor/Claude Code/Windsurf/Cline:** Run \`ai-memory install --capability desktop_automation\`
+- **Antigravity:** Add computer-control-mcp to \`~/.gemini/antigravity/mcp_config.json\` manually. Requires \`uvx\` (uv) or \`pip install computer-control-mcp\`.
+
+## Usage
+
+- Use mouse/keyboard tools for interaction; OCR for reading screen content
+- Save captures to \`.ai/temp/\` for handoff
 `,
   "mem-auto-review": `---
 name: mem-auto-review
@@ -391,14 +448,15 @@ export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
     mcp: true,
     mcpPath: ".cursor/mcp.json",
     extraFiles: {
-      // Stubs in .agents/skills/ point to canonical .ai/skills/
-      ".agents/skills/mem-compound/SKILL.md": skillStub("mem-compound", "Captures session learnings into persistent memory."),
-      ".agents/skills/mem-session-close/SKILL.md": skillStub("mem-session-close", "Quick session close for sessions with no major learnings."),
-      ".agents/skills/mem-validate/SKILL.md": skillStub("mem-validate", "Validate memory entries and code changes against governance rules."),
-      ".agents/skills/mem-init/SKILL.md": skillStub("mem-init", "Initialize ai-memory in a new project."),
-      ".agents/skills/browser/SKILL.md": skillStub("browser", "Browser automation (screenshots, navigate, interact)."),
-      ".agents/skills/screen-capture/SKILL.md": skillStub("screen-capture", "Desktop/app window screenshot for vision analysis."),
-      ".agents/skills/mem-auto-review/SKILL.md": skillStub("mem-auto-review", "Automated PR review using ai-memory governance rules."),
+      ...skillStubsForDir(".cursor/skills"),
+    },
+  },
+  antigravity: {
+    dest: ".agents/rules/00-load-ai-memory.md",
+    content: BOOTSTRAP_INSTRUCTION,
+    mcp: false, // Antigravity MCP is global-only (~/.gemini/antigravity/mcp_config.json)
+    extraFiles: {
+      ...skillStubsForDir(".agents/skills"),
     },
   },
   windsurf: {
@@ -421,15 +479,7 @@ export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
     content: `# Claude Code — Project Memory\n\n${BOOTSTRAP_INSTRUCTION}`,
     mcp: true,
     extraFiles: {
-      // Stubs in .agents/skills/ point to canonical .ai/skills/
-      ".agents/skills/mem-compound/SKILL.md": skillStub("mem-compound", "Captures session learnings into persistent memory."),
-      ".agents/skills/mem-session-close/SKILL.md": skillStub("mem-session-close", "Quick session close for sessions with no major learnings."),
-      ".agents/skills/mem-validate/SKILL.md": skillStub("mem-validate", "Validate memory entries and code changes against governance rules."),
-      ".agents/skills/mem-init/SKILL.md": skillStub("mem-init", "Initialize ai-memory in a new project."),
-      ".agents/skills/browser/SKILL.md": skillStub("browser", "Browser automation (screenshots, navigate, interact)."),
-      ".agents/skills/screen-capture/SKILL.md": skillStub("screen-capture", "Desktop/app window screenshot for vision analysis."),
-      ".agents/skills/mem-auto-review/SKILL.md": skillStub("mem-auto-review", "Automated PR review using ai-memory governance rules."),
-      // Claude Code hooks (SessionStart, PreCompact)
+      ...skillStubsForDir(".claude/skills"),
       ".claude/hooks/SessionStart.js": SESSION_START_HOOK,
       ".claude/hooks/PreCompact.js": PRE_COMPACT_HOOK,
       ".claude/settings.local.json": CLAUDE_HOOKS_CONFIG,

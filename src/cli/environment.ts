@@ -72,12 +72,26 @@ export function getCapabilityConfig(
   return envConfig ?? null;
 }
 
+/** Get manual setup instructions when capability has manual config for an environment. */
+export function getCapabilityManualInstructions(
+  capability: string,
+  envId: string,
+  projectRoot: string,
+  packageRoot: string
+): string | null {
+  const config = getCapabilityConfig(capability, envId, projectRoot, packageRoot) as Record<string, unknown> | null;
+  if (!config || typeof config !== "object") return null;
+  const manual = config.manual;
+  return typeof manual === "string" ? manual : null;
+}
+
 /** MCP config paths per environment (relative to project root). Matches install adapter mcpPath. */
 const ENV_MCP_PATHS: Record<string, string> = {
   cursor: ".cursor/mcp.json",
   "claude-code": ".mcp.json",
   windsurf: ".mcp.json",
   cline: ".mcp.json",
+  antigravity: ".mcp.json", // Antigravity uses global config; project path unused for injection
 };
 
 /**
@@ -117,6 +131,7 @@ function loadMcpConfig(path: string): { mcpServers?: Record<string, unknown> } |
 
 function mcpEntryFromCapConfig(capability: string, config: Record<string, unknown>): unknown {
   if (config.native === true) return null; // Cursor has browser natively; no injection
+  if (config.manual !== undefined) return null; // Manual setup (e.g. Antigravity global MCP)
   const mcp = config.mcp as Record<string, unknown> | undefined;
   if (!mcp || typeof mcp !== "object") return null;
   const type = mcp.type as string;
@@ -133,13 +148,18 @@ function mcpEntryFromCapConfig(capability: string, config: Record<string, unknow
   return null;
 }
 
+const CAPABILITY_MCP_KEYS: Record<string, string> = {
+  browser: "cursor-ide-browser",
+  desktop_automation: "computer-control-mcp",
+};
+
 function mergeMcpConfig(
   existing: { mcpServers?: Record<string, unknown> },
   capability: string,
   entry: unknown
 ): Record<string, unknown> {
   const servers = { ...(existing.mcpServers ?? {}) };
-  const key = capability === "browser" ? "cursor-ide-browser" : `capability-${capability}`;
+  const key = CAPABILITY_MCP_KEYS[capability] ?? `capability-${capability}`;
   if (!servers[key]) servers[key] = entry;
   return { ...existing, mcpServers: servers };
 }
