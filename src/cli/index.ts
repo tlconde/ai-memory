@@ -72,10 +72,11 @@ program
     }
 
     console.log(`\n✓ Done. Next step:`);
-    console.log(`  Connect your AI tool:  ai-memory install --to <tool>`);
-    console.log(`  Supported:             cursor, claude-code, windsurf, cline, copilot`);
+    console.log(`  Run /mem-init in your AI tool for guided setup with project-specific recommendations.`);
+    console.log(`  Or manually edit .ai/IDENTITY.md and .ai/PROJECT_STATUS.md.`);
     console.log(``);
-    console.log(`  Then run /mem-init in your coding agent for guided onboarding.`);
+    console.log(`  Connect your tool:  ai-memory install --to <tool>`);
+    console.log(`  Supported tools:    cursor, claude-code, windsurf, cline, copilot`);
   });
 
 async function scaffoldAiDir(aiDir: string, full: boolean): Promise<void> {
@@ -887,7 +888,7 @@ last_updated: ${new Date().toISOString().slice(0, 10)}
 
 # Project Status
 
-> This file evolves with the project. Both humans and AI update it — AI writes what it learned, humans steer the focus. This is your RALPH loop plan file.
+> This file evolves with the project. Both humans and AI update it — AI writes what it learned, humans steer the focus. This is your RALPH loop status file.
 
 ## Current Focus
 
@@ -1130,7 +1131,7 @@ Load this file only when the task requires full project context. Prefer \`memory
 
 ## Integrations
 
-[External services — e.g., "Stripe (payments)", "SendGrid (email)". Remove if not applicable.]
+[External services — e.g., "Stripe (payments)", "SendGrid (email)", "PostgreSQL (primary DB)". Remove if not applicable.]
 
 ## Development Setup
 
