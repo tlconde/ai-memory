@@ -12,6 +12,7 @@ import { handleSearchMemory, handleGetMemory, handleCommitMemory, handlePruneMem
 import { handleValidateContext, handleValidateSchema, handleGenerateHarness } from "./governance.js";
 import { handleClaimTask, handlePublishResult, handleSyncMemory } from "./collaboration.js";
 import { handleGetDocPath, handleValidateDocPlacement, handleListDocTypes } from "./docs.js";
+import { detectTools, readToolConfig, syncTools } from "./tool-inspect.js";
 
 // Re-export ValidationResult for consumers that need the type
 export type { ValidationResult } from "./governance.js";
@@ -227,6 +228,49 @@ export function registerTools(server: Server, aiDir: string): void {
           "Use to discover available types before get_doc_path. Returns empty if schema missing.",
         inputSchema: { type: "object", properties: {} },
       },
+      // ─── Tool inspection (cross-tool orchestration) ────────────────────────
+      {
+        name: "detect_tools",
+        description:
+          "Detects which AI tools are configured in the project. Scans for .cursor/, .claude/, .agents/, etc. " +
+          "Returns list of tools with id, name, and paths that triggered detection. " +
+          "Use before read_tool_config or sync_tools to know which tools are present.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            project_root: { type: "string", description: "Project root (default: parent of .ai/)" },
+          },
+        },
+      },
+      {
+        name: "read_tool_config",
+        description:
+          "Reads rules, skills, and MCP servers for a specific tool. " +
+          "Returns rules (file names), skills (subdir names with SKILL.md), mcpServers (from mcp.json). " +
+          "Use after detect_tools to inspect a tool's configuration.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            tool_id: { type: "string", description: "Tool ID (cursor, claude-code, antigravity, windsurf, cline)" },
+            project_root: { type: "string", description: "Project root (default: parent of .ai/)" },
+          },
+          required: ["tool_id"],
+        },
+      },
+      {
+        name: "sync_tools",
+        description:
+          "Compares .ai/skills/ against each detected tool's skills dir. Reports drift (missing skills). " +
+          "If write: true, copies missing skill stubs from .ai/skills/ to tool dirs (e.g. .cursor/skills/). " +
+          "Writes only to tool dirs, never to .ai/ immutable paths.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            write: { type: "boolean", description: "If true, write missing skills to tool dirs. Default: false." },
+            project_root: { type: "string", description: "Project root (default: parent of .ai/)" },
+          },
+        },
+      },
     ],
   }));
 
@@ -252,6 +296,33 @@ export function registerTools(server: Server, aiDir: string): void {
       case "get_doc_path": return handleGetDocPath(aiDir, args);
       case "validate_doc_placement": return handleValidateDocPlacement(aiDir, args);
       case "list_doc_types": return handleListDocTypes(aiDir);
+
+      case "detect_tools": {
+        const projectRoot = args.project_root
+          ? String(args.project_root)
+          : resolve(aiDir, "..");
+        const tools = detectTools(projectRoot);
+        return textResponse(JSON.stringify({ tools }, null, 2));
+      }
+      case "read_tool_config": {
+        const toolId = args.tool_id;
+        if (typeof toolId !== "string" || !toolId.trim()) {
+          throw new McpError(ErrorCode.InvalidParams, "tool_id is required.");
+        }
+        const projectRoot = args.project_root
+          ? String(args.project_root)
+          : resolve(aiDir, "..");
+        const config = await readToolConfig(projectRoot, toolId);
+        if (!config) return textResponse(`Unknown tool or no config: ${toolId}`);
+        return textResponse(JSON.stringify(config, null, 2));
+      }
+      case "sync_tools": {
+        const projectRoot = args.project_root
+          ? String(args.project_root)
+          : resolve(aiDir, "..");
+        const write = (args.write as boolean) ?? false;
+        return syncTools(projectRoot, aiDir, { write });
+      }
 
       case "get_repo_root": {
         const cwd = resolve(aiDir, "..");

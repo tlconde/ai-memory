@@ -42,14 +42,34 @@ function loadSpec<T>(path: string): T | null {
  * Checks detect.paths for each env in environment-specs.json.
  */
 export function detectEnvironments(projectRoot: string, packageRoot: string): string[] {
+  const tools = getDetectedToolsWithPaths(projectRoot, packageRoot);
+  return tools.map((t) => t.id);
+}
+
+/** Detected tool with paths that triggered detection. Used by tool-inspect MCP. */
+export interface DetectedToolWithPaths {
+  id: string;
+  name: string;
+  paths: string[];
+}
+
+/**
+ * Detect which environments are present and which paths triggered detection.
+ */
+export function getDetectedToolsWithPaths(
+  projectRoot: string,
+  packageRoot: string
+): DetectedToolWithPaths[] {
   const envPath = getSpecsPath(projectRoot, packageRoot, "environment-specs.json");
   const spec = loadSpec<{ environments?: EnvironmentSpec[] }>(envPath);
   const envs = spec?.environments ?? [];
-  const found: string[] = [];
+  const found: DetectedToolWithPaths[] = [];
   for (const env of envs) {
     const paths = env.detect?.paths ?? [];
-    const present = paths.some((p) => existsSync(join(projectRoot, p)));
-    if (present) found.push(env.id);
+    const present = paths.filter((p) => existsSync(join(projectRoot, p)));
+    if (present.length > 0) {
+      found.push({ id: env.id, name: env.name, paths: present });
+    }
   }
   return found;
 }
@@ -150,7 +170,7 @@ function mcpEntryFromCapConfig(capability: string, config: Record<string, unknow
 
 const CAPABILITY_MCP_KEYS: Record<string, string> = {
   browser: "cursor-ide-browser",
-  desktop_automation: "computer-control-mcp",
+  desktop_automation: "ai-memory-desktop-automation",
 };
 
 function mergeMcpConfig(
