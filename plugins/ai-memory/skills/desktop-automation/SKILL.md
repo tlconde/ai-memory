@@ -27,7 +27,8 @@ Only request the permission the task requires.
 ## Setup
 
 - **Cursor/Claude Code/Windsurf/Cline:** Run `ai-memory install --capability desktop_automation`
-- **Antigravity:** Add computer-control-mcp to `~/.gemini/antigravity/mcp_config.json` manually. Requires `uvx` (uv) or `pip install computer-control-mcp`.
+- **Antigravity:** Add ai-memory-desktop-automation to `~/.gemini/antigravity/mcp_config.json` manually. Config: `{ "command": "uvx", "args": ["--python", "3.13", "computer-control-mcp@latest"] }`
+- **Python 3.14 users:** onnxruntime has no wheels for 3.14 yet. The config pins `--python 3.13` so uv uses a compatible version. If you see "No solution found when resolving tool dependencies", ensure uv can access Python 3.13 (`uv python install 3.13`).
 
 ## Usage
 
