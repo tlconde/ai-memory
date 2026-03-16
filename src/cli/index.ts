@@ -71,14 +71,12 @@ program
       console.log(`✓ Model ready.`);
     }
 
-    console.log(`\n✓ Done. Next steps:`);
-    console.log(`  1. Edit .ai/IDENTITY.md — describe this project and its constraints`);
-    console.log(`  2. Edit .ai/PROJECT_STATUS.md — set the current focus`);
-    console.log(`  3. Run \`ai-memory install --to cursor\` or \`--to claude-code\` to connect your tool`);
-    if (opts.full) {
-      console.log(`  4. Add [P0] entries with constraint_pattern to decisions.md for governance`);
-      console.log(`  5. Run \`ai-memory generate-harness\` to compile the rule set`);
-    }
+    console.log(`\n✓ Done. Next step:`);
+    console.log(`  Run /mem-init in your AI tool for guided setup with project-specific recommendations.`);
+    console.log(`  Or manually edit .ai/IDENTITY.md and .ai/PROJECT_STATUS.md.`);
+    console.log(``);
+    console.log(`  Connect your tool:  ai-memory install --to <tool>`);
+    console.log(`  Supported tools:    cursor, claude-code, windsurf, cline, copilot`);
   });
 
 async function scaffoldAiDir(aiDir: string, full: boolean): Promise<void> {
@@ -806,31 +804,78 @@ const DEFAULT_IDENTITY = `---
 id: identity
 type: identity
 status: active
-writable: false
+writable: true
 last_updated: ${new Date().toISOString().slice(0, 10)}
 ---
 
 # Identity
 
-You are a senior developer focused on long-term strategy and production readiness.
+You are a senior developer focused on long-term strategy and production readiness. You think beyond the immediate task — anticipating downstream effects, architectural implications, and long-term maintainability. Every decision is deliberate, forward-looking, and grounded in engineering excellence.
 
-## What this project is
+## Mindset
 
-[Describe the project here — one paragraph]
+- Think about gaps and edge cases before writing code
+- Propose solutions that are production-grade, not prototypes
+- When diagnosing an issue, consider the full call chain — not just the immediate symptom
+- [Add project-specific mindset guidance here]
+
+## Autonomy Level
+
+<!-- Set one of: HIGH_TOUCH, MEDIUM_TOUCH, LOW_TOUCH -->
+level: HIGH_TOUCH
+
+### HIGH_TOUCH (default)
+**ASK before:** architectural changes, scope changes, trade-offs, ambiguous requirements, irreversible actions.
+**DO NOT ask for:** permission to search/read, executing decided approach, gathering info.
+**Long-running agents:** checkpoint at phase transitions.
+
+### MEDIUM_TOUCH
+**ASK before:** irreversible actions, breaking changes, security-sensitive changes.
+**Proceed autonomously with:** refactors, test additions, dependency updates, documentation.
+**Checkpoint:** only on scope changes.
+
+### LOW_TOUCH
+**ASK before:** production deployments, data deletion, security rule changes.
+**Proceed autonomously with:** everything else.
+**Checkpoint:** only on errors or blockers.
 
 ## Constraints (NEVER without explicit approval)
 
 - Never commit secrets, API keys, or .env files
 - Never delete user data without explicit request
 - Never deploy to production without explicit request
-- Never write full protocols to tool directories — canonical content goes in \`.ai/\`
+- Never write full protocols to tool directories — canonical content goes in \`.ai/\`, stubs in tool dirs
+- [Add project-specific constraints here]
 
-## Before starting any task
+## Permissions (ASK before doing)
+
+- Creating new files (prefer editing existing)
+- Adding dependencies
+- [Add project-specific permissions here]
+
+## Before Starting Any Task
 
 1. Read \`.ai/memory/memory-index.md\`
-2. Search \`.ai/memory/\` for relevant bugs, patterns, and decisions
+2. Search \`.ai/memory/\` for bugs, patterns, decisions relevant to the task
 3. Search \`.ai/skills/\` for applicable domain patterns
-4. Fetch \`.ai/reference/PROJECT.md\` only when the task requires architecture or data model context
+4. Fetch \`.ai/reference/PROJECT.md\` only when task requires architecture, data models, or integrations
+
+## Inference Discipline
+
+1. **State inferences explicitly**: "I'm inferring X because Y"
+2. **Check memory for conflicts**: Search \`.ai/memory/\` before acting on inference
+3. **Surface uncertainty**: If confidence < 90%, say so and ask
+4. **Never reduce scope silently**: All content is tool-agnostic by default
+
+After completing any non-trivial task, self-verify: Did I answer what was asked, or what I assumed was asked?
+
+## Authority (when sources conflict)
+
+PROJECT.md > memory files > code > inference.
+
+## When Confused
+
+Tell the user. Fix the code, not the documentation.
 `;
 
 const DEFAULT_PROJECT_STATUS = `---
@@ -843,7 +888,7 @@ last_updated: ${new Date().toISOString().slice(0, 10)}
 
 # Project Status
 
-> This file evolves with the project. Both humans and AI update it — AI writes what it learned, humans steer the focus. This is your RALPH loop plan file.
+> This file evolves with the project. Both humans and AI update it — AI writes what it learned, humans steer the focus. This is your RALPH loop status file.
 
 ## Current Focus
 
@@ -1050,31 +1095,47 @@ Curated history of past session decisions. One line per session.
 `;
 
 const DEFAULT_PROJECT = `---
-id: project
-type: toolbox
+id: project-reference
+type: reference
 status: active
 last_updated: ${new Date().toISOString().slice(0, 10)}
 ---
 
-# Project
+# Project Reference
 
-**Loaded on demand** — fetched only when a task requires architecture, data models, or integration context.
+**Full project reference for AI agents. Fetch this file when the task requires architecture, data models, integrations, or development setup.**
 
-## Architecture
+Load this file only when the task requires full project context. Prefer \`memory-index.md\` for session start.
 
-[Describe the system architecture]
+---
+
+## Project Overview
+
+[What this project is, who it's for, what problem it solves]
 
 ## Tech Stack
 
-[List the key technologies]
+- **Language:** [e.g., TypeScript, Python, Go]
+- **Framework:** [e.g., React, FastAPI, none]
+- **Build:** [e.g., Vite, webpack, tsc, cargo]
+- **CI:** [e.g., GitHub Actions, GitLab CI, none]
+- **Key dependencies:** [Top 5-8 from manifest file]
+
+## Architecture
+
+[High-level structure — e.g., "Monorepo with packages/ for shared libs", "Single Express API with PostgreSQL"]
 
 ## Data Models
 
-[Describe key data structures]
+[Schema files, ORM models, key types. Remove this section if not applicable.]
 
 ## Integrations
 
-[List external services and APIs]
+[External services — e.g., "Stripe (payments)", "SendGrid (email)", "PostgreSQL (primary DB)". Remove if not applicable.]
+
+## Development Setup
+
+[How to run the project locally — from README, Makefile, docker-compose, .env.example]
 `;
 
 const DEFAULT_ACP_MANIFEST = JSON.stringify({

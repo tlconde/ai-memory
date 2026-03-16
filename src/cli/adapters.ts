@@ -183,19 +183,26 @@ description: Validate memory entries and code changes against governance rules. 
 `,
   "mem-init": `---
 name: mem-init
-description: Initialize ai-memory in a new project. Scaffolds the .ai/ directory structure.
+description: Guided setup wizard for ai-memory. Scans the codebase and walks the user through configuring each file with project-specific recommendations. Every step is skippable.
 disable-model-invocation: true
 ---
 
-# mem-init — Project Setup
+# mem-init — Guided Setup Wizard
 
-## Instructions
+## When to use
+First time setting up ai-memory, or re-run to refresh recommendations.
 
-1. Confirm the user wants to initialize ai-memory in this project
-2. Ask: Default tier or Full tier (adds governance, evals, ACP)?
-3. Run: \`ai-memory init\` (or \`ai-memory init --full\`)
-4. Guide the user to edit \`.ai/IDENTITY.md\` and \`.ai/PROJECT_STATUS.md\`
-5. Run \`ai-memory validate\` to confirm setup
+**Quick setup (skip wizard):** Run \`npx @radix-ai/ai-memory init\` and edit files manually.
+
+## Steps
+1. **Scaffold** — Run \`npx @radix-ai/ai-memory init\` (or \`--full\`), then \`install --to <tool>\`. Skip if \`.ai/\` exists.
+2. **Codebase scan** — Read: manifest (package.json etc.), README, directory listing, CI config, build config, git log, existing MCPs, existing rules files, existing docs. Summarize internally.
+3. **Guide IDENTITY.md** — Explain each section (Mindset, Autonomy Level, Constraints, Permissions). Suggest project-specific constraints from scan. Ask autonomy level preference (HIGH/MEDIUM/LOW TOUCH). User edits the file. Skippable.
+4. **Guide reference/PROJECT.md** — Present scan findings as suggestions for: Project Overview, Tech Stack, Architecture, Data Models, Integrations, Dev Setup. User edits the file. Skippable.
+5. **Guide PROJECT_STATUS.md** — Suggest Current Focus from git log, Open Questions from scan gaps, What's Working from observed patterns. User edits. Skippable.
+6. **Knowledge audit** — Report existing docs (ARCHITECTURE.md, CONTRIBUTING.md, CHANGELOG.md, .env.example, TODO comments, existing MCPs/rules). Suggest what to import into .ai/memory/. Do not import automatically.
+7. **Recommendations** — Suggest relevant features: CI detected → mem-auto-review, multiple contributors → Full tier, no tests → testing-strategy pattern, monorepo → per-package skills.
+8. **Validate** — Run \`npx @radix-ai/ai-memory validate\`. Print summary of what was done, remaining placeholders, and next steps.
 `,
   browser: `---
 name: browser
