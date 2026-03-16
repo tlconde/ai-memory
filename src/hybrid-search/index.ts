@@ -156,7 +156,7 @@ async function loadNativeExtractor(): Promise<Awaited<ReturnType<typeof import("
     env.localModelPath = modelPath;
     env.allowRemoteModels = false;
   }
-  return pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
+  return pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", { dtype: "fp32" });
 }
 
 async function loadWasmExtractor(): Promise<Awaited<ReturnType<typeof import("@huggingface/transformers").pipeline>>> {
@@ -170,7 +170,7 @@ async function loadWasmExtractor(): Promise<Awaited<ReturnType<typeof import("@h
     env.localModelPath = modelPath;
     env.allowRemoteModels = false;
   }
-  return pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
+  return pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", { dtype: "fp32" });
 }
 
 async function getExtractor(): Promise<Awaited<ReturnType<typeof import("@huggingface/transformers").pipeline>>> {
