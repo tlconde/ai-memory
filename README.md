@@ -126,10 +126,13 @@ Creates: `acp/`, `docs-schema.json`, `rules/doc-placement.md`, `agents/docs-mana
 | `/mem-init` | First-time project setup |
 | `/mem-validate` | Before a risky change (Full tier) |
 | `/mem-auto-review` | Automated PR review (Bugbot, CI, automations) |
+| `/browser` | Browser automation (screenshots, navigate, interact) |
+| `/screen-capture` | Desktop/app window screenshot for vision analysis |
+| `/desktop-automation` | Desktop UI automation (mouse, keyboard, OCR) |
 
 ### How to invoke skills
 
-Skills are stored in `.ai/skills/` (canonical) with stubs in `.agents/skills/`. How you invoke them depends on your tool:
+Skills are stored in `.ai/skills/` (canonical) with stubs in your tool's skills directory (e.g., `.cursor/skills/`, `.claude/skills/`, `.agents/skills/` for Antigravity). How you invoke them depends on your tool:
 
 | Tool | How to invoke | Example |
 |------|--------------|---------|

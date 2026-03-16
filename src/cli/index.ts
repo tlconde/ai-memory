@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { DEFAULT_DOCS_SCHEMA_JSON } from "../docs-schema.js";
 import { TOOL_ADAPTERS, getMCPJson, MCP_LAUNCHER, MCP_LAUNCHER_PATH, CANONICAL_SKILLS } from "./adapters.js";
-import { detectEnvironments, injectCapabilityConfig } from "./environment.js";
+import { detectEnvironments, injectCapabilityConfig, getCapabilityManualInstructions } from "./environment.js";
 
 // Read version from package.json — single source of truth
 const __dirname_cli = dirname(fileURLToPath(import.meta.url));
@@ -75,8 +75,8 @@ program
     console.log(`  Run /mem-init in your AI tool for guided setup with project-specific recommendations.`);
     console.log(`  Or manually edit .ai/IDENTITY.md and .ai/PROJECT_STATUS.md.`);
     console.log(``);
-    console.log(`  Connect your tool:  ai-memory install --to <tool>`);
-    console.log(`  Supported tools:    cursor, claude-code, windsurf, cline, copilot`);
+    console.log(`  Connect your tool:  npx @radix-ai/ai-memory install --to <tool>`);
+    console.log(`  Supported tools:   cursor, claude-code, antigravity, windsurf, cline, copilot`);
   });
 
 async function scaffoldAiDir(aiDir: string, full: boolean): Promise<void> {
@@ -165,7 +165,7 @@ program
   .description("Install the ai-memory bootstrap for a specific tool")
   .requiredOption("--to <tool>", `Target tool (${Object.keys(TOOL_ADAPTERS).join(", ")})`)
   .option("--dir <dir>", "Project root (default: current directory)")
-  .option("--capability <cap>", "Inject capability config (browser, screen_capture). Repeatable.", (v, acc: string[]) => (acc ?? []).concat(v), [])
+  .option("--capability <cap>", "Inject capability config (browser, screen_capture, desktop_automation). Repeatable.", (v, acc: string[]) => (acc ?? []).concat(v), [])
   .action(async (opts) => {
     const tool = opts.to.toLowerCase();
     const adapter = TOOL_ADAPTERS[tool];
@@ -238,8 +238,9 @@ program
       const pkgRoot = join(__dirname_cli, "..", "..");
       const envs = detectEnvironments(projectRoot, pkgRoot);
       for (const cap of capabilities) {
-        if (cap !== "browser" && cap !== "screen_capture") {
-          console.warn(`  [warn] Unknown capability: ${cap}. Skipping.`);
+        const knownCaps = ["browser", "screen_capture", "desktop_automation"];
+        if (!knownCaps.includes(cap)) {
+          console.warn(`  [warn] Unknown capability: ${cap}. Skipping. Known: ${knownCaps.join(", ")}`);
           continue;
         }
         let injected = 0;
@@ -256,12 +257,27 @@ program
         if (cap === "screen_capture" && injected === 0 && envs.length > 0) {
           console.warn(`  [warn] screen_capture has no MCP config — it uses platform tools (e.g. Peekaboo). See capability-specs.json.`);
         }
+        // Print manual instructions for capabilities that require global/manual setup (e.g. Antigravity + desktop_automation)
+        for (const envId of envs) {
+          const manual = getCapabilityManualInstructions(cap, envId, projectRoot, pkgRoot);
+          if (manual) {
+            console.log(`  [${envId}] ${cap}: ${manual}`);
+          }
+        }
       }
     }
 
-    console.log(`\nDone. Start a new ${opts.to} session and verify:`);
-    console.log(`  1. MCP connected: "Call search_memory with query 'test'" (should return results, not an error)`);
-    console.log(`  2. Memory loaded:  "What does .ai/IDENTITY.md say about this project?"`);
+    console.log(`\nDone. Before starting:`);
+    if (tool === "antigravity") {
+      console.log(`  1. Add ai-memory MCP to ~/.gemini/antigravity/mcp_config.json (Antigravity uses global MCP config)`);
+      console.log(`  2. Start a new session and verify with: "What does .ai/IDENTITY.md say about this project?"`);
+    } else if (adapter.mcp) {
+      console.log(`  1. Enable the ai-memory MCP server in your tool's settings (it's disabled by default)`);
+      console.log(`  2. Start a new session and verify with: "What does .ai/IDENTITY.md say about this project?"`);
+    } else {
+      console.log(`  1. Start a new session and verify with: "What does .ai/IDENTITY.md say about this project?"`);
+    }
+    console.log(`  Run /mem-init for guided onboarding.`);
     console.log(`\nIf search_memory is not available, restart your editor — MCP servers load at startup.`);
   });
 

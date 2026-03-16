@@ -53,16 +53,29 @@ export async function evalHookCoverage(projectDir: string): Promise<EvalMetric> 
 }
 
 /**
- * Skill discoverability: % of skills present in portable .agents/skills/ directory.
+ * Skill discoverability: % of skills present in any tool-specific skills directory.
+ * Checks .cursor/skills/, .claude/skills/, .agents/skills/ (Antigravity), and .ai/skills/ (canonical).
  */
 export async function evalSkillDiscoverability(projectDir: string): Promise<EvalMetric> {
   const expected = ["mem-compound", "mem-session-close", "mem-validate", "mem-init"];
-  const agentsSkillsDir = join(projectDir, ".agents", "skills");
-  let found = 0;
+  const skillDirs = [
+    join(projectDir, ".cursor", "skills"),
+    join(projectDir, ".claude", "skills"),
+    join(projectDir, ".agents", "skills"),
+    join(projectDir, ".ai", "skills"),
+  ];
 
-  if (existsSync(agentsSkillsDir)) {
+  let found = 0;
+  let foundIn = "";
+  for (const dir of skillDirs) {
+    if (!existsSync(dir)) continue;
+    let count = 0;
     for (const skill of expected) {
-      if (existsSync(join(agentsSkillsDir, skill, "SKILL.md"))) found++;
+      if (existsSync(join(dir, skill, "SKILL.md"))) count++;
+    }
+    if (count > found) {
+      found = count;
+      foundIn = dir.replace(projectDir, "").replace(/\\/g, "/").replace(/^\//, "");
     }
   }
 
@@ -72,8 +85,8 @@ export async function evalSkillDiscoverability(projectDir: string): Promise<Eval
     value: `${pct}%`,
     status: pct === 100 ? "good" : pct >= 50 ? "warn" : "bad",
     note: found === expected.length
-      ? "All skills in portable .agents/skills/"
-      : `${found}/${expected.length} skills found. Run \`ai-memory install --to cursor\` or \`--to claude-code\` to install.`,
+      ? `All skills found in ${foundIn}/`
+      : `${found}/${expected.length} skills found. Run \`npx @radix-ai/ai-memory install --to <tool>\` to install.`,
   };
 }
 

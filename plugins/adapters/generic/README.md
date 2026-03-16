@@ -17,16 +17,17 @@ npx @radix-ai/ai-memory install --to <tool>
 
 This writes three things:
 1. **Context loading** — a rules/config file that tells the AI to read `.ai/` at session start
-2. **MCP server** — `.mcp.json` for structured memory tools (search, write, validate)
-3. **Skills** — slash commands in `.agents/skills/` (e.g., `/mem-compound`)
+2. **MCP server** — config for structured memory tools (search, write, validate)
+3. **Skills** — slash commands in the tool's native skills directory (e.g., `/mem-compound`)
 
-| Tool | `--to` value | Context file | Skills path |
-|---|---|---|---|
-| Cursor | `cursor` | `.cursor/rules/00-load-ai-memory.mdc` | `.agents/skills/` |
-| Claude Code | `claude-code` | `CLAUDE.md` | `.agents/skills/` |
-| Windsurf | `windsurf` | `.windsurfrules` | (manual) |
-| Cline | `cline` | `.clinerules` | (manual) |
-| Copilot | `copilot` | `.github/copilot-instructions.md` | (manual, no MCP) |
+| Tool | `--to` value | Context file | Skills path | MCP config |
+|---|---|---|---|---|
+| Cursor | `cursor` | `.cursor/rules/00-load-ai-memory.mdc` | `.cursor/skills/` | `.cursor/mcp.json` |
+| Claude Code | `claude-code` | `CLAUDE.md` | `.claude/skills/` | `.mcp.json` |
+| Antigravity | `antigravity` | `.agents/rules/00-load-ai-memory.md` | `.agents/skills/` | Global (`~/.gemini/antigravity/mcp_config.json`) |
+| Windsurf | `windsurf` | `.windsurfrules` | (manual) | `.mcp.json` |
+| Cline | `cline` | `.clinerules` | (manual) | `.mcp.json` |
+| Copilot | `copilot` | `.github/copilot-instructions.md` | (manual) | None (no MCP) |
 
 ## Manual setup
 
