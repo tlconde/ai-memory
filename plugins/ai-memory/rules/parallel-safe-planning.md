@@ -16,4 +16,4 @@ When creating a plan or task list that will be executed by multiple agents or su
 
 5. **Test tasks are independent.** Writing tests for module X does not conflict with writing tests for module Y. These can always run in parallel.
 
-When using `claim_task`, agents will pick unclaimed tasks. If the plan follows these rules, two agents claiming different tasks will never produce merge conflicts.
+When using `claim_task`, agents will pick unclaimed tasks. If the task breakdown follows these rules, two agents claiming different tasks will never produce merge conflicts.

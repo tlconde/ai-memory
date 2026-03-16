@@ -888,7 +888,7 @@ last_updated: ${new Date().toISOString().slice(0, 10)}
 
 # Project Status
 
-> This file evolves with the project. Both humans and AI update it — AI writes what it learned, humans steer the focus. This is your RALPH loop plan file.
+> This file evolves with the project. Both humans and AI update it — AI writes what it learned, humans steer the focus. This is your RALPH loop status file.
 
 ## Current Focus
 

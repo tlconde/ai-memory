@@ -49,7 +49,7 @@ PROJECT_STATUS.md is writable by default. Update it with what you learned:
 - Move completed focus items to "What's Working"
 - Add new open questions discovered during the session
 - Update "What to Try Next" based on results
-- This is the RALPH loop: each iteration evolves the plan
+- This is the RALPH loop: each iteration evolves the focus
 
 ### 4. Archive and open items
 - Call `publish_result` with a summary, outcome, and learnings
