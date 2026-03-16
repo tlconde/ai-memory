@@ -76,7 +76,7 @@ program
     console.log(`  Or manually edit .ai/IDENTITY.md and .ai/PROJECT_STATUS.md.`);
     console.log(``);
     console.log(`  Connect your tool:  npx @radix-ai/ai-memory install --to <tool>`);
-    console.log(`  Supported tools:   cursor, claude-code, antigravity, windsurf, cline, copilot`);
+    console.log(`  Supported tools:   cursor, claude-code, antigravity, copilot`);
   });
 
 async function scaffoldAiDir(aiDir: string, full: boolean): Promise<void> {
@@ -208,9 +208,8 @@ program
       console.log(`✓ Wrote .ai/skills/${skillName}/SKILL.md (canonical)`);
     }
 
-    if (tool === "claude-code") {
-      console.log(`\n  Hooks installed: SessionStart (context injection), PreCompact (state preservation)`);
-      console.log(`  Note: Restart Claude Code for hooks to take effect.`);
+    if (adapter.postInstallNote) {
+      console.log(`\n  ${adapter.postInstallNote}`);
     }
 
     if (adapter.mcp) {
@@ -267,13 +266,20 @@ program
       }
     }
 
+    // Post-install steps from tool-specific config (plugins/adapters/<tool>/INSTALL.md)
+    const pkgRoot = join(__dirname_cli, "..", "..");
+    const toolInstallPath = join(pkgRoot, "plugins", "adapters", tool, "INSTALL.md");
+    const genericInstallPath = join(pkgRoot, "plugins", "adapters", "generic", "INSTALL.md");
+    const installPath = existsSync(toolInstallPath) ? toolInstallPath : genericInstallPath;
+    const installContent = existsSync(installPath) ? readFileSync(installPath, "utf-8") : null;
+
     console.log(`\nDone. Before starting:`);
-    if (tool === "antigravity") {
-      console.log(`  1. Add ai-memory MCP to ~/.gemini/antigravity/mcp_config.json (Antigravity uses global MCP config)`);
-      console.log(`  2. Start a new session and verify with: "What does .ai/IDENTITY.md say about this project?"`);
-    } else if (adapter.mcp) {
-      console.log(`  1. Enable the ai-memory MCP server in your tool's settings (it's disabled by default)`);
-      console.log(`  2. Start a new session and verify with: "What does .ai/IDENTITY.md say about this project?"`);
+    if (installContent) {
+      const lines = installContent.split("\n").filter((l) => l.trim());
+      for (const line of lines) {
+        if (line.startsWith("#")) continue; // Skip headers
+        console.log(`  ${line.trimStart()}`);
+      }
     } else {
       console.log(`  1. Start a new session and verify with: "What does .ai/IDENTITY.md say about this project?"`);
     }
@@ -462,7 +468,6 @@ program
   .option("--paths <paths>", "Comma-separated paths to check (default: from git diff --name-only)")
   .action(async (opts: { dir?: string; paths?: string }) => {
     const projectRoot = resolve(opts.dir ?? process.cwd());
-    const aiDir = join(projectRoot, ".ai");
     const { loadDocsSchema, validateDocPlacement } = await import("../docs-schema.js");
 
     const schema = await loadDocsSchema(projectRoot);
@@ -605,7 +610,7 @@ program
     checks.push({ name: "MCP config", status: mcpLocations.length > 0 ? "pass" : "warn", detail: mcpLocations.length > 0 ? mcpLocations.join(", ") : "None found — MCP tools won't be available" });
 
     // 3. Bootstrap installed for at least one tool
-    const bootstrapMap: Record<string, string> = { "claude-code": "CLAUDE.md", cursor: ".cursor/rules/00-load-ai-memory.mdc", windsurf: ".windsurfrules", cline: ".clinerules", copilot: ".github/copilot-instructions.md" };
+    const bootstrapMap: Record<string, string> = { "claude-code": "CLAUDE.md", cursor: ".cursor/rules/00-load-ai-memory.mdc", antigravity: ".agents/rules/00-load-ai-memory.md", copilot: ".github/copilot-instructions.md" };
     const installed = Object.entries(bootstrapMap).filter(([, p]) => existsSync(join(projectRoot, p))).map(([t]) => t);
     checks.push({ name: "Bootstrap", status: installed.length > 0 ? "pass" : "warn", detail: installed.length > 0 ? `Installed for: ${installed.join(", ")}` : "None — run `ai-memory install --to <tool>`" });
 

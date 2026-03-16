@@ -1,0 +1,24 @@
+{
+  "environments": [
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "detect": { "paths": [".cursor/mcp.json", ".cursor/rules"] }
+    },
+    {
+      "id": "antigravity",
+      "name": "Antigravity",
+      "detect": { "paths": [".agents/rules", ".agents/skills"] }
+    },
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "detect": { "paths": [".claude/hooks", "CLAUDE.md"] }
+    },
+    {
+      "id": "copilot",
+      "name": "GitHub Copilot",
+      "detect": { "paths": [".github/copilot-instructions.md"] }
+    }
+  ]
+}

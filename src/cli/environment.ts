@@ -109,8 +109,8 @@ export function getCapabilityManualInstructions(
 const ENV_MCP_PATHS: Record<string, string> = {
   cursor: ".cursor/mcp.json",
   "claude-code": ".mcp.json",
-  windsurf: ".mcp.json",
-  cline: ".mcp.json",
+  // windsurf: ".mcp.json",
+  // cline: ".mcp.json",
   antigravity: ".mcp.json", // Antigravity uses global config; project path unused for injection
 };
 
@@ -158,12 +158,15 @@ function mcpEntryFromCapConfig(capability: string, config: Record<string, unknow
   if (type === "stdio") {
     const command = mcp.command as string;
     const args = mcp.args as string[] | undefined;
+    const env = mcp.env as Record<string, string> | undefined;
     if (!command) return null;
-    return {
+    const entry: Record<string, unknown> = {
       type: "stdio",
       command,
       args: args ?? ["-y", "@anthropic-ai/cursor-ide-browser"],
     };
+    if (env && typeof env === "object") entry.env = env;
+    return entry;
   }
   return null;
 }
