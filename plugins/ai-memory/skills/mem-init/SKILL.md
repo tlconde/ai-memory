@@ -63,7 +63,7 @@ Read the following files to build a project profile. **Skip any that don't exist
 
 **Existing AI tool setup:**
 - `.mcp.json`, `.cursor/mcp.json` — existing MCP servers
-- `.cursorrules`, `.windsurfrules`, `.clinerules`, `CLAUDE.md`, `.github/copilot-instructions.md` — existing rules
+- `.cursorrules`, `CLAUDE.md`, `.agents/rules/`, `.github/copilot-instructions.md` — existing rules
 
 **Existing documentation:**
 - `ARCHITECTURE.md`, `DESIGN.md`, `CONTRIBUTING.md`, `CHANGELOG.md`

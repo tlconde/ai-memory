@@ -25,8 +25,6 @@ This writes three things:
 | Cursor | `cursor` | `.cursor/rules/00-load-ai-memory.mdc` | `.cursor/skills/` | `.cursor/mcp.json` |
 | Claude Code | `claude-code` | `CLAUDE.md` | `.claude/skills/` | `.mcp.json` |
 | Antigravity | `antigravity` | `.agents/rules/00-load-ai-memory.md` | `.agents/skills/` | Global (`~/.gemini/antigravity/mcp_config.json`) |
-| Windsurf | `windsurf` | `.windsurfrules` | (manual) | `.mcp.json` |
-| Cline | `cline` | `.clinerules` | (manual) | `.mcp.json` |
 | Copilot | `copilot` | `.github/copilot-instructions.md` | (manual) | None (no MCP) |
 
 ## Manual setup

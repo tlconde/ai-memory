@@ -33,7 +33,7 @@ npm run build        # Full build
 - **New tool adapters**: Add support for more AI coding tools
 - **Skills**: New skills in `plugins/ai-memory/skills/`
 - **Evals**: New eval metrics in `src/evals/`
-- **Documentation**: Improvements to README, TOOL_ONBOARDING, or reference files
+- **Documentation**: Improvements to README, adapter docs, or reference files
 
 ## Architecture
 
