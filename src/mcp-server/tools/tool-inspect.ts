@@ -46,18 +46,18 @@ export const TOOL_PATH_MAPPINGS: Record<
     skillsDir: ".agents/skills",
     mcpPath: ".mcp.json",
   },
-  windsurf: {
-    rulesDir: null,
-    rulesPath: ".windsurfrules",
-    skillsDir: null,
-    mcpPath: ".mcp.json",
-  },
-  cline: {
-    rulesDir: null,
-    rulesPath: ".clinerules",
-    skillsDir: null,
-    mcpPath: ".mcp.json",
-  },
+  // windsurf: {
+  //   rulesDir: null,
+  //   rulesPath: ".windsurfrules",
+  //   skillsDir: null,
+  //   mcpPath: ".mcp.json",
+  // },
+  // cline: {
+  //   rulesDir: null,
+  //   rulesPath: ".clinerules",
+  //   skillsDir: null,
+  //   mcpPath: ".mcp.json",
+  // },
 };
 
 // ─── Internal helpers ─────────────────────────────────────────────────────

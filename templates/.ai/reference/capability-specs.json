@@ -1,0 +1,28 @@
+{
+  "capabilities": {
+    "browser": {
+      "description": "Browser automation (screenshots, navigate, interact)",
+      "environments": {
+        "cursor": { "native": true },
+        "claude-code": { "mcp": { "type": "stdio", "command": "npx", "args": ["-y", "@anthropic-ai/cursor-ide-browser"] } },
+        "antigravity": { "manual": "Add browser MCP to your global mcp_config.json. See docs/reference/antigravity-agent-setup.md." }
+      }
+    },
+    "screen_capture": {
+      "description": "Desktop/app window screenshot",
+      "environments": {
+        "cursor": { "manual": "Platform tools (e.g. Peekaboo on macOS). Fallback: screenshot to .ai/temp/screen.png" },
+        "claude-code": { "manual": "Platform tools (e.g. Peekaboo on macOS). Fallback: screenshot to .ai/temp/screen.png" },
+        "antigravity": { "manual": "Platform tools (e.g. Peekaboo on macOS). Fallback: screenshot to .ai/temp/screen.png" }
+      }
+    },
+    "desktop_automation": {
+      "description": "Desktop UI automation — mouse, keyboard, OCR",
+      "environments": {
+        "cursor": { "mcp": { "type": "stdio", "command": "uvx", "args": ["--python", "3.13", "computer-control-mcp@latest"], "env": { "PYTHONIOENCODING": "utf-8" } } },
+        "claude-code": { "mcp": { "type": "stdio", "command": "uvx", "args": ["--python", "3.13", "computer-control-mcp@latest"], "env": { "PYTHONIOENCODING": "utf-8" } } },
+        "antigravity": { "manual": "Add ai-memory-desktop-automation to %APPDATA%\\antigravity\\mcp_config.json (Windows) or ~/.antigravity/mcp_config.json (macOS/Linux). Config: { \"command\": \"uvx\", \"args\": [\"--python\", \"3.13\", \"computer-control-mcp@latest\"], \"env\": { \"PYTHONIOENCODING\": \"utf-8\" } }. See docs/reference/antigravity-agent-setup.md." }
+      }
+    }
+  }
+}

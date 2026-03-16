@@ -251,7 +251,7 @@ export function registerTools(server: Server, aiDir: string): void {
         inputSchema: {
           type: "object",
           properties: {
-            tool_id: { type: "string", description: "Tool ID (cursor, claude-code, antigravity, windsurf, cline)" },
+            tool_id: { type: "string", description: "Tool ID (cursor, claude-code, antigravity)" },
             project_root: { type: "string", description: "Project root (default: parent of .ai/)" },
           },
           required: ["tool_id"],

@@ -306,9 +306,7 @@ Only request the permission the task requires.
 
 ## Setup
 
-- **Cursor/Claude Code/Windsurf/Cline:** Run \`ai-memory install --capability desktop_automation\`
-- **Antigravity:** Add ai-memory-desktop-automation to \`~/.gemini/antigravity/mcp_config.json\` manually. Config: \`{ "command": "uvx", "args": ["--python", "3.13", "computer-control-mcp@latest"] }\`
-- **Python 3.14 users:** onnxruntime has no wheels for 3.14 yet. The config pins \`--python 3.13\` so uv uses a compatible version. If you see "No solution found when resolving tool dependencies", ensure uv can access Python 3.13 (\`uv python install 3.13\`).
+Run \`ai-memory install --capability desktop_automation\` or see \`.ai/reference/capability-specs.json\` for tool-specific config.
 
 ## Usage
 
@@ -440,6 +438,8 @@ export interface ToolAdapter {
   mcpPath?: string;
   /** Additional files to write (path relative to project root → content) */
   extraFiles?: Record<string, string>;
+  /** Message to show after install (tool-specific notes) */
+  postInstallNote?: string;
 }
 
 export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
@@ -460,16 +460,16 @@ export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
       ...skillStubsForDir(".agents/skills"),
     },
   },
-  windsurf: {
-    dest: ".windsurfrules",
-    content: BOOTSTRAP_INSTRUCTION,
-    mcp: true,
-  },
-  cline: {
-    dest: ".clinerules",
-    content: BOOTSTRAP_INSTRUCTION,
-    mcp: true,
-  },
+  // windsurf: {
+  //   dest: ".windsurfrules",
+  //   content: BOOTSTRAP_INSTRUCTION,
+  //   mcp: true,
+  // },
+  // cline: {
+  //   dest: ".clinerules",
+  //   content: BOOTSTRAP_INSTRUCTION,
+  //   mcp: true,
+  // },
   copilot: {
     dest: ".github/copilot-instructions.md",
     content: `# Copilot Instructions\n\n${BOOTSTRAP_INSTRUCTION}\n\n> Note: GitHub Copilot does not support MCP. Skills must be run by pasting content from \`.ai/skills/\`.\n`,
@@ -479,6 +479,7 @@ export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
     dest: "CLAUDE.md",
     content: `# Claude Code — Project Memory\n\n${BOOTSTRAP_INSTRUCTION}`,
     mcp: true,
+    postInstallNote: "Hooks installed: SessionStart (context injection), PreCompact (state preservation)\n  Note: Restart Claude Code for hooks to take effect.",
     extraFiles: {
       ...skillStubsForDir(".claude/skills"),
       ".claude/hooks/SessionStart.js": SESSION_START_HOOK,
