@@ -3,6 +3,7 @@ import { join } from "path";
 import { existsSync } from "fs";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { safeRead, assertPathWithinAiDir } from "../utils/fs.js";
+import { AI_PATHS } from "../schema-constants.js";
 import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
@@ -46,7 +47,7 @@ export function registerResources(server: Server, aiDir: string): void {
     ];
 
     // Add harness/active if it exists (Full tier)
-    if (existsSync(join(aiDir, "temp/harness.json"))) {
+    if (existsSync(join(aiDir, AI_PATHS.HARNESS))) {
       resources.push({
         uri: "memory://harness/active",
         name: "Active Harness Rules",
@@ -56,7 +57,7 @@ export function registerResources(server: Server, aiDir: string): void {
     }
 
     // Add evals if report exists
-    if (existsSync(join(aiDir, "temp/eval-report.json"))) {
+    if (existsSync(join(aiDir, AI_PATHS.EVAL_REPORT))) {
       resources.push({
         uri: "memory://evals",
         name: "Eval Report",
@@ -87,7 +88,7 @@ export function registerResources(server: Server, aiDir: string): void {
     }
 
     if (uri === "memory://index") {
-      const index = await safeRead(join(aiDir, "memory/memory-index.md"));
+      const index = await safeRead(join(aiDir, AI_PATHS.MEMORY_INDEX));
       return {
         contents: [{ uri, mimeType: "text/markdown", text: index || "Memory index not yet generated. Run `/mem-compound` to create it." }],
       };
@@ -95,9 +96,9 @@ export function registerResources(server: Server, aiDir: string): void {
 
     if (uri === "memory://tails") {
       const tailSpecs = [
-        { file: "memory/decisions.md", lines: 40, heading: "## Recent Decisions" },
-        { file: "memory/debugging.md", lines: 30, heading: "## Recent Debugging" },
-        { file: "memory/patterns.md", lines: 20, heading: "## Recent Patterns" },
+        { file: AI_PATHS.DECISIONS, lines: 40, heading: "## Recent Decisions" },
+        { file: AI_PATHS.DEBUGGING, lines: 30, heading: "## Recent Debugging" },
+        { file: AI_PATHS.PATTERNS, lines: 20, heading: "## Recent Patterns" },
         { file: "sessions/archive/thread-archive.md", lines: 200, heading: "## Session Archive (recent)" },
       ];
       const tails = await Promise.all(tailSpecs.map((s) => tail(join(aiDir, s.file), s.lines)));
@@ -117,14 +118,14 @@ export function registerResources(server: Server, aiDir: string): void {
     }
 
     if (uri === "memory://harness/active") {
-      const harness = await safeRead(join(aiDir, "temp/harness.json"));
+      const harness = await safeRead(join(aiDir, AI_PATHS.HARNESS));
       return {
         contents: [{ uri, mimeType: "application/json", text: harness || "[]" }],
       };
     }
 
     if (uri === "memory://evals") {
-      const report = await safeRead(join(aiDir, "temp/eval-report.json"));
+      const report = await safeRead(join(aiDir, AI_PATHS.EVAL_REPORT));
       return {
         contents: [{ uri, mimeType: "application/json", text: report || "{}" }],
       };

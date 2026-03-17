@@ -106,12 +106,13 @@ export async function evalCloudReadiness(projectDir: string): Promise<EvalMetric
     checks.push("✗ .ai/ missing");
   }
 
-  // Check .mcp.json exists (sync_memory available via MCP)
-  if (existsSync(join(projectDir, ".mcp.json"))) {
-    checks.push("✓ .mcp.json present (sync_memory available)");
+  // Check MCP config exists (sync_memory available via MCP)
+  const mcpLocations = [".mcp.json", ".cursor/mcp.json"].filter((p) => existsSync(join(projectDir, p)));
+  if (mcpLocations.length > 0) {
+    checks.push(`✓ MCP config present (${mcpLocations.join(", ")})`);
     passed++;
   } else {
-    checks.push("✗ .mcp.json missing");
+    checks.push("✗ No MCP config found (.mcp.json or .cursor/mcp.json)");
   }
 
   // Check if MCP server code supports HTTP
