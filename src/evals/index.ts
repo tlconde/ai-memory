@@ -1,6 +1,7 @@
 import { readFile, writeFile, readdir, mkdir } from "fs/promises";
 import { join, resolve } from "path";
 import { existsSync } from "fs";
+import { safeRead } from "../utils/fs.js";
 import type { EvalMetric } from "./types.js";
 
 export type { EvalMetric } from "./types.js";
@@ -101,10 +102,6 @@ async function appendLine(filePath: string, line: string): Promise<void> {
   } catch {
     // non-fatal
   }
-}
-
-async function safeRead(filePath: string): Promise<string> {
-  try { return await readFile(filePath, "utf-8"); } catch { return ""; }
 }
 
 // ─── Built-in eval functions ──────────────────────────────────────────────────

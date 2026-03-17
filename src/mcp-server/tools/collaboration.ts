@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir } from "fs/promises";
 import { join, dirname, resolve } from "path";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { assertPathWithinAiDir } from "../../utils/fs.js";
-import { generateSessionId, getRepoRoot, sanitizeCommitMessage, textResponse, type McpResponse } from "./shared.js";
+import { generateSessionId, getRepoRoot, sanitizeCommitMessage, textResponse, AI_PATHS, type McpResponse } from "./shared.js";
 
 export async function handleClaimTask(aiDir: string, args: Record<string, unknown>): Promise<McpResponse> {
   const taskDesc = args.task_description;
@@ -12,7 +12,7 @@ export async function handleClaimTask(aiDir: string, args: Record<string, unknow
   const sessionId = (typeof args.session_id === "string" && args.session_id) || generateSessionId();
   const sourcePath = typeof args.source === "string" && args.source
     ? args.source
-    : "sessions/open-items.md";
+    : AI_PATHS.OPEN_ITEMS;
 
   const sourceFullPath = assertPathWithinAiDir(aiDir, sourcePath);
   let sourceContent = "";
@@ -42,7 +42,7 @@ export async function handleClaimTask(aiDir: string, args: Record<string, unknow
     return textResponse(`✓ Claimed task from ${sourcePath} (session ${sessionId}):\n${lines[matchedLine]}`);
   }
 
-  const openItemsPath = join(aiDir, "sessions/open-items.md");
+  const openItemsPath = join(aiDir, AI_PATHS.OPEN_ITEMS);
   let openItems = "";
   try { openItems = await readFile(openItemsPath, "utf-8"); } catch {}
   const newItem = `- [~] ${taskDesc} [CLAIMED:${sessionId}]`;
@@ -68,7 +68,7 @@ export async function handlePublishResult(aiDir: string, args: Record<string, un
   const date = new Date().toISOString().slice(0, 10);
   const icon = outcome === "success" ? "✓" : outcome === "failure" ? "✗" : "~";
 
-  const archivePath = join(aiDir, "sessions/archive/thread-archive.md");
+  const archivePath = join(aiDir, AI_PATHS.THREAD_ARCHIVE);
   const entry = `[${date}] [${icon} ${outcome}] ${summary}${learnings ? ` — Learnings: ${learnings}` : ""} (session:${sessionId})`;
 
   try {
@@ -79,7 +79,7 @@ export async function handlePublishResult(aiDir: string, args: Record<string, un
     await writeFile(archivePath, entry + "\n");
   }
 
-  const openItemsPath = join(aiDir, "sessions/open-items.md");
+  const openItemsPath = join(aiDir, AI_PATHS.OPEN_ITEMS);
   try {
     let openItems = await readFile(openItemsPath, "utf-8");
     const marker = outcome === "success" ? "- [x]" : "- [ ]";

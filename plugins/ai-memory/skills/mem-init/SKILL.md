@@ -163,6 +163,29 @@ Check what existing documentation was found in Step 2 and present findings:
 
 Do not import anything automatically. Let the user decide what to capture.
 
+### Canonical migration — competing context files
+
+If the scan found files that overlap with `.ai/` canonical files, propose migrating their content:
+
+| Found | Action |
+|-------|--------|
+| `AGENTS.md` | Split content: behavioral rules → `IDENTITY.md` (mindset, constraints, workflows), project context → `reference/PROJECT.md` (tech stack, structure, tools), workflow skills → `.ai/skills/`. Replace `AGENTS.md` with a stub: "See `.ai/IDENTITY.md` for agent behavior and `.ai/reference/PROJECT.md` for project context." |
+| `CLAUDE.md` | Same split as AGENTS.md. If it contains only bootstrap text, replace with ai-memory's bootstrap. If it has project-specific rules, migrate to `IDENTITY.md` constraints. |
+| `.cursorrules` | Migrate rules to `.ai/rules/` as canonical entries. Replace with stub or remove (ai-memory uses `.cursor/rules/` instead). |
+| `copilot-instructions.md` | Migrate behavioral content to `IDENTITY.md`. Replace with ai-memory's bootstrap instruction. |
+
+Present this as a proposal:
+
+> "I found `[file]` which contains content that overlaps with `.ai/`. Having both creates competing sources of truth — the AI may follow one and ignore the other. I suggest migrating the content to the canonical `.ai/` files and replacing `[file]` with a stub that points there. Want me to walk through what goes where?"
+
+If the user agrees, guide the split:
+1. Read the file and categorize each section (behavioral → IDENTITY, project info → PROJECT.md, workflows → skills)
+2. Present the mapping: "This section would go to IDENTITY.md under Constraints: [content]"
+3. User applies edits themselves
+4. Once done, replace the original file with a stub pointing to `.ai/`
+
+If the user declines, note it as an open item in `.ai/sessions/open-items.md`.
+
 **This step is skippable.**
 
 ---

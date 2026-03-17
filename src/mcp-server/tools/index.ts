@@ -7,7 +7,7 @@ import {
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 
-import { getRepoRoot, textResponse } from "./shared.js";
+import { getRepoRoot, textResponse, getProjectRoot } from "./shared.js";
 import { handleSearchMemory, handleGetMemory, handleCommitMemory, handlePruneMemory, handleGetOpenItems, handleGetEvals } from "./memory.js";
 import { handleValidateContext, handleValidateSchema, handleGenerateHarness } from "./governance.js";
 import { handleClaimTask, handlePublishResult, handleSyncMemory } from "./collaboration.js";
@@ -298,9 +298,7 @@ export function registerTools(server: Server, aiDir: string): void {
       case "list_doc_types": return handleListDocTypes(aiDir);
 
       case "detect_tools": {
-        const projectRoot = args.project_root
-          ? String(args.project_root)
-          : resolve(aiDir, "..");
+        const projectRoot = getProjectRoot(args, aiDir);
         const tools = detectTools(projectRoot);
         return textResponse(JSON.stringify({ tools }, null, 2));
       }
@@ -309,17 +307,13 @@ export function registerTools(server: Server, aiDir: string): void {
         if (typeof toolId !== "string" || !toolId.trim()) {
           throw new McpError(ErrorCode.InvalidParams, "tool_id is required.");
         }
-        const projectRoot = args.project_root
-          ? String(args.project_root)
-          : resolve(aiDir, "..");
+        const projectRoot = getProjectRoot(args, aiDir);
         const config = await readToolConfig(projectRoot, toolId);
         if (!config) return textResponse(`Unknown tool or no config: ${toolId}`);
         return textResponse(JSON.stringify(config, null, 2));
       }
       case "sync_tools": {
-        const projectRoot = args.project_root
-          ? String(args.project_root)
-          : resolve(aiDir, "..");
+        const projectRoot = getProjectRoot(args, aiDir);
         const write = (args.write as boolean) ?? false;
         return syncTools(projectRoot, aiDir, { write });
       }

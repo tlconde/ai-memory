@@ -7,7 +7,7 @@ import { assertPathWithinAiDir } from "../../utils/fs.js";
 import {
   isImmutable, ALWAYS_IMMUTABLE, FRONTMATTER_CONTROLLED,
   generateSessionId, acquireClaim, releaseClaim,
-  MAX_COMMIT_CONTENT_BYTES, textResponse, type McpResponse,
+  MAX_COMMIT_CONTENT_BYTES, AI_PATHS, textResponse, type McpResponse,
 } from "./shared.js";
 
 export async function handleSearchMemory(aiDir: string, args: Record<string, unknown>): Promise<McpResponse> {
@@ -137,7 +137,7 @@ export async function handlePruneMemory(aiDir: string, args: Record<string, unkn
 }
 
 export async function handleGetOpenItems(aiDir: string): Promise<McpResponse> {
-  const openItemsPath = join(aiDir, "sessions/open-items.md");
+  const openItemsPath = join(aiDir, AI_PATHS.OPEN_ITEMS);
   try {
     const content = await readFile(openItemsPath, "utf-8");
     return textResponse(content);
