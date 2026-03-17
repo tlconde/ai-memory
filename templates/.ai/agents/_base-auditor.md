@@ -1,3 +1,9 @@
+---
+id: _base-auditor
+type: agent
+status: active
+---
+
 # Base Auditor Protocol
 
 **Shared by all auditor agents.** Defines Core Principles, Initial Steps, Report Format, Closing Steps.
