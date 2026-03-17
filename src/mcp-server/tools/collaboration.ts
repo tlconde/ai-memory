@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir } from "fs/promises";
 import { join, dirname, resolve } from "path";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { assertPathWithinAiDir } from "../../utils/fs.js";
+import { VALID_OUTCOMES } from "../../schema-constants.js";
 import { generateSessionId, getRepoRoot, sanitizeCommitMessage, textResponse, AI_PATHS, type McpResponse } from "./shared.js";
 
 export async function handleClaimTask(aiDir: string, args: Record<string, unknown>): Promise<McpResponse> {
@@ -60,7 +61,7 @@ export async function handlePublishResult(aiDir: string, args: Record<string, un
   if (typeof summary !== "string" || !summary.trim()) {
     throw new McpError(ErrorCode.InvalidParams, "summary is required.");
   }
-  if (typeof outcome !== "string" || !["success", "failure", "partial"].includes(outcome)) {
+  if (typeof outcome !== "string" || !(VALID_OUTCOMES as readonly string[]).includes(outcome)) {
     throw new McpError(ErrorCode.InvalidParams, "outcome must be 'success', 'failure', or 'partial'.");
   }
   const learnings = typeof args.learnings === "string" ? args.learnings : "";

@@ -8,6 +8,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 import { getRepoRoot, textResponse, getProjectRoot } from "./shared.js";
+import { VALID_OUTCOMES } from "../../schema-constants.js";
 import { handleSearchMemory, handleGetMemory, handleCommitMemory, handlePruneMemory, handleGetOpenItems, handleGetEvals } from "./memory.js";
 import { handleValidateContext, handleValidateSchema, handleGenerateHarness } from "./governance.js";
 import { handleClaimTask, handlePublishResult, handleSyncMemory } from "./collaboration.js";
@@ -170,7 +171,7 @@ export function registerTools(server: Server, aiDir: string): void {
           type: "object",
           properties: {
             summary: { type: "string", description: "What was attempted and what happened" },
-            outcome: { type: "string", enum: ["success", "failure", "partial"], description: "Outcome: success, failure, or partial" },
+            outcome: { type: "string", enum: [...VALID_OUTCOMES], description: "Outcome: success, failure, or partial" },
             learnings: { type: "string", description: "What was learned (patterns, anti-patterns, decisions). Optional but recommended." },
             session_id: { type: "string", description: "Session identifier. Auto-generated if not provided. Use same ID as claim_task to link." },
           },

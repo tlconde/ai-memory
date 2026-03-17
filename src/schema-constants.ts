@@ -34,5 +34,23 @@ export const SKILL_TOOL_NAMES_BLOCKLIST = [
   "antigravity",
 ] as const;
 
+export const VALID_OUTCOMES = ["success", "failure", "partial"] as const;
+
 export type SchemaType = (typeof VALID_TYPES)[number];
 export type SchemaStatus = (typeof VALID_STATUSES)[number];
+export type Outcome = (typeof VALID_OUTCOMES)[number];
+
+/** Validate required frontmatter fields (id, type, status) and enum values. */
+export function validateRequiredFrontmatter(fm: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  if (!fm.id) errors.push("Missing required field: id");
+  if (!fm.type) errors.push("Missing required field: type");
+  if (!fm.status) errors.push("Missing required field: status");
+  if (fm.type && !(VALID_TYPES as readonly string[]).includes(fm.type as string)) {
+    errors.push(`Invalid type "${fm.type}". Must be one of: ${VALID_TYPES.join(", ")}`);
+  }
+  if (fm.status && !(VALID_STATUSES as readonly string[]).includes(fm.status as string)) {
+    errors.push(`Invalid status "${fm.status}". Must be one of: ${VALID_STATUSES.join(", ")}`);
+  }
+  return errors;
+}

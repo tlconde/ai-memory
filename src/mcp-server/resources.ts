@@ -94,19 +94,16 @@ export function registerResources(server: Server, aiDir: string): void {
     }
 
     if (uri === "memory://tails") {
-      const sections: string[] = [];
-
-      const decisionsTail = await tail(join(aiDir, "memory/decisions.md"), 40);
-      if (decisionsTail) sections.push(`## Recent Decisions\n\n${decisionsTail}`);
-
-      const debuggingTail = await tail(join(aiDir, "memory/debugging.md"), 30);
-      if (debuggingTail) sections.push(`## Recent Debugging\n\n${debuggingTail}`);
-
-      const patternsTail = await tail(join(aiDir, "memory/patterns.md"), 20);
-      if (patternsTail) sections.push(`## Recent Patterns\n\n${patternsTail}`);
-
-      const archiveTail = await tail(join(aiDir, "sessions/archive/thread-archive.md"), 200);
-      if (archiveTail) sections.push(`## Session Archive (recent)\n\n${archiveTail}`);
+      const tailSpecs = [
+        { file: "memory/decisions.md", lines: 40, heading: "## Recent Decisions" },
+        { file: "memory/debugging.md", lines: 30, heading: "## Recent Debugging" },
+        { file: "memory/patterns.md", lines: 20, heading: "## Recent Patterns" },
+        { file: "sessions/archive/thread-archive.md", lines: 200, heading: "## Session Archive (recent)" },
+      ];
+      const tails = await Promise.all(tailSpecs.map((s) => tail(join(aiDir, s.file), s.lines)));
+      const sections = tailSpecs
+        .map((s, i) => tails[i] ? `${s.heading}\n\n${tails[i]}` : null)
+        .filter(Boolean) as string[];
 
       return {
         contents: [

@@ -9,7 +9,7 @@ import {
   generateRuleTests,
   type HarnessRule,
 } from "../../governance/p0-parser.js";
-import { VALID_TYPES, VALID_STATUSES } from "../../schema-constants.js";
+import { validateRequiredFrontmatter } from "../../schema-constants.js";
 import { getRepoRoot, MAX_GIT_DIFF_BYTES, AI_PATHS, textResponse, type McpResponse } from "./shared.js";
 
 // Parse diff into sections with file path and added/deleted lines
@@ -125,18 +125,7 @@ async function validateDiff(
 }
 
 function validateEntrySchema(entry: Record<string, unknown>): string[] {
-  const errors: string[] = [];
-  const required = ["id", "type", "status"];
-  for (const field of required) {
-    if (!entry[field]) errors.push(`Missing required field: ${field}`);
-  }
-  if (entry.type && !(VALID_TYPES as readonly string[]).includes(entry.type as string)) {
-    errors.push(`Invalid type: ${entry.type}. Must be one of: ${VALID_TYPES.join(", ")}`);
-  }
-  if (entry.status && !(VALID_STATUSES as readonly string[]).includes(entry.status as string)) {
-    errors.push(`Invalid status: ${entry.status}. Must be one of: ${VALID_STATUSES.join(", ")}`);
-  }
-  return errors;
+  return validateRequiredFrontmatter(entry);
 }
 
 export async function handleValidateContext(aiDir: string, args: Record<string, unknown>): Promise<McpResponse> {
