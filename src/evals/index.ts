@@ -2,6 +2,7 @@ import { readFile, writeFile, readdir, mkdir } from "fs/promises";
 import { join, resolve } from "path";
 import { existsSync } from "fs";
 import { safeRead } from "../utils/fs.js";
+import { AI_PATHS } from "../schema-constants.js";
 import type { EvalMetric } from "./types.js";
 
 export type { EvalMetric } from "./types.js";
@@ -32,7 +33,7 @@ export async function runEvals(aiDir: string): Promise<EvalReport> {
   metrics.push(await evalDeprecatedRatio(aiDir));
 
   // 6. Recall test pass rate (Full tier only)
-  if (existsSync(join(aiDir, "temp/rule-tests/tests.json"))) {
+  if (existsSync(join(aiDir, AI_PATHS.RULE_TESTS))) {
     metrics.push(await evalRuleTests(aiDir));
   }
 
@@ -123,7 +124,7 @@ async function evalRuleCoverage(aiDir: string): Promise<EvalMetric> {
 }
 
 async function evalSessionCadence(aiDir: string): Promise<EvalMetric> {
-  const archive = await safeRead(join(aiDir, "sessions/archive/thread-archive.md"));
+  const archive = await safeRead(join(aiDir, AI_PATHS.THREAD_ARCHIVE));
   const dateMatches = archive.match(/\[(\d{4}-\d{2}-\d{2})\]/g);
   if (!dateMatches || dateMatches.length === 0) {
     return { name: "Session cadence", value: "No sessions recorded", status: "warn" };
@@ -167,7 +168,7 @@ async function evalIndexCoverage(aiDir: string): Promise<EvalMetric> {
 }
 
 async function evalOpenItems(aiDir: string): Promise<EvalMetric> {
-  const content = await safeRead(join(aiDir, "sessions/open-items.md"));
+  const content = await safeRead(join(aiDir, AI_PATHS.OPEN_ITEMS));
   const open = (content.match(/^- \[ \]/gm) ?? []).length;
   const closed = (content.match(/^- \[x\]/gm) ?? []).length;
   return {
@@ -206,8 +207,8 @@ async function evalDeprecatedRatio(aiDir: string): Promise<EvalMetric> {
 
 async function evalRuleTests(aiDir: string): Promise<EvalMetric> {
   // Check if all rule tests are referenced by a rule in harness.json
-  const testsPath = join(aiDir, "temp/rule-tests/tests.json");
-  const harnessPath = join(aiDir, "temp/harness.json");
+  const testsPath = join(aiDir, AI_PATHS.RULE_TESTS);
+  const harnessPath = join(aiDir, AI_PATHS.HARNESS);
   try {
     const tests = JSON.parse(await readFile(testsPath, "utf-8")) as Array<{ rule_id: string }>;
     const rules = JSON.parse(await readFile(harnessPath, "utf-8")) as Array<{ id: string }>;

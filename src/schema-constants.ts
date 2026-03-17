@@ -36,6 +36,21 @@ export const SKILL_TOOL_NAMES_BLOCKLIST = [
 
 export const VALID_OUTCOMES = ["success", "failure", "partial"] as const;
 
+/** Canonical paths within .ai/ — single source of truth for all file references. */
+export const AI_PATHS = {
+  OPEN_ITEMS: "sessions/open-items.md",
+  THREAD_ARCHIVE: "sessions/archive/thread-archive.md",
+  HARNESS: "temp/harness.json",
+  RULE_TESTS: "temp/rule-tests/tests.json",
+  EVAL_REPORT: "temp/eval-report.json",
+  EVAL_HISTORY: "temp/eval-history.jsonl",
+  MEMORY_INDEX: "memory/memory-index.md",
+  DECISIONS: "memory/decisions.md",
+  DEBUGGING: "memory/debugging.md",
+  PATTERNS: "memory/patterns.md",
+  IMPROVEMENTS: "memory/improvements.md",
+} as const;
+
 export type SchemaType = (typeof VALID_TYPES)[number];
 export type SchemaStatus = (typeof VALID_STATUSES)[number];
 export type Outcome = (typeof VALID_OUTCOMES)[number];

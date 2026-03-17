@@ -140,7 +140,7 @@ export async function handleGetOpenItems(aiDir: string): Promise<McpResponse> {
 }
 
 export async function handleGetEvals(aiDir: string): Promise<McpResponse> {
-  const evalPath = join(aiDir, "temp/eval-report.json");
+  const evalPath = join(aiDir, AI_PATHS.EVAL_REPORT);
   try {
     const content = await readFile(evalPath, "utf-8");
     return textResponse(content);

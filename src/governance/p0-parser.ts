@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import yaml from "js-yaml";
+import { AI_PATHS } from "../schema-constants.js";
 
 /** Regex rules only. Which lines to scan: additions (default), deletions, or both. */
 export type RuleScope = "additions" | "deletions" | "all";
@@ -107,7 +108,7 @@ export function parseMemoryEntries(
 
 // Read all [P0] entries from decisions.md and debugging.md
 export async function readP0Entries(aiDir: string): Promise<P0Entry[]> {
-  const files = ["memory/decisions.md", "memory/debugging.md"];
+  const files = [AI_PATHS.DECISIONS, AI_PATHS.DEBUGGING];
   const entries: P0Entry[] = [];
 
   for (const file of files) {

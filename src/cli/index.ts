@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { DEFAULT_DOCS_SCHEMA_JSON } from "../docs-schema.js";
 import { TOOL_ADAPTERS, getMCPJson, MCP_LAUNCHER, MCP_LAUNCHER_PATH, CANONICAL_SKILLS } from "./adapters.js";
 import { detectEnvironments, injectCapabilityConfig, getCapabilityManualInstructions } from "./environment.js";
+import { AI_PATHS } from "../schema-constants.js";
 
 // ─── CLI helpers ─────────────────────────────────────────────────────────────
 
@@ -644,7 +645,7 @@ program
     }
 
     // 6. Harness validity
-    const harnessPath = join(aiDir, "temp/harness.json");
+    const harnessPath = join(aiDir, AI_PATHS.HARNESS);
     if (existsSync(harnessPath)) {
       try {
         const rules = JSON.parse(readFileSync(harnessPath, "utf-8")) as Array<{ id?: string; type?: string; pattern?: string; severity?: string }>;
