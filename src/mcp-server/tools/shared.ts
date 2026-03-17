@@ -1,9 +1,28 @@
 import { readFile, writeFile, mkdir, unlink, open } from "fs/promises";
-import { join } from "path";
+import { join, resolve } from "path";
 import { existsSync } from "fs";
 import { execFileSync } from "child_process";
 import matter from "gray-matter";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+
+/** Resolve project root from args or default to parent of aiDir */
+export function getProjectRoot(args: Record<string, unknown>, aiDir: string): string {
+  return args.project_root ? String(args.project_root) : resolve(aiDir, "..");
+}
+
+// ─── Canonical paths within .ai/ ─────────────────────────────────────────────
+export const AI_PATHS = {
+  OPEN_ITEMS: "sessions/open-items.md",
+  THREAD_ARCHIVE: "sessions/archive/thread-archive.md",
+  HARNESS: "temp/harness.json",
+  RULE_TESTS: "temp/rule-tests/tests.json",
+  EVAL_REPORT: "temp/eval-report.json",
+  EVAL_HISTORY: "temp/eval-history.jsonl",
+  MEMORY_INDEX: "memory/memory-index.md",
+  DECISIONS: "memory/decisions.md",
+  DEBUGGING: "memory/debugging.md",
+  PATTERNS: "memory/patterns.md",
+} as const;
 
 // Input limits (security)
 export const MAX_COMMIT_CONTENT_BYTES = 1024 * 1024; // 1MB

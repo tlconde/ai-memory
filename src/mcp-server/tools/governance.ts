@@ -10,7 +10,7 @@ import {
   type HarnessRule,
 } from "../../governance/p0-parser.js";
 import { VALID_TYPES, VALID_STATUSES } from "../../schema-constants.js";
-import { getRepoRoot, MAX_GIT_DIFF_BYTES, textResponse, type McpResponse } from "./shared.js";
+import { getRepoRoot, MAX_GIT_DIFF_BYTES, AI_PATHS, textResponse, type McpResponse } from "./shared.js";
 
 // Parse diff into sections with file path and added/deleted lines
 function parseDiffSections(diff: string): Array<{ path: string; addedLines: string; deletedLines: string }> {
@@ -148,7 +148,7 @@ export async function handleValidateContext(aiDir: string, args: Record<string, 
   if (gitDiffSize > MAX_GIT_DIFF_BYTES) {
     throw new McpError(ErrorCode.InvalidParams, `git_diff exceeds ${MAX_GIT_DIFF_BYTES / 1024}KB limit (got ${Math.round(gitDiffSize / 1024)}KB). Trim the diff or validate in chunks.`);
   }
-  const harnessPath = join(aiDir, "temp", "harness.json");
+  const harnessPath = join(aiDir, AI_PATHS.HARNESS);
   if (!existsSync(harnessPath)) {
     return textResponse("No harness.json found. Run generate_harness to create one, or initialize with --full.");
   }

@@ -8,6 +8,19 @@ import { DEFAULT_DOCS_SCHEMA_JSON } from "../docs-schema.js";
 import { TOOL_ADAPTERS, getMCPJson, MCP_LAUNCHER, MCP_LAUNCHER_PATH, CANONICAL_SKILLS } from "./adapters.js";
 import { detectEnvironments, injectCapabilityConfig, getCapabilityManualInstructions } from "./environment.js";
 
+// ─── CLI helpers ─────────────────────────────────────────────────────────────
+
+function resolveAiDir(dirOpt?: string): string {
+  return resolve(dirOpt ?? join(process.cwd(), ".ai"));
+}
+
+function requireAiDir(aiDir: string): void {
+  if (!existsSync(aiDir)) {
+    console.error(`No .ai/ directory found at ${aiDir}. Run \`ai-memory init\` first.`);
+    process.exit(1);
+  }
+}
+
 // Read version from package.json — single source of truth
 const __dirname_cli = dirname(fileURLToPath(import.meta.url));
 const pkgPath = join(__dirname_cli, "..", "..", "package.json");
@@ -321,11 +334,8 @@ program
   .description("Validate all .ai/ files against canonical schema")
   .option("--dir <dir>", "Path to .ai/ directory (default: ./ai)")
   .action(async (opts) => {
-    const aiDir = resolve(opts.dir ?? join(process.cwd(), ".ai"));
-    if (!existsSync(aiDir)) {
-      console.error(`No .ai/ directory found at ${aiDir}. Run \`ai-memory init\` first.`);
-      process.exit(1);
-    }
+    const aiDir = resolveAiDir(opts.dir);
+    requireAiDir(aiDir);
     const { validateAll } = await import("../formatter/index.js");
     const results = await validateAll(aiDir);
     const errs = results.filter((e) => e.severity !== "warn");
@@ -349,11 +359,8 @@ program
   .description("Regenerate memory-index.md from decisions, patterns, debugging, improvements")
   .option("--dir <dir>", "Path to .ai/ directory (default: ./ai)")
   .action(async (opts) => {
-    const aiDir = resolve(opts.dir ?? join(process.cwd(), ".ai"));
-    if (!existsSync(aiDir)) {
-      console.error(`No .ai/ directory found at ${aiDir}. Run \`ai-memory init\` first.`);
-      process.exit(1);
-    }
+    const aiDir = resolveAiDir(opts.dir);
+    requireAiDir(aiDir);
     const { generateMemoryIndex } = await import("../formatter/index.js");
     await generateMemoryIndex(aiDir);
     console.log("✓ Regenerated memory-index.md");
@@ -366,11 +373,8 @@ program
   .description("Auto-format YAML frontmatter on .ai/ files")
   .option("--dir <dir>", "Path to .ai/ directory (default: ./ai)")
   .action(async (opts) => {
-    const aiDir = resolve(opts.dir ?? join(process.cwd(), ".ai"));
-    if (!existsSync(aiDir)) {
-      console.error(`No .ai/ directory found at ${aiDir}.`);
-      process.exit(1);
-    }
+    const aiDir = resolveAiDir(opts.dir);
+    requireAiDir(aiDir);
     const { formatAll } = await import("../formatter/index.js");
     const count = await formatAll(aiDir);
     console.log(`✓ Formatted ${count} file(s).`);
@@ -384,11 +388,8 @@ const evalCmd = program
   .option("--dir <dir>", "Path to .ai/ directory (default: ./ai)")
   .option("--json", "Output as JSON")
   .action(async (opts) => {
-    const aiDir = resolve(opts.dir ?? join(process.cwd(), ".ai"));
-    if (!existsSync(aiDir)) {
-      console.error(`No .ai/ directory found at ${aiDir}.`);
-      process.exit(1);
-    }
+    const aiDir = resolveAiDir(opts.dir);
+    requireAiDir(aiDir);
     const { runEvals } = await import("../evals/index.js");
     const report = await runEvals(aiDir);
     if (opts.json) {
@@ -415,7 +416,7 @@ program
   .description("Compile harness.json from current [P0] entries")
   .option("--dir <dir>", "Path to .ai/ directory (default: ./ai)")
   .action(async (opts) => {
-    const aiDir = resolve(opts.dir ?? join(process.cwd(), ".ai"));
+    const aiDir = resolveAiDir(opts.dir);
     const { readP0Entries, compileHarnessRules, generateRuleTests } = await import("../governance/p0-parser.js");
 
     const entries = await readP0Entries(aiDir);
@@ -445,7 +446,7 @@ program
   .option("--dry-run", "Report candidates without modifying files (default)", true)
   .action(async (opts: { dir?: string; dryRun?: boolean }) => {
     const { readdir, readFile: rf } = await import("fs/promises");
-    const aiDir = resolve(opts.dir ?? join(process.cwd(), ".ai"));
+    const aiDir = resolveAiDir(opts.dir);
     const memDir = join(aiDir, "memory");
     if (!existsSync(memDir)) {
       console.error(`No .ai/memory/ directory found at ${memDir}.`);
@@ -540,7 +541,7 @@ program
       .option("--dir <dir>", "Path to .ai/ directory")
       .action(async (name: string, opts: { dir?: string }) => {
         validateKebabCase(name, "agent");
-        const aiDir = resolve(opts.dir ?? join(process.cwd(), ".ai"));
+        const aiDir = resolveAiDir(opts.dir);
         const agentDir = join(aiDir, "agents", name);
         await mkdir(agentDir, { recursive: true });
         const path = join(agentDir, "AGENT.md");
@@ -562,7 +563,7 @@ program
       .option("--dir <dir>", "Path to .ai/ directory")
       .action(async (name: string, opts: { dir?: string }) => {
         validateKebabCase(name, "skill");
-        const aiDir = resolve(opts.dir ?? join(process.cwd(), ".ai"));
+        const aiDir = resolveAiDir(opts.dir);
         const skillDir = join(aiDir, "skills", name);
         await mkdir(skillDir, { recursive: true });
         const path = join(skillDir, "SKILL.md");
@@ -584,7 +585,7 @@ program
       .option("--dir <dir>", "Path to .ai/ directory")
       .action(async (name: string, opts: { dir?: string }) => {
         validateKebabCase(name, "rule");
-        const aiDir = resolve(opts.dir ?? join(process.cwd(), ".ai"));
+        const aiDir = resolveAiDir(opts.dir);
         await mkdir(join(aiDir, "rules"), { recursive: true });
         const rulePath = join(aiDir, "rules", `${name}.md`);
         if (existsSync(rulePath)) { console.log(`⚠ Already exists: ${rulePath}`); return; }
@@ -715,7 +716,7 @@ evalCmd.addCommand(
     .option("--dir <dir>", "Path to .ai/ directory")
     .action(async (name: string, opts: { dir?: string }) => {
       validateKebabCase(name, "eval metric");
-      const aiDir = resolve(opts.dir ?? join(process.cwd(), ".ai"));
+      const aiDir = resolveAiDir(opts.dir);
       const evalsDir = join(aiDir, "temp", "custom-evals");
       await mkdir(evalsDir, { recursive: true });
       const destPath = join(evalsDir, `${name}.ts`);
