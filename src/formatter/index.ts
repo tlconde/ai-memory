@@ -2,7 +2,7 @@ import { readFile, writeFile, readdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 import matter from "gray-matter";
-import { VALID_TYPES, VALID_STATUSES, SKILL_TOOL_NAMES_BLOCKLIST } from "../schema-constants.js";
+import { SKILL_TOOL_NAMES_BLOCKLIST, validateRequiredFrontmatter } from "../schema-constants.js";
 
 export interface ValidationError {
   file: string;
@@ -32,19 +32,7 @@ export function validateFrontmatter(
     return [];
   }
 
-  // Required fields
-  if (!fm.id) errors.push(`Missing required field: id`);
-  if (!fm.type) errors.push(`Missing required field: type`);
-  if (!fm.status) errors.push(`Missing required field: status`);
-
-  // Valid enum values
-  if (fm.type && !(VALID_TYPES as readonly string[]).includes(fm.type as string)) {
-    errors.push(`Invalid type "${fm.type}". Must be one of: ${VALID_TYPES.join(", ")}`);
-  }
-  if (fm.status && !(VALID_STATUSES as readonly string[]).includes(fm.status as string)) {
-    errors.push(`Invalid status "${fm.status}". Must be one of: ${VALID_STATUSES.join(", ")}`);
-  }
-
+  errors.push(...validateRequiredFrontmatter(fm));
   return errors;
 }
 

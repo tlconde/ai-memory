@@ -10,6 +10,25 @@ import {
   MAX_COMMIT_CONTENT_BYTES, AI_PATHS, textResponse, type McpResponse,
 } from "./shared.js";
 
+type SearchOptsWithoutMode = Omit<Parameters<typeof hybridSearch>[2], "mode">;
+
+async function searchWithFallback(aiDir: string, query: string, opts: SearchOptsWithoutMode) {
+  const mode = getSearchMode();
+  let fallbackNote = "";
+  let resp: Awaited<ReturnType<typeof hybridSearch>>;
+  try {
+    resp = await hybridSearch(aiDir, query, { ...opts, mode });
+  } catch {
+    if (mode !== "keyword") {
+      resp = await hybridSearch(aiDir, query, { ...opts, mode: "keyword" });
+      fallbackNote = "Note: Hybrid/semantic search failed. Using keyword-only. Set AI_SEARCH=keyword or AI_SEARCH_WASM=1.\n\n";
+    } else {
+      throw new McpError(ErrorCode.InternalError, "Search failed.");
+    }
+  }
+  return { ...resp, fallbackNote };
+}
+
 export async function handleSearchMemory(aiDir: string, args: Record<string, unknown>): Promise<McpResponse> {
   const query = args.query;
   if (typeof query !== "string" || !query.trim()) {
@@ -18,20 +37,7 @@ export async function handleSearchMemory(aiDir: string, args: Record<string, unk
   const tags = args.tags as string[] | undefined;
   const userLimit = Math.min(Number(args.limit) || 10, 20);
   const includeDeprecated = (args.include_deprecated as boolean) ?? false;
-  const mode = getSearchMode();
-  let resp: Awaited<ReturnType<typeof hybridSearch>>;
-  let fallbackNote = "";
-  try {
-    resp = await hybridSearch(aiDir, query, { mode, limit: userLimit, tags, includeDeprecated });
-  } catch {
-    if (mode !== "keyword") {
-      resp = await hybridSearch(aiDir, query, { mode: "keyword", limit: userLimit, tags, includeDeprecated });
-      fallbackNote = "Note: Hybrid/semantic search failed (e.g. onnxruntime-node missing on Windows). Using keyword-only. Set AI_SEARCH=keyword to skip, or AI_SEARCH_WASM=1 to try WASM.\n\n";
-    } else {
-      throw new McpError(ErrorCode.InternalError, "Search failed.");
-    }
-  }
-  const { results, backend } = resp;
+  const { results, backend, fallbackNote } = await searchWithFallback(aiDir, query, { limit: userLimit, tags, includeDeprecated });
   if (results.length === 0) return textResponse("No results found.");
   const backendLabel = backend === "keyword" ? "Keyword-only" : backend === "native" ? "Hybrid (Native)" : "Hybrid (WASM)";
   const text = fallbackNote + `Search backend: ${backendLabel}\n\n` +
@@ -47,20 +53,7 @@ export async function handleGetMemory(aiDir: string, args: Record<string, unknow
   if (typeof topic !== "string" || !topic.trim()) {
     throw new McpError(ErrorCode.InvalidParams, "topic is required and must be a non-empty string.");
   }
-  const mode = getSearchMode();
-  let resp: Awaited<ReturnType<typeof hybridSearch>>;
-  let fallbackNote = "";
-  try {
-    resp = await hybridSearch(aiDir, topic, { mode, limit: 5 });
-  } catch {
-    if (mode !== "keyword") {
-      resp = await hybridSearch(aiDir, topic, { mode: "keyword", limit: 5 });
-      fallbackNote = "Note: Hybrid/semantic search failed. Using keyword-only. Set AI_SEARCH=keyword or AI_SEARCH_WASM=1.\n\n";
-    } else {
-      throw new McpError(ErrorCode.InternalError, "Search failed.");
-    }
-  }
-  const { results, backend } = resp;
+  const { results, backend, fallbackNote } = await searchWithFallback(aiDir, topic, { limit: 5 });
   if (results.length === 0) return textResponse(`No memory found for topic: ${topic}`);
   const backendLabel = backend === "keyword" ? "Keyword-only" : backend === "native" ? "Hybrid (Native)" : "Hybrid (WASM)";
   const text = fallbackNote + `Search backend: ${backendLabel}\n\nMemory for "${topic}":\n\n` +
