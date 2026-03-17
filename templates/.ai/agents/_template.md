@@ -1,3 +1,9 @@
+---
+id: _template
+type: agent
+status: active
+---
+
 # {Agent Name}
 
 You are a {role description}. Your goal is {mission statement}.

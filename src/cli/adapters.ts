@@ -122,8 +122,11 @@ function skillStubsForDir(dir: string): Record<string, string> {
 /** Full skill content — written to .ai/skills/<name>/SKILL.md by install */
 export const CANONICAL_SKILLS: Record<string, string> = {
   "mem-compound": `---
+id: mem-compound
 name: mem-compound
 description: Captures session learnings into persistent memory. Use after a bug fix, pattern discovery, corrected approach, or at the end of any meaningful session.
+type: skill
+status: active
 ---
 
 # mem-compound — Capture Session Learnings
@@ -164,8 +167,11 @@ If in worktree/cloud agent: call \`sync_memory\` to git commit .ai/ changes.
 Summarize: entries written, items opened/closed, gate result.
 `,
   "mem-session-close": `---
+id: mem-session-close
 name: mem-session-close
 description: Quick session close for sessions with no major learnings. Archives and updates open items.
+type: skill
+status: active
 ---
 
 # mem-session-close — Quick Session Close
@@ -183,8 +189,11 @@ description: Quick session close for sessions with no major learnings. Archives 
 4. Report: "Session closed. [N] items updated."
 `,
   "mem-validate": `---
+id: mem-validate
 name: mem-validate
 description: Validate memory entries and code changes against governance rules. Use before risky changes.
+type: skill
+status: active
 ---
 
 # mem-validate — Governance Validation
@@ -202,8 +211,11 @@ description: Validate memory entries and code changes against governance rules. 
 4. Report violations and recommendations
 `,
   "mem-init": `---
+id: mem-init
 name: mem-init
 description: Guided setup wizard for ai-memory. Scans the codebase and walks the user through configuring each file with project-specific recommendations. Every step is skippable.
+type: skill
+status: active
 disable-model-invocation: true
 ---
 
@@ -220,11 +232,12 @@ First time setting up ai-memory, or re-run to refresh recommendations.
 3. **Guide IDENTITY.md** — Propose a Role based on detected tech stack. Explain each section (Role, Mindset, Autonomy Level, Constraints, Permissions). Suggest project-specific constraints from scan. Ask autonomy level preference (HIGH/MEDIUM/LOW TOUCH). User edits the file. Skippable.
 4. **Guide reference/PROJECT.md** — Present scan findings as suggestions for: Project Overview, Tech Stack, Architecture, Data Models, Integrations, Dev Setup. User edits the file. Skippable.
 5. **Guide PROJECT_STATUS.md** — Suggest Current Focus from git log, Open Questions from scan gaps, What's Working from observed patterns. User edits. Skippable.
-6. **Knowledge audit** — Report existing docs (ARCHITECTURE.md, CONTRIBUTING.md, CHANGELOG.md, .env.example, TODO comments, existing MCPs/rules). Suggest what to import into .ai/memory/. Do not import automatically.
+6. **Knowledge audit** — Report existing docs (ARCHITECTURE.md, CONTRIBUTING.md, CHANGELOG.md, .env.example, TODO comments, existing MCPs/rules). Suggest what to import into .ai/memory/. If AGENTS.md, CLAUDE.md, .cursorrules, or copilot-instructions.md exist, propose migrating their content to .ai/ canonical files (behavioral → IDENTITY.md, project info → PROJECT.md, workflows → skills) and replacing the original with a stub. Do not import or migrate automatically.
 7. **Recommendations** — Suggest relevant features: CI detected → mem-auto-review, multiple contributors → Full tier, no tests → testing-strategy pattern, monorepo → per-package skills.
 8. **Validate** — Run \`npx @radix-ai/ai-memory validate\`. Print summary of what was done, remaining placeholders, and next steps.
 `,
   browser: `---
+id: browser
 name: browser
 description: Use browser automation (screenshots, navigate, interact). Requires browser MCP.
 type: skill
@@ -253,6 +266,7 @@ Ensure browser capability is enabled for your environment. See \`.ai/reference/c
 - **Visual regression** → \`search_memory\` for known changes; create debugging entry if unexpected
 `,
   "screen-capture": `---
+id: screen-capture
 name: screen-capture
 description: Capture desktop or app window for vision analysis. Platform-dependent (e.g. Peekaboo on macOS).
 type: skill
@@ -279,6 +293,7 @@ See \`.ai/reference/capability-specs.json\` for platform-specific install (e.g. 
 - Handoff: write path to \`.ai/temp/request-for-*.md\` for another agent
 `,
   "desktop-automation": `---
+id: desktop-automation
 name: desktop-automation
 description: Desktop UI automation — mouse, keyboard, OCR. For any desktop application, Electron apps, legacy software. Requires desktop_automation capability.
 type: skill
@@ -314,8 +329,11 @@ Run \`ai-memory install --capability desktop_automation\` or see \`.ai/reference
 - Save captures to \`.ai/temp/\` for handoff
 `,
   "mem-auto-review": `---
+id: mem-auto-review
 name: mem-auto-review
 description: Automated PR review using ai-memory governance rules. For Cursor automations, Bugbot, CI pipelines. No user interaction required.
+type: skill
+status: active
 ---
 
 # mem-auto-review — Automated PR Review

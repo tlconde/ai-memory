@@ -226,7 +226,20 @@ program
         await writeFile(mcpPath, mcpJson);
         console.log(`✓ Wrote ${mcpRelPath}`);
       } else {
-        console.log(`  ${mcpRelPath} already exists — skipped`);
+        // Merge ai-memory server into existing MCP config
+        try {
+          const existing = JSON.parse(readFileSync(mcpPath, "utf-8"));
+          const newConfig = JSON.parse(mcpJson);
+          if (!existing.mcpServers?.["ai-memory"]) {
+            existing.mcpServers = { ...existing.mcpServers, ...newConfig.mcpServers };
+            await writeFile(mcpPath, JSON.stringify(existing, null, 2));
+            console.log(`✓ Merged ai-memory into ${mcpRelPath}`);
+          } else {
+            console.log(`  ${mcpRelPath} already has ai-memory — skipped`);
+          }
+        } catch {
+          console.log(`  ${mcpRelPath} exists but couldn't merge — add ai-memory manually`);
+        }
       }
     }
 
@@ -1013,6 +1026,7 @@ last_updated: ${new Date().toISOString().slice(0, 10)}
 `;
 
 const DEFAULT_BASE_AUDITOR = `---
+id: _base-auditor
 name: _base-auditor
 description: Shared audit methodology. All auditor agents inherit these principles.
 type: agent
@@ -1049,6 +1063,7 @@ writable: false
 `;
 
 const DEFAULT_AGENT_TEMPLATE = `---
+id: _template
 name: _template
 description: Template for creating new agents. Copy and rename.
 type: agent
