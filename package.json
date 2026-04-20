@@ -48,6 +48,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "prepublishOnly": "npm run build",
     "update-tool-refs": "node scripts/update-tool-refs.mjs"
   },
@@ -63,10 +64,12 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.8.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.0.0",
+    "npm": ">=11.0.0"
   },
   "keywords": [
     "ai",

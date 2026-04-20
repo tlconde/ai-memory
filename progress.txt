@@ -1,0 +1,2 @@
+2026-04-20T00:00Z  branch feat/chunk-level-retrieval created off dev (local only)
+2026-04-20T00:00Z  specs/{spec,plan,tasks}.md scaffolded
