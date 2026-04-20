@@ -21,6 +21,9 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
 
+      - name: Use npm 11 (.npmrc min-release-age)
+        run: npm install -g npm@11
+
       - name: Install dependencies
         run: npm ci
 

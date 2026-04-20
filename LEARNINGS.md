@@ -197,3 +197,46 @@ Append-only log of discoveries during the chunk-level retrieval refactor.
 - `rrfScore` not normalized; document formula.
 - `backend` field in response already exists; fine.
 
+
+
+---
+
+## T-REVIEW — Independent code review
+
+**Verdict: fix-before-ship** (one must-fix correctness regression + one should-fix dead-code artifact)
+
+### Findings
+
+1. **[must-fix] `hybridSearch` file-dedupe can underfill `limit` on concentrated corpora — genuine behavioral regression.**
+   The old implementation deduped to one entry per file *at the keyword/semantic retriever level*, so `rrfMerge` operated on files and every distinct matching file had a chance to appear in the top `limit`. The refactor defers dedupe to after `rankChunks`, passing `topK = min(max(limit*8, limit), chunks.length)` as a heuristic (src/hybrid-search/index.ts:534–537). Pathological case: a corpus where one file contributes many high-scoring chunks can consume the entire `topK` window, starving the file-dedupe of enough distinct files to fill `limit`. Concrete repro: one file with ≥81 sections all containing the query term + many other files with one matching section each and lower TF score — old code returns 10 files; new code returns 1. This directly affects `search-quality.ts` (file-ordering eval) and can change `memory.ts` output. The implementer flagged this as their Q2. **Fix options:** (a) in `hybridSearch`, pass `topK = chunks.length` (always generous, correctness > perf, not hot path — `loadChunks` already walks the tree each call); or (b) keep dedupe inside `rankChunks`'s caller loop but have it iterate the full ranked list until `limit` files accumulate (which needs `rankChunks` to return all ranked chunks, not just topK). Option (a) is the smaller diff.
+
+2. **[should-fix] Dead code in `embeddingTensorTo2D`.** src/hybrid-search/index.ts:337–340 contains an empty `if` block with only a comment. Should be removed or turned into an actual guard/throw if the expected-vs-actual row mismatch is a real concern. As written it's dead weight and misleading.
+
+3. **[should-fix] `hybridSearch` sets `backendUsed = "keyword"` on line 543 AFTER `rankChunks` already did on line 428.** Redundant and reinforces the racy module-global pattern. Harmless but noise; delete line 543 (the response `backend` field already carries authoritative info and `rankChunks` handles the module-global write).
+
+4. **[nit] No test for tags + includeDeprecated combined.** Spec §4 test-coverage checklist implicitly requires it; low-risk since both filters are independent `.filter()` passes, but a one-line test would close the gap.
+
+5. **[nit] No test for concurrent-call race on `backendUsed`.** Acknowledged in LEARNINGS T1 §10 as "known issue, deprecated, don't fix now." Acceptable to defer, but flag in a follow-up issue so it doesn't rot.
+
+6. **[nit] `hybridSearch` excerpt-from-winning-chunk test passes but is weaker than claimed.** The test (index.test.ts:375–393) has only two sections in the same file; any dedupe strategy that respects sort order would pass. A 3-section file where the middle section wins on TF (not first-by-order, not last-by-order) would more directly prove "highest-ranked wins" as distinct from "first-by-file-order wins." Current test does not distinguish the two.
+
+7. **[nit] `RankedChunk` type-probe hack at index.test.ts:451–452.** If the type is only used in annotations, TS strict + `verbatimModuleSyntax` should accept `import type { RankedChunk }`. The probe is an odd smell.
+
+### Verdicts on implementer's open questions
+
+- **Q1 (rrfScore populated in single-list modes):** **Acceptable as implemented.** The spec defines rrfScore as "Σ 1/(k + rank + 1)" — a single-retriever sum is mathematically well-defined and gives consumers a uniform field to sort on regardless of mode. Leaving it `undefined` would force downstream code to branch on mode. Keep as-is; the JSDoc already says "over participating retrievers" which correctly describes the single-list case.
+
+- **Q2 (topK heuristic for file-dedupe):** **Not sound — see finding 1.** The `limit*8` multiplier is arbitrary and fails on any corpus where a single file dominates the top-ranked chunks. This is the must-fix blocker. Set `topK = chunks.length` in `hybridSearch`'s call to `rankChunks` to guarantee correctness; the cost is bounded by `loadChunks` (already O(n)) and one extra sort that's negligible vs. embedding cost.
+
+### Consumer non-regression (traced)
+
+- `memory.ts:40,46,60` — reads `{results, backend, file, excerpt, score}`. Shape preserved. Score semantics preserved (1 in semantic/hybrid, TF in keyword). OK.
+- `governance.ts:131,137–141` — reads `{results, file, score}`; gates on `score >= min_score`. Shape preserved. Score = 1 stub preserved for semantic/hybrid via `r.kwScore ?? 0` vs `1` branch at index.ts:557. OK — but note: if the default mode is `hybrid` (it is) and the caller uses keyword mode explicitly, governance would now see real TF scores; however governance.ts reads `getSearchMode()` at line 129, so if env sets `AI_SEARCH=keyword`, governance semantic rules are already subject to real TF gating. No change vs. pre-refactor.
+- `search-quality.ts:99–105` — reads only `.file`. Shape preserved. BUT subject to finding 1: ordering regression on pathological corpora could shift eval outcomes.
+
+### Code quality
+
+- TS strict: OK. Uses a handful of `as Chunk` / `as string` non-null assertions that are safe by construction but slightly noisy; acceptable.
+- No `any`, no `@ts-ignore`. OK.
+- JSDoc present on `rankChunks`, `hybridSearch`, `Chunk.id`, `RankedChunk`, `getLastSearchBackend` (@deprecated). OK.
+- Dead code: see finding 2 + finding 3.
