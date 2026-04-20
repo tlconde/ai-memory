@@ -240,3 +240,66 @@ Append-only log of discoveries during the chunk-level retrieval refactor.
 - No `any`, no `@ts-ignore`. OK.
 - JSDoc present on `rankChunks`, `hybridSearch`, `Chunk.id`, `RankedChunk`, `getLastSearchBackend` (@deprecated). OK.
 - Dead code: see finding 2 + finding 3.
+
+## longmemeval-repo-research
+
+Source: `github.com/xiaowu0162/LongMemEval` (default branch `main`). Paper: arXiv 2410.10813 (ICLR 2025). HF dataset: `xiaowu0162/longmemeval-cleaned`.
+
+### 1. Dataset files
+README points to HF dataset `xiaowu0162/longmemeval-cleaned`. Exact files (confirmed via HF tree + README wget block in `README.md`):
+- `longmemeval_s_cleaned.json` — cleaned S split — 277 MB
+- `longmemeval_m_cleaned.json` — cleaned M split — 2.74 GB
+- `longmemeval_oracle.json` — oracle split — 15.4 MB
+
+URL pattern: `https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned/resolve/main/<file>`.
+Note: README still references filenames `longmemeval_s.json` / `longmemeval_m.json` in examples; the HF canonical names are the `_cleaned` variants (2025/09 cleanup).
+
+**Format:** single JSON file (array), not JSONL. `evaluate_qa.py:88–91` loads refs with `json.load` first and falls back to JSONL — both accepted for refs; hypotheses go the opposite way (JSONL first).
+
+**Schema per question** (from README "Dataset Format"): `question_id`, `question_type`, `question`, `answer`, `question_date`, `haystack_session_ids`, `haystack_dates`, `haystack_sessions`, `answer_session_ids`.
+
+**Count:** 500 instances per file (README: "500 evaluation instances").
+
+**Checksums:** none published on HF tree page or README. Record local SHA256 at download time.
+
+### 2. `haystack_sessions` shape
+Per README: "a list of the actual contents of the user-assistant chat history sessions. Each session is a list of turns. Each turn is a dict with the format `{"role": user/assistant, "content": message content}`. For turns that contain the required evidence, an additional field `has_answer: true` is provided."
+So: `List[List[{"role": "user"|"assistant", "content": str, "has_answer"?: true}]]`.
+
+### 3. `evaluate_qa.py`
+Path: `src/evaluation/evaluate_qa.py`.
+- CLI: `python evaluate_qa.py <metric_model> <hyp_file> <ref_file>` (`evaluate_qa.py:56`).
+- Hypothesis input: JSONL preferred, JSON fallback; each line has `question_id` and `hypothesis` (README "Testing Your System"; code `evaluate_qa.py:85–87`).
+- Reference input: JSON (array) preferred, JSONL fallback (`evaluate_qa.py:88–91`).
+- Output: writes `<hyp_file>.eval-results-<metric_model_short>` JSONL with each entry augmented by `autoeval_label: {model, label: bool}` (`evaluate_qa.py:126–130, 138`). Prints overall `Accuracy` and per-`question_type` accuracy with counts (`evaluate_qa.py:141–143`).
+- Deps (`requirements-lite.txt`): `openai==1.35.1`, `backoff==2.2.1`, `tqdm==4.66.4`, `numpy==1.26.3`, `nltk==3.9.1`, `packaging`.
+- Env: `OPENAI_API_KEY`, optional `OPENAI_ORGANIZATION`. Local vLLM path hardcoded to `http://localhost:8001/v1` with key `"EMPTY"` (`evaluate_qa.py:73–77`).
+- Judge model: configurable via CLI arg but constrained to `model_zoo` whitelist (`evaluate_qa.py:12–16`): `gpt-4o` → `gpt-4o-2024-08-06`, `gpt-4o-mini` → `gpt-4o-mini-2024-07-18`, `llama-3.1-70b-instruct` (local). Pinned dated snapshots. Temperature 0, max_tokens 10, yes/no grading.
+- Per-question + overall + per-type: yes. No standard-error/CI.
+
+### 4. Question types
+From README + `evaluate_qa.py:21–42` (prompt branches): `single-session-user`, `single-session-assistant`, `single-session-preference`, `temporal-reasoning`, `knowledge-update`, `multi-session`. Abstention is not a `question_type`; it is a cross-cutting flag.
+
+### 5. Abstention (`_abs`)
+Encoded purely as a suffix on `question_id`. `evaluate_qa.py:113` computes `abstention='_abs' in entry['question_id']` and swaps to an unanswerable-question judge prompt (`evaluate_qa.py:43–45`). Retrieval eval "always skip[s] the 30 abstention instances" (README, Baseline Retrieval section) — so 30 abstention questions out of 500.
+
+### 6. Reference numbers (LongMemEval_S overall)
+No official leaderboard in repo. Third-party reported (ambiguous — not pinned to peer-reviewed table, verify before citing):
+- Emergence AI RAG: ~86% (blog).
+- Mastra "Observational Memory" w/ GPT-4o: 84.23% (blog).
+- Oracle GPT-4o (paper baseline, long-context full history): ~82.4%.
+- Zep/Graphiti w/ GPT-4o: 71.2%.
+- Full-context GPT-4o (no oracle): ~60–64%.
+- GPT-5-mini (vendor report): 94.87% — ambiguous, requires reading primary source.
+Paper Table numbers: ambiguous — requires reading arXiv 2410.10813 PDF directly for the canonical baseline table.
+
+### 7. Gotchas
+- File rename: README shell block uses `longmemeval_s.json` post-download, but HF serves `longmemeval_s_cleaned.json`. Rename or update paths.
+- Hypothesis file must be JSONL of `{question_id, hypothesis}`; extra fields pass through into the log.
+- Judge locked to `model_zoo`; to use a different judge you must edit `evaluate_qa.py:12–16`.
+- Temperature 0 + `max_tokens=10` + substring-match on `"yes"` — lenient grader, any response containing "yes" is a pass (`evaluate_qa.py:125`).
+- `haystack_sessions` is triply-nested; `has_answer` appears only on evidence turns — optional field, do not assume presence.
+- `longmemeval_oracle.json` sessions are NOT sorted by timestamp; S and M are sorted (README).
+- M file is 2.74 GB — streaming parse recommended; do not `json.load` on small memory.
+- `question_type` `multi-session` collapses two generation tasks (`two_hop`, `multi_session_synthesis`); `temporal-reasoning` collapses `temp_reasoning_implicit` and `temp_reasoning_explicit` (README task-name mapping).
+- Cleaned split (2025/09) changes some answers vs. original — change log: Google Sheets linked in README News.

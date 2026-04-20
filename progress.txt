@@ -1,2 +1,6 @@
 2026-04-20T00:00Z  branch feat/chunk-level-retrieval created off dev (local only)
 2026-04-20T00:00Z  specs/{spec,plan,tasks}.md scaffolded
+2026-04-20T01:00Z  feat/chunk-level-retrieval merged to dev (commit b6cdf23), branch deleted
+2026-04-20T01:05Z  branch feat/longmemeval-phase1 created off dev
+2026-04-20T01:05Z  archived chunk-level specs to specs/archive/chunk-level-retrieval/
+2026-04-20T01:10Z  specs/{spec,plan,tasks}.md rewritten for Phase 1 LongMemEval harness
