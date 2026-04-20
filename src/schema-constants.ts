@@ -44,6 +44,8 @@ export const AI_PATHS = {
   RULE_TESTS: "temp/rule-tests/tests.json",
   EVAL_REPORT: "temp/eval-report.json",
   EVAL_HISTORY: "temp/eval-history.jsonl",
+  SYNC_STATUS: "temp/sync-status.md",
+  SYNC_REPORT: "temp/sync-report.json",
   MEMORY_INDEX: "memory/memory-index.md",
   DECISIONS: "memory/decisions.md",
   DEBUGGING: "memory/debugging.md",

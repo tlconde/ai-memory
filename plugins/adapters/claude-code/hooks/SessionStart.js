@@ -27,6 +27,11 @@ async function main() {
     process.exit(0);
   }
 
+  // Load order: static → semi-static → dynamic (prefix-cache friendly).
+  // See .ai/rules/context-caching.md for rationale.
+  // 1. IDENTITY.md        — static,      lossless (constraints, role)
+  // 2. PROJECT_STATUS.md   — semi-static, lossless (project focus)
+  // 3. memory-index.md     — semi-static, lossless (pointer file, bounded)
   const sections = [];
 
   const identity = await safeRead(join(aiDir, "IDENTITY.md"));

@@ -13,7 +13,7 @@ import { handleSearchMemory, handleGetMemory, handleCommitMemory, handlePruneMem
 import { handleValidateContext, handleValidateSchema, handleGenerateHarness } from "./governance.js";
 import { handleClaimTask, handlePublishResult, handleSyncMemory } from "./collaboration.js";
 import { handleGetDocPath, handleValidateDocPlacement, handleListDocTypes } from "./docs.js";
-import { detectTools, readToolConfig, syncTools } from "./tool-inspect.js";
+import { detectTools, readToolConfig, syncTools, scanForMigration } from "./tool-inspect.js";
 
 // Re-export ValidationResult for consumers that need the type
 export type { ValidationResult } from "./governance.js";
@@ -272,6 +272,35 @@ export function registerTools(server: Server, aiDir: string): void {
           },
         },
       },
+      {
+        name: "canonical_sync",
+        description:
+          "Checks sync between tool directories (.cursor/, .claude/, .agents/) and .ai/ canonical. " +
+          "Detects: uncanonical files (no canonical), missing stubs, non-stub content, orphaned stubs. " +
+          "Writes findings to .ai/temp/sync-status.md. If fix: true, creates open items for each gap.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            project_root: { type: "string", description: "Project root (default: parent of .ai/)" },
+            fix: { type: "boolean", description: "If true, append open items for each gap. Default: false." },
+          },
+        },
+      },
+      {
+        name: "scan_migration",
+        description:
+          "Scans for existing tool files that may need migration to .ai/ canonical locations. " +
+          "Layer 1: broad scan of tool directories (.cursor/, .claude/, .agents/, etc.) excluding ai-memory managed files. " +
+          "Layer 2: checks known root files (.cursorrules, AGENTS.md, etc.) and heuristic scan of root *.md files for AI-instruction patterns. " +
+          "Returns categorized results (rules, skills, agents, commands, hooks) with cross-tool path detection. " +
+          "Use during mem-init Step 6 or to audit what needs migration.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            project_root: { type: "string", description: "Project root (default: parent of .ai/)" },
+          },
+        },
+      },
     ],
   }));
 
@@ -317,6 +346,15 @@ export function registerTools(server: Server, aiDir: string): void {
         const projectRoot = getProjectRoot(args, aiDir);
         const write = (args.write as boolean) ?? false;
         return syncTools(projectRoot, aiDir, { write });
+      }
+      case "canonical_sync": {
+        const projectRoot = getProjectRoot(args, aiDir);
+        const { handleCanonicalSync } = await import("./canonical-sync.js");
+        return handleCanonicalSync(projectRoot, aiDir, args);
+      }
+      case "scan_migration": {
+        const projectRoot = getProjectRoot(args, aiDir);
+        return scanForMigration(projectRoot);
       }
 
       case "get_repo_root": {

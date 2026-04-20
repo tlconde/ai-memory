@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { DEFAULT_DOCS_SCHEMA_JSON } from "../docs-schema.js";
 import { TOOL_ADAPTERS, getMCPJson, MCP_LAUNCHER, MCP_LAUNCHER_PATH, CANONICAL_SKILLS } from "./adapters.js";
-import { detectEnvironments, injectCapabilityConfig, getCapabilityManualInstructions } from "./environment.js";
+import { detectEnvironments, injectCapabilityConfig, getCapabilityManualInstructions, scanExistingFiles, scanRootFilesHeuristic } from "./environment.js";
 import { AI_PATHS } from "../schema-constants.js";
 
 // ─── CLI helpers ─────────────────────────────────────────────────────────────
@@ -200,26 +200,39 @@ program
 
     const destPath = join(projectRoot, adapter.dest);
 
+    // Never overwrite existing files — only create if missing
     await mkdir(dirname(destPath), { recursive: true });
-    await writeFile(destPath, adapter.content);
-    console.log(`✓ Wrote ${adapter.dest}`);
+    if (!existsSync(destPath)) {
+      await writeFile(destPath, adapter.content);
+      console.log(`✓ Wrote ${adapter.dest}`);
+    } else {
+      console.log(`  ${adapter.dest} already exists — skipped`);
+    }
 
-    // Write extra files (e.g., skill stubs, hooks)
+    // Write extra files (skill stubs, hooks, settings) — only if missing
     if (adapter.extraFiles) {
       for (const [relPath, content] of Object.entries(adapter.extraFiles)) {
         const extraPath = join(projectRoot, relPath);
         await mkdir(dirname(extraPath), { recursive: true });
-        await writeFile(extraPath, content);
-        console.log(`✓ Wrote ${relPath}`);
+        if (!existsSync(extraPath)) {
+          await writeFile(extraPath, content);
+          console.log(`✓ Wrote ${relPath}`);
+        } else {
+          console.log(`  ${relPath} already exists — skipped`);
+        }
       }
     }
 
-    // Write canonical skill definitions to .ai/skills/
+    // Write canonical skill definitions to .ai/skills/ — only if missing
     for (const [skillName, content] of Object.entries(CANONICAL_SKILLS)) {
       const skillPath = join(projectRoot, ".ai", "skills", skillName, "SKILL.md");
       await mkdir(dirname(skillPath), { recursive: true });
-      await writeFile(skillPath, content);
-      console.log(`✓ Wrote .ai/skills/${skillName}/SKILL.md (canonical)`);
+      if (!existsSync(skillPath)) {
+        await writeFile(skillPath, content);
+        console.log(`✓ Wrote .ai/skills/${skillName}/SKILL.md (canonical)`);
+      } else {
+        console.log(`  .ai/skills/${skillName}/SKILL.md already exists — skipped`);
+      }
     }
 
     if (adapter.postInstallNote) {
@@ -293,8 +306,48 @@ program
       }
     }
 
-    // Post-install steps from tool-specific config (plugins/adapters/<tool>/INSTALL.md)
+    // ── Migration scan: warn about existing user files ──────────────────────
     const pkgRoot = join(__dirname_cli, "..", "..");
+    const scanResults = scanExistingFiles(projectRoot, pkgRoot, tool);
+    const heuristicFiles = scanRootFilesHeuristic(projectRoot);
+    const hasMigratables = scanResults.length > 0 || heuristicFiles.length > 0;
+
+    if (hasMigratables) {
+      console.log(`\n── Existing files detected ──────────────────────`);
+      for (const scan of scanResults) {
+        if (scan.files.length > 0) {
+          // Group files by category
+          const byCategory = new Map<string, string[]>();
+          for (const f of scan.files) {
+            const list = byCategory.get(f.category) ?? [];
+            list.push(f.path);
+            byCategory.set(f.category, list);
+          }
+          for (const [cat, files] of byCategory) {
+            console.log(`  ${scan.toolName} ${cat}: ${files.join(", ")}`);
+          }
+        }
+        if (scan.rootFiles.length > 0) {
+          console.log(`  ${scan.toolName} root files: ${scan.rootFiles.join(", ")}`);
+        }
+        if (scan.crossToolFiles.length > 0) {
+          console.log(`  ${scan.toolName} cross-tool: ${scan.crossToolFiles.map((f) => f.path).join(", ")}`);
+        }
+      }
+      if (heuristicFiles.length > 0) {
+        // Filter out files already reported by tool scans
+        const reported = new Set(scanResults.flatMap((s) => [...s.rootFiles, ...s.files.map((f) => f.path)]));
+        const novel = heuristicFiles.filter((f) => !reported.has(f));
+        if (novel.length > 0) {
+          console.log(`  Potential AI instruction files: ${novel.join(", ")}`);
+        }
+      }
+      console.log(`\n  These files may contain rules, skills, or context that should`);
+      console.log(`  live in .ai/ (canonical). Run /mem-init to review and migrate.`);
+      console.log(`────────────────────────────────────────────────`);
+    }
+
+    // Post-install steps from tool-specific config (plugins/adapters/<tool>/INSTALL.md)
     const toolInstallPath = join(pkgRoot, "plugins", "adapters", tool, "INSTALL.md");
     const genericInstallPath = join(pkgRoot, "plugins", "adapters", "generic", "INSTALL.md");
     const installPath = existsSync(toolInstallPath) ? toolInstallPath : genericInstallPath;
@@ -596,6 +649,36 @@ program
   );
 
 // ─── verify ─────────────────────────────────────────────────────────────────
+
+program
+  .command("sync-check")
+  .description("Check canonical sync between tool directories and .ai/")
+  .option("--dir <dir>", "Project root (default: current directory)")
+  .option("--fix", "Create open items for each gap")
+  .option("--json", "Output as JSON")
+  .action(async (opts) => {
+    const projectRoot = resolve(opts.dir ?? process.cwd());
+    const aiDir = join(projectRoot, ".ai");
+    requireAiDir(aiDir);
+    const { canonicalSyncCheck, writeSyncStatus, appendSyncOpenItems } = await import("../mcp-server/tools/canonical-sync.js");
+    const report = canonicalSyncCheck(projectRoot, aiDir);
+    const md = await writeSyncStatus(aiDir, report);
+
+    if (opts.json) {
+      console.log(JSON.stringify(report, null, 2));
+    } else {
+      console.log(md);
+    }
+
+    if (opts.fix && report.gaps.length > 0) {
+      const count = await appendSyncOpenItems(aiDir, report.gaps);
+      if (count > 0) console.log(`\n✓ Added ${count} open item(s) to sessions/open-items.md`);
+    }
+
+    if (report.gaps.length > 0 && !opts.fix) {
+      console.log(`\nRun with --fix to create open items for each gap.`);
+    }
+  });
 
 program
   .command("verify")

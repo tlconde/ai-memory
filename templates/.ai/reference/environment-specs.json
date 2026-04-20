@@ -3,22 +3,92 @@
     {
       "id": "cursor",
       "name": "Cursor",
-      "detect": { "paths": [".cursor/mcp.json", ".cursor/rules"] }
+      "detect": { "paths": [".cursor/mcp.json", ".cursor/rules"] },
+      "migrate": {
+        "directories": [".cursor", ".cursor-plugin"],
+        "knownSubdirs": ["rules", "skills", "agents", "commands", "hooks"],
+        "rootFiles": [".cursorrules"],
+        "crossToolPaths": [".claude/agents", ".codex/agents"]
+      }
     },
     {
       "id": "antigravity",
       "name": "Antigravity",
-      "detect": { "paths": [".agents/rules", ".agents/skills"] }
+      "detect": { "paths": [".agents/rules", ".agents/skills"] },
+      "migrate": {
+        "directories": [".agents"],
+        "knownSubdirs": ["rules", "skills"],
+        "rootFiles": ["AGENTS.md"]
+      }
     },
     {
       "id": "claude-code",
       "name": "Claude Code",
-      "detect": { "paths": [".claude/hooks", "CLAUDE.md"] }
+      "detect": { "paths": [".claude/hooks", "CLAUDE.md"] },
+      "migrate": {
+        "directories": [".claude", ".claude-plugin"],
+        "knownSubdirs": ["skills", "agents", "commands", "hooks"],
+        "rootFiles": ["CLAUDE.md"]
+      }
     },
     {
       "id": "copilot",
       "name": "GitHub Copilot",
-      "detect": { "paths": [".github/copilot-instructions.md"] }
+      "detect": { "paths": [".github/copilot-instructions.md"] },
+      "migrate": {
+        "rootFiles": [".github/copilot-instructions.md"]
+      }
+    },
+    {
+      "id": "windsurf",
+      "name": "Windsurf",
+      "detect": { "paths": [".windsurfrules"] },
+      "migrate": {
+        "rootFiles": [".windsurfrules"]
+      }
+    },
+    {
+      "id": "cline",
+      "name": "Cline",
+      "detect": { "paths": [".clinerules"] },
+      "migrate": {
+        "rootFiles": [".clinerules"]
+      }
+    },
+    {
+      "id": "codex",
+      "name": "OpenAI Codex",
+      "detect": { "paths": [".codex", "codex.md"] },
+      "migrate": {
+        "directories": [".codex"],
+        "rootFiles": ["codex.md"]
+      }
+    },
+    {
+      "id": "aider",
+      "name": "Aider",
+      "detect": { "paths": [".aider.conf.yml"] },
+      "migrate": {
+        "rootFiles": [".aider.conf.yml"]
+      }
+    },
+    {
+      "id": "continue",
+      "name": "Continue.dev",
+      "detect": { "paths": [".continue/config.json"] },
+      "migrate": {
+        "directories": [".continue"]
+      }
     }
+  ],
+  "knownRootFiles": [
+    ".cursorrules",
+    ".windsurfrules",
+    ".clinerules",
+    "CLAUDE.md",
+    "AGENTS.md",
+    "codex.md",
+    ".github/copilot-instructions.md",
+    ".aider.conf.yml"
   ]
 }

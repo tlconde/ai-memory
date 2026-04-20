@@ -36,6 +36,7 @@ level: HIGH_TOUCH
 - Never delete user data without explicit request
 - Never deploy to production without explicit request
 - Always use `commit_memory` MCP tool for writing to `.ai/memory/`. Never edit memory files directly.
+- **Project learnings go to `.ai/memory/` — always.** Decisions, patterns, debugging findings, testing practices, and feedback belong in `.ai/memory/` (via `commit_memory`). Tool-native memory (e.g. `~/.claude/projects/*/memory/`, Cursor memory) is for **user preferences only** (communication style, role context). If you save a project learning to tool-native memory, you MUST also save it to `.ai/memory/` in the same action.
 - [Add project-specific constraints here]
 
 ## Permissions (ASK before doing)

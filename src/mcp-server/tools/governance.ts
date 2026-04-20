@@ -9,6 +9,7 @@ import {
   generateRuleTests,
   type HarnessRule,
 } from "../../governance/p0-parser.js";
+import { hybridSearch, getSearchMode } from "../../hybrid-search/index.js";
 import { validateRequiredFrontmatter } from "../../schema-constants.js";
 import { getRepoRoot, MAX_GIT_DIFF_BYTES, AI_PATHS, textResponse, type McpResponse } from "./shared.js";
 
@@ -117,6 +118,43 @@ async function validateDiff(
           severity: rule.severity,
         });
         audit.push({ rule_id: rule.id, path: pathGlob, status: "failed" });
+      }
+    } else if (rule.type === "semantic") {
+      // Semantic constraints: check if expected knowledge exists in memory
+      if (!rule.query || !rule.expected_in || rule.expected_in.length === 0) {
+        audit.push({ rule_id: rule.id, path: pathGlob, status: "skipped" });
+        continue;
+      }
+      try {
+        const mode = getSearchMode();
+        const minScore = rule.min_score ?? 0.3;
+        const { results } = await hybridSearch(aiDir, rule.query, { mode, limit: 5 });
+
+        // Check if any result matches an expected file
+        const expectedFiles = rule.expected_in.map((f) =>
+          f.startsWith("memory/") ? f : `memory/${f}`
+        );
+        const found = results.some((r) => {
+          const matchesFile = expectedFiles.some(
+            (ef) => r.file === ef || r.file.endsWith(`/${ef}`) || r.file.endsWith(ef)
+          );
+          return matchesFile && r.score >= minScore;
+        });
+
+        if (found) {
+          audit.push({ rule_id: rule.id, path: pathGlob, status: "passed" });
+        } else {
+          // Semantic violations are warnings, not hard blocks
+          violations.push({
+            rule_id: rule.id,
+            message: `${rule.message} (semantic — searched for "${rule.query}" in ${expectedFiles.join(", ")})`,
+            severity: "P1",
+          });
+          audit.push({ rule_id: rule.id, path: pathGlob, status: "failed" });
+        }
+      } catch {
+        // Search failure → skip, don't block
+        audit.push({ rule_id: rule.id, path: pathGlob, status: "skipped" });
       }
     }
   }

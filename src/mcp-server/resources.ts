@@ -66,6 +66,16 @@ export function registerResources(server: Server, aiDir: string): void {
       });
     }
 
+    // Canonical sync — always available, compute-on-read
+    resources.push({
+      uri: "memory://sync",
+      name: "Canonical Sync Status",
+      description:
+        "Live check: are tool directories (.cursor/, .claude/, .agents/) in sync with .ai/ canonical? " +
+        "Reports gaps: uncanonical files, missing stubs, non-stub content, orphaned stubs.",
+      mimeType: "text/markdown",
+    });
+
     return { resources };
   });
 
@@ -128,6 +138,29 @@ export function registerResources(server: Server, aiDir: string): void {
       const report = await safeRead(join(aiDir, AI_PATHS.EVAL_REPORT));
       return {
         contents: [{ uri, mimeType: "application/json", text: report || "{}" }],
+      };
+    }
+
+    if (uri === "memory://sync") {
+      const { resolve } = await import("path");
+      const { canonicalSyncCheck } = await import("./tools/canonical-sync.js");
+      const projectRoot = resolve(aiDir, "..");
+      const report = canonicalSyncCheck(projectRoot, aiDir);
+      const { summary, toolsScanned } = report;
+      let text: string;
+      if (summary.total === 0) {
+        text = `All ${toolsScanned.length} tool(s) in sync with .ai/ canonical.`;
+      } else {
+        const parts = [`${summary.total} canonical sync gap(s):`];
+        if (summary.uncanonical > 0) parts.push(`  ${summary.uncanonical} uncanonical (tool file, no canonical)`);
+        if (summary.missingStubs > 0) parts.push(`  ${summary.missingStubs} missing stubs (canonical exists, no tool stub)`);
+        if (summary.nonStubs > 0) parts.push(`  ${summary.nonStubs} non-stub content (full content where stub expected)`);
+        if (summary.orphanedStubs > 0) parts.push(`  ${summary.orphanedStubs} orphaned stubs (point to nonexistent canonical)`);
+        parts.push("", "Run canonical_sync MCP tool for details and to create open items.");
+        text = parts.join("\n");
+      }
+      return {
+        contents: [{ uri, mimeType: "text/markdown", text }],
       };
     }
 

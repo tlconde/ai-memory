@@ -7,7 +7,7 @@ import { existsSync } from "fs";
 import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { getDetectedToolsWithPaths } from "../../cli/environment.js";
+import { getDetectedToolsWithPaths, scanExistingFiles, scanRootFilesHeuristic } from "../../cli/environment.js";
 import { textResponse, type McpResponse } from "./shared.js";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ export interface DetectedTool {
 
 export const TOOL_PATH_MAPPINGS: Record<
   string,
-  { rulesDir: string | null; rulesPath?: string; skillsDir: string | null; mcpPath: string }
+  { rulesDir: string | null; rulesPath?: string; skillsDir: string | null; mcpPath: string | null }
 > = {
   cursor: {
     rulesDir: ".cursor/rules",
@@ -44,7 +44,7 @@ export const TOOL_PATH_MAPPINGS: Record<
   antigravity: {
     rulesDir: ".agents/rules",
     skillsDir: ".agents/skills",
-    mcpPath: ".mcp.json",
+    mcpPath: null, // Antigravity uses global MCP config, not project-level
   },
   // windsurf: {
   //   rulesDir: null,
@@ -212,4 +212,81 @@ export async function syncTools(
   }
 
   return textResponse(lines.length > 0 ? lines.join("\n") : "No tools with skillsDir detected.");
+}
+
+// ─── Migration scan (MCP-exposed) ──────────────────────────────────────────
+
+/**
+ * Scans for existing tool files that may need migration to .ai/ canonical.
+ * Used by mem-init skill Step 6 to present migration proposals.
+ *
+ * Runs two parallel layers:
+ *   Layer 1 — Broad: scans entire tool directories, excludes ai-memory managed files
+ *   Layer 2 — Precise + heuristic: checks known root files and AI-instruction patterns
+ *
+ * Returns structured results for the LLM to present as migration proposals.
+ */
+export function scanForMigration(projectRoot: string): McpResponse {
+  const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+
+  // Layer 1 + Layer 2 known files (from environment-specs.json)
+  const scanResults = scanExistingFiles(projectRoot, packageRoot);
+
+  // Layer 2 heuristic: root *.md files with AI-instruction patterns
+  const heuristicFiles = scanRootFilesHeuristic(projectRoot);
+
+  if (scanResults.length === 0 && heuristicFiles.length === 0) {
+    return textResponse("No existing tool files found that need migration.");
+  }
+
+  const lines: string[] = ["# Migration Scan Results\n"];
+
+  for (const scan of scanResults) {
+    lines.push(`## ${scan.toolName} (${scan.toolId})\n`);
+
+    if (scan.files.length > 0) {
+      // Group by category
+      const byCategory = new Map<string, string[]>();
+      for (const f of scan.files) {
+        const list = byCategory.get(f.category) ?? [];
+        list.push(f.path);
+        byCategory.set(f.category, list);
+      }
+      for (const [cat, files] of byCategory) {
+        lines.push(`**${cat}:**`);
+        for (const f of files) lines.push(`  - ${f}`);
+      }
+    }
+
+    if (scan.rootFiles.length > 0) {
+      lines.push(`\n**Root files:**`);
+      for (const f of scan.rootFiles) lines.push(`  - ${f}`);
+    }
+
+    if (scan.crossToolFiles.length > 0) {
+      lines.push(`\n**Cross-tool files** (readable by ${scan.toolName}, consider canonical migration):`);
+      for (const f of scan.crossToolFiles) lines.push(`  - ${f.path} (${f.category})`);
+    }
+
+    lines.push("");
+  }
+
+  if (heuristicFiles.length > 0) {
+    // Filter out files already reported
+    const reported = new Set(
+      scanResults.flatMap((s) => [...s.rootFiles, ...s.files.map((f) => f.path)])
+    );
+    const novel = heuristicFiles.filter((f) => !reported.has(f));
+    if (novel.length > 0) {
+      lines.push(`## Potential AI instruction files (heuristic)\n`);
+      for (const f of novel) lines.push(`  - ${f}`);
+      lines.push("");
+    }
+  }
+
+  lines.push("---");
+  lines.push("For each file above, read its content and propose migration to the appropriate .ai/ canonical location.");
+  lines.push("Ask the user for confirmation before migrating each file.");
+
+  return textResponse(lines.join("\n"));
 }

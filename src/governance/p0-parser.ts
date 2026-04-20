@@ -7,26 +7,38 @@ import { AI_PATHS } from "../schema-constants.js";
 export type RuleScope = "additions" | "deletions" | "all";
 
 export interface ConstraintPattern {
-  type: "ast" | "regex";
+  type: "ast" | "regex" | "semantic";
   language?: string;
-  pattern: string;
+  /** For regex/ast: the pattern to match. Not used for semantic. */
+  pattern?: string;
   where?: Record<string, { regex: string }>;
   path: string;
   /** Regex only. Default: "additions". Use "deletions" for rules like "don't remove [P0] markers". */
   scope?: RuleScope;
   message?: string;
+  /** Semantic only. Natural language query to search memory for. */
+  query?: string;
+  /** Semantic only. Memory file(s) that must contain a match (e.g. "patterns.md" or ["decisions.md", "patterns.md"]). */
+  expected_in?: string | string[];
+  /** Semantic only. Minimum relevance threshold (0-1). Default: 0.3. */
+  min_score?: number;
 }
 
 export interface HarnessRule {
   id: string;
-  type: "ast" | "regex";
+  type: "ast" | "regex" | "semantic";
   language?: string;
+  /** For regex/ast: the pattern to match. */
   pattern: string;
   where?: Record<string, { regex: string }>;
   path: string;
   scope?: RuleScope;
   severity: "P0" | "P1" | "P2";
   message: string;
+  /** Semantic only fields */
+  query?: string;
+  expected_in?: string[];
+  min_score?: number;
 }
 
 export interface RuleTest {
@@ -131,18 +143,27 @@ export function compileHarnessRules(entries: P0Entry[]): HarnessRule[] {
     .filter((e) => e.constraint_pattern !== undefined)
     .map((e) => {
       const cp = e.constraint_pattern!;
+      const expectedIn = cp.expected_in
+        ? Array.isArray(cp.expected_in) ? cp.expected_in : [cp.expected_in]
+        : undefined;
       return {
         id: e.id,
         type: cp.type,
         language: cp.language,
-        pattern: cp.pattern,
+        pattern: cp.pattern ?? "",
         where: cp.where,
         path: cp.path,
         scope: cp.scope,
-        severity: "P0",
+        severity: "P0" as const,
         message:
           cp.message ??
           `[P0] Constraint violation: ${e.title} (${e.id})`,
+        // Semantic-only fields
+        ...(cp.type === "semantic" ? {
+          query: cp.query,
+          expected_in: expectedIn,
+          min_score: cp.min_score ?? 0.3,
+        } : {}),
       };
     });
 }

@@ -33,7 +33,8 @@ coverage/
 *.jsonl
 
 # Project memory and local MCP config (never publish)
-.ai/
+# Only root .ai/ — templates/.ai/ is scaffold for distribution
+/.ai/
 .mcp.json
 
 # Tool-generated files (created by ai-memory install, never publish)

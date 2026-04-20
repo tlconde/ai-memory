@@ -10,6 +10,30 @@ import { pathToFileURL } from "url";
 
 const RRF_K = 60;
 
+/** Extract meaningful excerpt from chunk text, skipping YAML frontmatter. Returns up to ~300 chars. */
+function extractExcerpt(text: string): string {
+  const lines = text.split("\n");
+  let i = 0;
+  // Skip YAML frontmatter block (--- ... ---)
+  if (lines[i]?.trim() === "---") {
+    i++;
+    while (i < lines.length && lines[i]?.trim() !== "---") i++;
+    i++; // skip closing ---
+  }
+  // Collect meaningful lines up to ~300 chars
+  const parts: string[] = [];
+  let len = 0;
+  while (i < lines.length && len < 300) {
+    const line = lines[i]?.trim();
+    if (line && line !== "---") {
+      parts.push(line);
+      len += line.length;
+    }
+    i++;
+  }
+  return parts.join(" ") || text.split("\n")[0]?.trim() || "";
+}
+
 export type SearchMode = "keyword" | "semantic" | "hybrid";
 
 /** Backend used for search: native (onnxruntime-node), wasm, or keyword-only. */
@@ -81,8 +105,7 @@ function keywordSearchChunks(chunks: Chunk[], query: string): Array<{ file: stri
     if (score > 0) {
       const cur = fileBest.get(file);
       if (!cur || score > cur.score) {
-        const firstLine = text.split("\n")[0]?.trim() ?? "";
-        fileBest.set(file, { excerpt: firstLine, score });
+        fileBest.set(file, { excerpt: extractExcerpt(text), score });
       }
     }
   }
@@ -312,7 +335,7 @@ export async function hybridSearch(
   if (mode === "semantic") {
     const results = semFileOrder.slice(0, limit).map((file) => {
       const c = filtered.find((x) => x.file === file);
-      const excerpt = c?.text.split("\n")[0]?.trim() ?? "";
+      const excerpt = c ? extractExcerpt(c.text) : "";
       return { file, excerpt, score: 1 };
     });
     return { results, backend: backendUsed };
@@ -322,7 +345,7 @@ export async function hybridSearch(
   const merged = rrfMerge([kwFileOrder, semFileOrder], RRF_K);
   const results = merged.slice(0, limit).map((file) => {
     const c = filtered.find((x) => x.file === file);
-    const excerpt = c?.text.split("\n")[0]?.trim() ?? "";
+    const excerpt = c ? extractExcerpt(c.text) : "";
     return { file, excerpt, score: 1 };
   });
   return { results, backend: backendUsed };

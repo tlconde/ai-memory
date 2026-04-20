@@ -11,7 +11,14 @@ This project has persistent AI memory in \`.ai/\`.
 - **PROJECT_STATUS.md** — current focus, open questions, what to try next (writable)
 - **memory/** — decisions, patterns, debugging history
 - **skills/** — domain-specific patterns and session protocols
+- **agents/** — specialized sub-agents (e.g. \`.ai/agents/<name>/AGENT.md\`)
+- **rules/** — behavioral rules and governance constraints
+- **reference/** — project docs, architecture, environment specs
 
+When creating new content (agents, skills, rules, workflows), place the canonical version in \`.ai/\` under the appropriate directory. Tool-specific copies (e.g. \`.cursor/agents/\`, \`.claude/skills/\`) may exist as stubs that point back to the canonical source.
+
+Read \`.ai/IDENTITY.md\` at the start of every session — it defines your role, constraints, and standard of excellence.
+Read \`memory://sync\` (MCP resource) to check for canonical sync gaps between tool directories and \`.ai/\`. If gaps exist, inform the user.
 Use \`search_memory\` (MCP) to find relevant context before starting a task.
 Use \`commit_memory\` to write new entries — never edit memory files directly.
 If MCP is not connected, read \`.ai/memory/memory-index.md\` for a summary and write to \`.ai/memory/\` files directly.
@@ -147,8 +154,8 @@ Review conversation, code changes, errors. Identify:
 - Decisions made → write to \`decisions.md\` via \`commit_memory\`
 - Improvements → write to \`improvements.md\` via \`commit_memory\`
 
-### 2. Conflict check
-Before writing: call \`search_memory\` for each topic. If contradictions found, mark old entry \`[DEPRECATED]\`.
+### 2. Conflict check (MANDATORY — use search_memory MCP)
+For each topic identified in Step 1, call the \`search_memory\` MCP tool with a query describing the topic. Do NOT substitute Read/Grep/file reads — \`search_memory\` uses hybrid search (keyword + semantic) and catches matches that exact string searches miss (e.g. "Project Memory is Canonical" matches a query about "project learnings go to .ai/memory"). If contradictions found, mark old entry \`[DEPRECATED]\`.
 
 ### 3. Update PROJECT_STATUS.md
 Update with learnings: move completed items to "What's Working", add new open questions, update "What to Try Next".
@@ -228,11 +235,39 @@ First time setting up ai-memory, or re-run to refresh recommendations.
 
 ## Steps
 1. **Scaffold** — Run \`npx @radix-ai/ai-memory init\` (or \`--full\`), then \`install --to <tool>\`. Skip if \`.ai/\` exists.
-2. **Codebase scan** — Read: manifest (package.json etc.), README, directory listing, CI config, build config, git log, existing MCPs, existing rules files, existing docs. Summarize internally.
+2. **Codebase scan** — Read: manifest (package.json etc.), README, directory listing, CI config, build config, git log, existing MCPs, existing rules files, existing docs. Summarize internally. Also scan root-level \`*.md\` files (excluding README, CHANGELOG, CONTRIBUTING, LICENSE, CODE_OF_CONDUCT, SECURITY) — read the first 20 lines of each and flag any that contain AI-instruction patterns (role assignments, "you are", "always", "never", "constraints", YAML frontmatter with \`description\`/\`alwaysApply\`). These are potential migration candidates.
 3. **Guide IDENTITY.md** — Propose a Role based on detected tech stack. Explain each section (Role, Mindset, Autonomy Level, Constraints, Permissions). Suggest project-specific constraints from scan. Ask autonomy level preference (HIGH/MEDIUM/LOW TOUCH). User edits the file. Skippable.
 4. **Guide reference/PROJECT.md** — Present scan findings as suggestions for: Project Overview, Tech Stack, Architecture, Data Models, Integrations, Dev Setup. User edits the file. Skippable.
 5. **Guide PROJECT_STATUS.md** — Suggest Current Focus from git log, Open Questions from scan gaps, What's Working from observed patterns. User edits. Skippable.
-6. **Knowledge audit** — Report existing docs (ARCHITECTURE.md, CONTRIBUTING.md, CHANGELOG.md, .env.example, TODO comments, existing MCPs/rules). Suggest what to import into .ai/memory/. If AGENTS.md, CLAUDE.md, .cursorrules, or copilot-instructions.md exist, propose migrating their content to .ai/ canonical files (behavioral → IDENTITY.md, project info → PROJECT.md, workflows → skills) and replacing the original with a stub. Do not import or migrate automatically.
+6. **Knowledge audit & migration** — Two parallel scans:
+
+   **Layer 1 — Broad directory scan:** Scan ALL tool-specific directories for user content. Check every file under the tool's directory tree (e.g. everything in \`.cursor/\`, \`.claude/\`, \`.agents/\`, \`.codex/\`, \`.cursor-plugin/\`, \`.claude-plugin/\`). Exclude ai-memory managed files (bootstrap rules like \`00-load-ai-memory.mdc\`, skill stubs, \`mcp.json\`, \`settings.json\`). This catches files in current AND future subdirectories — do not rely on a fixed list of subdirectory names.
+
+   **Layer 2 — Known files + heuristic:** Check for known root files: \`.cursorrules\`, \`.windsurfrules\`, \`.clinerules\`, \`CLAUDE.md\`, \`AGENTS.md\`, \`codex.md\`, \`.github/copilot-instructions.md\`, \`.aider.conf.yml\`. Also check known subdirectories within tool dirs: \`rules/\`, \`skills/\`, \`agents/\`, \`commands/\`, \`hooks/\`. Also report any root \`*.md\` files flagged in Step 2 as potential AI-instruction files.
+
+   **Important:** \`.cursorrules\` and \`.cursor/rules/\` are related — both are Cursor rule formats (legacy single-file vs modern multi-file). Same for \`AGENTS.md\` and \`.agents/rules/\`. Treat these as the same tool's configuration across format versions.
+
+   **Cross-tool paths:** If the project has files readable by multiple tools (e.g. Cursor reads \`.claude/agents/\` and \`.codex/agents/\`), flag them and ask the user: "These files are shared across tools. Create canonical versions in \`.ai/\` so all tools reference the same source?"
+
+   For each found file, propose migration:
+   - **Behavioral rules** (constraints, "always/never" directives) → \`.ai/rules/\` canonical file + tool-specific stub
+   - **Project info** (architecture, tech stack, setup) → \`.ai/reference/PROJECT.md\`
+   - **Identity/role** (role definition, mindset, autonomy) → \`.ai/IDENTITY.md\`
+   - **Workflows/protocols** (multi-step processes) → \`.ai/skills/<name>/SKILL.md\` + tool stub
+   - **Agents** (specialized sub-agents) → \`.ai/agents/<name>.md\` + tool executable
+
+   **Stub format for rules** (proven pattern — Cursor follows these reliably):
+   \`\`\`
+   ---
+   description: <description from original>
+   alwaysApply: <true|false>
+   globs: <glob pattern if applicable>
+   ---
+   Read and follow the canonical rule at \`.ai/rules/<name>.md\`.
+   \`\`\`
+
+   Present the full migration proposal to the user. Ask for confirmation before each file. Do not migrate automatically.
+
 7. **Recommendations** — Suggest relevant features: CI detected → mem-auto-review, multiple contributors → Full tier, no tests → testing-strategy pattern, monorepo → per-package skills.
 8. **Validate** — Run \`npx @radix-ai/ai-memory validate\`. Print summary of what was done, remaining placeholders, and next steps.
 `,
@@ -390,6 +425,11 @@ function safeRead(filePath, maxLines) {
 
 if (!existsSync(aiDir)) process.exit(0);
 
+// Load order: static → semi-static → dynamic (prefix-cache friendly).
+// See .ai/rules/context-caching.md for rationale.
+// 1. IDENTITY.md        — static,      lossless (constraints, role)
+// 2. PROJECT_STATUS.md   — semi-static, lossless (project focus)
+// 3. memory-index.md     — semi-static, lossless (pointer file, bounded)
 const sections = [];
 
 const identity = safeRead(join(aiDir, "IDENTITY.md"));
@@ -412,6 +452,8 @@ process.stdout.write(JSON.stringify({
 `;
 
 // Pre-compact hook as a separate script to avoid escaping issues in JSON
+// Compression policy: lossless files are preserved in full, lossy files are truncated.
+// See .ai/rules/context-caching.md for rationale.
 export const PRE_COMPACT_HOOK = `#!/usr/bin/env node
 const fs = require("fs");
 const path = require("path");
@@ -420,11 +462,72 @@ if (!fs.existsSync(aiDir)) process.exit(0);
 const tempDir = path.join(aiDir, "temp");
 fs.mkdirSync(tempDir, { recursive: true });
 const dump = { timestamp: new Date().toISOString(), event: "pre-compact" };
-for (const f of ["PROJECT_STATUS.md", "memory/memory-index.md", "sessions/open-items.md"]) {
+
+// Lossless: constraints, identity, project status — never truncate or summarize
+const lossless = ["IDENTITY.md", "PROJECT_STATUS.md"];
+for (const f of lossless) {
   const fp = path.join(aiDir, f);
-  if (fs.existsSync(fp)) dump[f] = fs.readFileSync(fp, "utf-8").slice(0, 2000);
+  if (fs.existsSync(fp)) dump[f] = { compression: "lossless", content: fs.readFileSync(fp, "utf-8") };
 }
+
+// Lossy: session state, index pointers — bounded truncation is safe
+const lossy = [
+  ["memory/memory-index.md", 3000],
+  ["sessions/open-items.md", 2000],
+  ["sessions/thread-current.md", 1500],
+];
+for (const [f, maxChars] of lossy) {
+  const fp = path.join(aiDir, f);
+  if (fs.existsSync(fp)) dump[f] = { compression: "lossy", maxChars, content: fs.readFileSync(fp, "utf-8").slice(0, maxChars) };
+}
+
 fs.writeFileSync(path.join(tempDir, "pre-compact-dump.json"), JSON.stringify(dump, null, 2));
+`;
+
+export const MEMORY_HYGIENE_HOOK = `#!/usr/bin/env node
+/**
+ * ai-memory — Claude Code PostToolUse hook (memory hygiene)
+ *
+ * Fires after Write/Edit tool calls. If the target path is Claude Code's
+ * auto-memory (~/.claude/projects/<id>/memory/), reminds the AI to also
+ * save project-relevant learnings to .ai/memory/ via commit_memory.
+ *
+ * Does NOT block — emits additionalContext as a nudge.
+ */
+const chunks = [];
+process.stdin.on("data", (d) => chunks.push(d));
+process.stdin.on("end", () => {
+  try {
+    const input = JSON.parse(Buffer.concat(chunks).toString());
+    const filePath = input.tool_input?.file_path || input.tool_input?.filePath || "";
+
+    // Detect writes to Claude Code's internal memory directory
+    const isClaudeMemory =
+      /[\\\\/]\\.claude[\\\\/]projects[\\\\/][^\\\\/]+[\\\\/]memory[\\\\/]/.test(filePath);
+
+    if (isClaudeMemory) {
+      const isIndex = /MEMORY\\.md$/i.test(filePath);
+      const context = isIndex
+        ? "You updated Claude Code's memory index. If any entries contain project knowledge (decisions, patterns, debugging), ensure the same info exists in .ai/memory/ via commit_memory."
+        : "MEMORY HYGIENE: You just wrote to Claude Code's auto-memory. " +
+          "If this contains project knowledge (decisions, patterns, debugging findings, testing practices), " +
+          "you MUST also save it to .ai/memory/ via commit_memory. " +
+          "Claude Code memory is tool-specific and ephemeral. " +
+          ".ai/memory/ is canonical and shared across all tools.";
+
+      process.stdout.write(
+        JSON.stringify({
+          hookSpecificOutput: {
+            hookEventName: "PostToolUse",
+            additionalContext: context,
+          },
+        })
+      );
+    }
+  } catch {
+    // Silent failure — hooks should never break the session
+  }
+});
 `;
 
 export const CLAUDE_HOOKS_CONFIG = JSON.stringify({
@@ -432,15 +535,23 @@ export const CLAUDE_HOOKS_CONFIG = JSON.stringify({
     SessionStart: [{
       hooks: [{
         type: "command",
-        command: "node .claude/hooks/SessionStart.js",
+        command: "node .claude/hooks/SessionStart.cjs",
         timeout: 10000,
       }],
     }],
     PreCompact: [{
       hooks: [{
         type: "command",
-        command: "node .claude/hooks/PreCompact.js",
+        command: "node .claude/hooks/PreCompact.cjs",
         timeout: 10000,
+      }],
+    }],
+    PostToolUse: [{
+      matcher: "Write|Edit",
+      hooks: [{
+        type: "command",
+        command: "node .claude/hooks/memory-hygiene.cjs",
+        timeout: 5000,
       }],
     }],
   },
@@ -497,11 +608,12 @@ export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
     dest: "CLAUDE.md",
     content: `# Claude Code — Project Memory\n\n${BOOTSTRAP_INSTRUCTION}`,
     mcp: true,
-    postInstallNote: "Hooks installed: SessionStart (context injection), PreCompact (state preservation)\n  Note: Restart Claude Code for hooks to take effect.",
+    postInstallNote: "Hooks installed: SessionStart (context injection), PreCompact (state preservation), PostToolUse (memory hygiene)\n  Note: Restart Claude Code for hooks to take effect.",
     extraFiles: {
       ...skillStubsForDir(".claude/skills"),
-      ".claude/hooks/SessionStart.js": SESSION_START_HOOK,
-      ".claude/hooks/PreCompact.js": PRE_COMPACT_HOOK,
+      ".claude/hooks/SessionStart.cjs": SESSION_START_HOOK,
+      ".claude/hooks/PreCompact.cjs": PRE_COMPACT_HOOK,
+      ".claude/hooks/memory-hygiene.cjs": MEMORY_HYGIENE_HOOK,
       ".claude/settings.local.json": CLAUDE_HOOKS_CONFIG,
     },
   },

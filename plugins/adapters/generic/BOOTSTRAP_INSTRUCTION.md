@@ -19,7 +19,14 @@ This project has persistent AI memory in `.ai/`.
 - **PROJECT_STATUS.md** — current focus, open questions, what to try next (writable)
 - **memory/** — decisions, patterns, debugging history
 - **skills/** — domain-specific patterns and session protocols
+- **agents/** — specialized sub-agents (e.g. `.ai/agents/<name>/AGENT.md`)
+- **rules/** — behavioral rules and governance constraints
+- **reference/** — project docs, architecture, environment specs
 
+When creating new content (agents, skills, rules, workflows), place the canonical version in `.ai/` under the appropriate directory. Tool-specific copies (e.g. `.cursor/agents/`, `.claude/skills/`) may exist as stubs that point back to the canonical source.
+
+Read `.ai/IDENTITY.md` at the start of every session — it defines your role, constraints, and standard of excellence.
+Read `memory://sync` (MCP resource) to check for canonical sync gaps between tool directories and `.ai/`. If gaps exist, inform the user.
 Use `search_memory` (MCP) to find relevant context before starting a task.
 Use `commit_memory` to write new entries — never edit memory files directly.
 If MCP is not connected, read `.ai/memory/memory-index.md` for a summary and write to `.ai/memory/` files directly.

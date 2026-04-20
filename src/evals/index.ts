@@ -44,8 +44,12 @@ export async function runEvals(aiDir: string): Promise<EvalReport> {
   metrics.push(await evalSessionCount(aiDir));
   metrics.push(await evalMemoryFreshness(aiDir));
 
-  // 8. Platform integration
-  const { evalHookCoverage, evalSkillDiscoverability, evalCloudReadiness, evalAutomationReadiness, evalIntegrationCoverage } =
+  // 8. Search quality (semantic recall)
+  const { evalSemanticRecall } = await import("./search-quality.js");
+  metrics.push(await evalSemanticRecall(aiDir));
+
+  // 9. Platform integration
+  const { evalHookCoverage, evalSkillDiscoverability, evalCloudReadiness, evalAutomationReadiness, evalIntegrationCoverage, evalContextLoadOrder, evalCanonicalSync } =
     await import("./platform-integration.js");
   const projectDir = resolve(aiDir, "..");
   metrics.push(await evalHookCoverage(projectDir));
@@ -53,6 +57,12 @@ export async function runEvals(aiDir: string): Promise<EvalReport> {
   metrics.push(await evalCloudReadiness(projectDir));
   metrics.push(await evalAutomationReadiness(projectDir));
   metrics.push(await evalIntegrationCoverage(aiDir));
+
+  // 10. Context load order (prefix caching)
+  metrics.push(await evalContextLoadOrder(projectDir));
+
+  // 11. Canonical sync
+  metrics.push(await evalCanonicalSync(projectDir));
 
   // Load custom evals from temp/custom-evals/
   const customEvalsDir = join(aiDir, "temp/custom-evals");

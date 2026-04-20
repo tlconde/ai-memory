@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"const fs=require('fs'),p=require('path'),d=process.env.AI_DIR||p.join(process.cwd(),'.ai');if(fs.existsSync(d)){const t=p.join(d,'temp');fs.mkdirSync(t,{recursive:true});const s={timestamp:new Date().toISOString(),event:'pre-compact'};for(const f of['PROJECT_STATUS.md','PROJECT_STATUS.md','memory/memory-index.md','sessions/open-items.md']){const fp=p.join(d,f);if(fs.existsSync(fp))s[f]=fs.readFileSync(fp,'utf-8').slice(0,2000)}fs.writeFileSync(p.join(t,'pre-compact-dump.json'),JSON.stringify(s,null,2))}\"",
+            "command": "node -e \"const fs=require('fs'),p=require('path'),d=process.env.AI_DIR||p.join(process.cwd(),'.ai');if(fs.existsSync(d)){const t=p.join(d,'temp');fs.mkdirSync(t,{recursive:true});const s={timestamp:new Date().toISOString(),event:'pre-compact'};for(const f of['IDENTITY.md','PROJECT_STATUS.md']){const fp=p.join(d,f);if(fs.existsSync(fp))s[f]={compression:'lossless',content:fs.readFileSync(fp,'utf-8')}}for(const[f,m]of[['memory/memory-index.md',3000],['sessions/open-items.md',2000],['sessions/thread-current.md',1500]]){const fp=p.join(d,f);if(fs.existsSync(fp))s[f]={compression:'lossy',maxChars:m,content:fs.readFileSync(fp,'utf-8').slice(0,m)}}fs.writeFileSync(p.join(t,'pre-compact-dump.json'),JSON.stringify(s,null,2))}\"",
             "timeout": 10,
             "statusMessage": "ai-memory: saving state before compaction..."
           }
