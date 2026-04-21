@@ -26,8 +26,12 @@ benchmarks/longmemeval/
 
 ## Dependencies
 
-**Node (new):** `openai` (devDep, used only by bench). Pin to latest 4.x.
-**Python:** use the upstream LongMemEval repo's `evaluate_qa.py` via a local clone or submodule under `benchmarks/longmemeval/third_party/longmemeval/`. We do NOT vendor their code; we clone to a pinned commit.
+**Node (new):** `@google/genai` (devDep, used only by bench). Reader = Gemini; default pinned model `gemini-2.5-pro`, override via CLI flag.
+**Python (via uv):** use the upstream LongMemEval repo's `evaluate_qa.py` via a local clone pinned to a specific commit under `benchmarks/longmemeval/third_party/longmemeval/` (gitignored). Invoked as `uv run --with openai --with tqdm python evaluate_qa.py ...`. Judge pinned to `gpt-4o-2024-08-06` (upstream default, preserves comparability with published numbers).
+
+**API keys** (both in `benchmarks/longmemeval/.env.local`, gitignored, never read by the assistant):
+- `GEMINI_API_KEY` — reader
+- `OPENAI_API_KEY` — judge only (scored downstream by upstream Python)
 
 ## Data location (external, not in repo)
 
@@ -84,6 +88,7 @@ export interface RunManifest {
 ## Reader contract
 
 - `read(question, chunks, opts)` → `{hypothesis: string, usage: {input_tokens, output_tokens}}`.
+- Provider: Gemini via `@google/genai`. Default model `gemini-2.5-pro`, temperature 0, max_output_tokens 150. No system instruction beyond the prompt.
 - Prompt template (committed as constant, hashed into manifest):
   ```
   You are answering a question based on prior conversation excerpts.
@@ -100,7 +105,7 @@ export interface RunManifest {
 
   Answer:
   ```
-- API key from `OPENAI_API_KEY` (env). `.env.local` loaded at startup via `dotenv` or manual parse — manual parse to avoid new dep.
+- API key from `GEMINI_API_KEY` (env). `.env.local` under `benchmarks/longmemeval/` auto-loaded at startup via a manual parse (no new dep).
 
 ## Runner contract
 

@@ -52,3 +52,7 @@ benchmarks/longmemeval/runs/
 benchmarks/longmemeval/third_party/
 benchmarks/longmemeval/dist/
 benchmarks/longmemeval/.env.local
+
+# Composite build artifacts
+tsconfig.tsbuildinfo
+benchmarks/longmemeval/tsconfig.tsbuildinfo
