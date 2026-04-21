@@ -1,83 +1,150 @@
-# Plan: Chunk-level retrieval refactor
+# Plan: LongMemEval Phase 1 baseline harness
 
-## Stack
+## Layout
 
-Existing: TypeScript strict, Node ESM, `@huggingface/transformers` (MiniLM), Vitest (verify via `ls tests/` or package.json scripts before writing). No new deps.
+```
+benchmarks/longmemeval/
+  README.md                      # how to run, prereqs
+  tsconfig.json                  # extends root, rootDir=./src, outDir=./dist, composite
+  src/
+    types.ts                     # LongMemEval record schema, run manifest
+    dataset.ts                   # fetch + parse + hash
+    chunker.ts                   # haystack_sessions -> Chunk[] (turn | session)
+    retriever.ts                 # wraps rankChunks with embedding cache
+    reader.ts                    # OpenAI client, pinned model, prompt template
+    runner.ts                    # per-question pipeline
+    jsonl.ts                     # read/write JSONL
+    cli.ts                       # entrypoint
+  scripts/
+    fetch-dataset.sh             # curl from HF resolve URLs
+    run-evaluate-qa.sh           # invokes upstream evaluate_qa.py
+  python/
+    requirements.txt             # openai, tqdm — for evaluate_qa.py
+  data/                          # gitignored; datasets downloaded here
+  runs/                          # gitignored; JSONL outputs + manifests
+```
 
-## API shape
+## Dependencies
 
-Revised after T1 critique (see LEARNINGS.md).
+**Node (new):** `@google/genai` (devDep, used only by bench). Reader = Gemini; default pinned model `gemini-2.5-pro`, override via CLI flag.
+**Python (via uv):** use the upstream LongMemEval repo's `evaluate_qa.py` via a local clone pinned to a specific commit under `benchmarks/longmemeval/third_party/longmemeval/` (gitignored). Invoked as `uv run --with openai --with tqdm python evaluate_qa.py ...`. Judge pinned to `gpt-4o-2024-08-06` (upstream default, preserves comparability with published numbers).
+
+**API keys** (both in `benchmarks/longmemeval/.env.local`, gitignored, never read by the assistant):
+- `GEMINI_API_KEY` — reader
+- `OPENAI_API_KEY` — judge only (scored downstream by upstream Python)
+
+## Data location (external, not in repo)
+
+Datasets live on an external SSD, not the laptop or the repo. The harness resolves the directory from `LME_DATA_DIR` (required; no default path-hunting).
+
+```
+LME_DATA_DIR="/Volumes/SSD EXT/ai-memory-bench-data/longmemeval"
+├── longmemeval_oracle.json       15M  sha256=821a2034d219ab45846873dd14c14f12cfe7776e73527a483f9dac095d38620c
+├── longmemeval_s_cleaned.json   265M  sha256=d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442
+└── sha256.txt                         reference hash file
+```
+
+Hashes recorded 2026-04-20. Harness verifies the hash on load and aborts on mismatch (wrong file, partial download, upstream update).
+
+## Schema (types.ts)
 
 ```ts
-export interface Chunk {
-  id?: string;             // opaque, in-process identity. loadChunks fills it; rankChunks synthesizes if absent.
-  file: string;
-  text: string;
-  content: string;
+export interface LMETurn { role: "user" | "assistant"; content: string; has_answer?: boolean }
+export interface LMEQuestion {
+  question_id: string;          // "_abs" suffix marks abstention questions
+  question_type: string;
+  question: string;
+  answer: string;
+  question_date: string;
+  haystack_session_ids: string[];
+  haystack_dates: string[];
+  haystack_sessions: LMETurn[][];
+  answer_session_ids: string[];
 }
-
-export interface RankedChunk {
-  chunk: Chunk;            // chunk.id guaranteed populated
-  rrfScore: number;        // raw RRF, not normalized; formula: Σ 1/(k + rank + 1)
-  kwRank?: number;         // 0-indexed rank in keyword list. undefined = keyword retriever did not run.
-  semRank?: number;        // undefined = semantic retriever did not run.
-  kwScore?: number;        // raw TF count
-  semSim?: number;         // cosine similarity in [-1, 1]
+export interface RunManifest {
+  dataset: { name: "oracle" | "s" | "m"; file: string; sha256: string; n_questions: number };
+  retriever: { mode: "hybrid" | "keyword" | "semantic"; topK: number; granularity: "turn" | "session"; embed_model: string };
+  reader: { provider: "openai"; model: string; temperature: 0; max_output_tokens: number; prompt_template: string };
+  judge: { model: string };     // recorded from CLI args; actual invocation is upstream
+  seed_sampling: { limit?: number; seed: number };
+  timings_ms: { total: number; per_question_p50: number; per_question_p95: number };
+  commit: string;               // git HEAD when run
+  started_at: string;           // ISO-8601
 }
-
-export interface RankChunksOptions {
-  mode: SearchMode;
-  topK?: number;           // chunk-level cap. default 10.
-  tags?: string[];
-  includeDeprecated?: boolean;
-}
-
-export async function rankChunks(
-  chunks: Chunk[],
-  query: string,
-  options: RankChunksOptions,
-): Promise<{ results: RankedChunk[]; backend: SearchBackend }>;
 ```
 
-`hybridSearch` becomes: `loadChunks → rankChunks → group-by-file (first wins) → top-limit → map to SearchResult with score=1 for semantic/hybrid modes`.
+## Chunker contract
 
-## Contracts
+- **turn granularity:** one `Chunk` per turn. `id = "<qid>::s<si>::t<ti>"`. `file = "<qid>::s<si>"` (session stand-in for dedupe). `text` = `[<date>] <role>: <content>`.
+- **session granularity:** one `Chunk` per session. `id = "<qid>::s<si>"`. `file = "<qid>::s<si>"`. `text` = `[<date>]\n<role>: ...\n<role>: ...` (joined turns).
+- No filesystem I/O. Pure function: `chunkQuestion(q: LMEQuestion, opts: {granularity}) => Chunk[]`.
 
-- **Empty `chunks[]`** → `{results: [], backend: "keyword"}`. No model load.
-- **Empty / whitespace-only `query`** → same.
-- **Stopword-only query** in hybrid mode → keyword list empty, semantic list populated (current behavior preserved).
-- **Tag filter** runs inside `rankChunks` pre-retrieval; excluded chunks do not appear in results.
-- **Tie-breaking:** secondary sort by `chunk.id` ascending.
-- **Embedding batch size:** hardcoded 64. Batched result must agree with unbatched within 1e-6 (test required).
-- **`score: 1` stub in `hybridSearch`:** preserved in semantic/hybrid modes for backward compat with `governance.ts:141` semantic-constraint gating. Explicit test required.
-- **`getLastSearchBackend()`:** marked `@deprecated`, not removed. Response envelope's `backend` field is the replacement.
+## Retriever contract
 
-## Internal changes
+- `retrieve(chunks, query, {mode, topK, cacheKey})` → `RankedChunk[]` via `rankChunks`.
+- Embedding cache: keyed by `cacheKey` (per-question `question_id`). Computes once per question; reused across modes if the harness re-runs.
+- Disk cache under `runs/.embed-cache/<hash>.bin` optional — skip in v1, add if needed.
 
-1. **`Chunk.id`** — assigned in `loadChunks` as `${relativePath}#${sectionIndex}` (0-indexed, deterministic because `split(/(?=^## )/m)` preserves order).
-2. **`keywordSearchChunks`** — drop `fileBest` dedupe. Return `Array<{ id, score }>` sorted by score desc.
-3. **`semanticSearchChunks`** — drop `byFile` dedupe. Return `Array<{ id, sim }>` sorted by sim desc.
-4. **`rrfMerge`** — return `Array<{ id, rrfScore }>` instead of `string[]`. (Internal, no public consumer.)
-5. **`rankChunks`** — new exported function. Owns filtering (deprecated/tags), keyword + embed + RRF, and attaches per-retriever rank/score metadata.
-6. **`hybridSearch`** — rewrite on top of `rankChunks`. Post-process: group by `chunk.file`, keep first (highest-ranked) per file, slice to `limit`.
+## Reader contract
 
-## File layout
+- `read(question, chunks, opts)` → `{hypothesis: string, usage: {input_tokens, output_tokens}}`.
+- Provider: Gemini via `@google/genai`. Default model `gemini-2.5-pro`, temperature 0, max_output_tokens 150. No system instruction beyond the prompt.
+- Prompt template (committed as constant, hashed into manifest):
+  ```
+  You are answering a question based on prior conversation excerpts.
 
-- `src/hybrid-search/index.ts` — main refactor.
-- `src/hybrid-search/rank-chunks.ts` — optional split if `index.ts` exceeds ~500 lines after changes. Decide during implementation.
-- `src/hybrid-search/index.test.ts` (new or augmented) — unit tests.
+  Excerpts (in temporal order, dated):
+  <for each chunk>[<date>] <role>: <content></for>
 
-## Risks & mitigations
+  Question (asked on <question_date>): <question>
 
-- **Embedding batch size.** Current code embeds all filtered chunks in one call. For LongMemEval haystacks (500+ chunks) this may exceed MiniLM's practical batch limit. Mitigation: chunk the embed call into batches of 64 inside `rankChunks`. Verify with a synthetic 1000-chunk test.
-- **Product regression.** The file-level dedupe in `hybridSearch` must match today's "highest-scoring-chunk wins" behavior. Mitigation: explicit test comparing a pre- and post-refactor fixture.
-- **Score of 1 stub.** Today `hybridSearch` returns `score: 1` for hybrid/semantic. Preserve this in the product path to avoid silently changing MCP consumer output.
+  Instructions:
+  - If the excerpts contain the answer, state it concisely.
+  - If the excerpts do not contain the answer, reply exactly: "I don't know".
+  - Do not speculate.
 
-## Verification
+  Answer:
+  ```
+- API key from `GEMINI_API_KEY` (env). `.env.local` under `benchmarks/longmemeval/` auto-loaded at startup via a manual parse (no new dep).
 
-Per task, before commit:
+## Runner contract
+
+- `runAll(questions, config)` loops questions, produces JSONL rows. Concurrency: 4 parallel reader calls (safe for rate limits at GPT-4o ~5k RPM tier; adjustable via env).
+- Progress bar — simple console line, no dep.
+- On error per-question: record `{question_id, hypothesis: "[ERROR] <msg>", error: true}` and continue.
+
+## CLI (cli.ts)
+
 ```
-npm run build   # tsc strict
-npm test        # vitest
-npm run eval -- --semantic-recall   # if command exists; otherwise document
+ai-memory-bench run \
+  --dataset oracle|s|m \
+  --mode hybrid|keyword|semantic \
+  --granularity turn|session \
+  --topk 10 \
+  --limit 10 \        # optional, dry-run
+  --reader-model gpt-4o-2024-08-06 \
+  --judge-model gpt-4o-2024-08-06 \
+  --out runs/<timestamp>
 ```
+
+Writes: `runs/<timestamp>/hypotheses.jsonl`, `runs/<timestamp>/run-manifest.json`, `runs/<timestamp>/errors.log`.
+
+Second subcommand:
+```
+ai-memory-bench score --run runs/<timestamp>
+```
+Invokes `scripts/run-evaluate-qa.sh` under the hood, parses the Python scorer output, writes `runs/<timestamp>/scores.json` with overall + per-type.
+
+## Build & test
+
+- `benchmarks/longmemeval/tsconfig.json` extends root, `"composite": true`, output `benchmarks/longmemeval/dist/`.
+- Not in published npm package (`files` in root package.json does not list `benchmarks/`).
+- Unit tests: `chunker.test.ts`, `jsonl.test.ts`, `dataset.test.ts` (hash verification). Reader + runner not unit-tested (integration, costs $$).
+- Run via: `node --import tsx --test "benchmarks/longmemeval/src/**/*.test.ts"` — same pattern as src tests.
+
+## Risks
+
+- **HF rate limiting** on dataset download: use resolve URL + `curl -L`, cache to `data/`.
+- **evaluate_qa.py drift:** pin upstream commit hash in `scripts/run-evaluate-qa.sh`.
+- **OpenAI cost explosion on accidental full runs:** require explicit `--no-limit` flag to run >50 questions. Otherwise `--limit` is required.
+- **Embedding throughput:** 500 questions × ~50 chunks each × MiniLM = ~25k embeddings per run. Batching (already done in `rankChunks`) handles it.

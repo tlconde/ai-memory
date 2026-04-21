@@ -48,7 +48,9 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test": "node --import tsx --test \"src/**/*.test.ts\" \"benchmarks/longmemeval/src/**/*.test.ts\"",
+    "bench:run": "tsx benchmarks/longmemeval/src/cli.ts run",
+    "bench:score": "tsx benchmarks/longmemeval/src/cli.ts score",
     "prepublishOnly": "npm run build",
     "update-tool-refs": "node scripts/update-tool-refs.mjs"
   },
@@ -62,6 +64,7 @@
     "minimatch": "^10.0.0"
   },
   "devDependencies": {
+    "@google/genai": "^1.50.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
     "tsx": "^4.21.0",
