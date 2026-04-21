@@ -16,7 +16,7 @@ export const MAX_COMMIT_CONTENT_BYTES = 1024 * 1024; // 1MB
 export const MAX_GIT_DIFF_BYTES = 512 * 1024; // 500KB
 
 // Paths that are ALWAYS immutable (structural, not content)
-export const ALWAYS_IMMUTABLE = ["toolbox/", "acp/", "rules/"];
+export const ALWAYS_IMMUTABLE = ["toolbox/", "acp/", "rules/", "sources/"];
 
 // Paths whose immutability is controlled by frontmatter `writable` field
 export const FRONTMATTER_CONTROLLED = ["IDENTITY.md", "PROJECT_STATUS.md"];

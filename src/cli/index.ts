@@ -6,6 +6,18 @@ import { existsSync, readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { DEFAULT_DOCS_SCHEMA_JSON } from "../docs-schema.js";
 import { TOOL_ADAPTERS, getMCPJson, MCP_LAUNCHER, MCP_LAUNCHER_PATH, CANONICAL_SKILLS } from "./adapters.js";
+import {
+  DEFAULT_WIKI_SCHEMA,
+  DEFAULT_WIKI_INDEX,
+  DEFAULT_WIKI_LOG,
+  DEFAULT_SOURCES_README,
+  DEFAULT_SOURCES_ASSETS_GITKEEP,
+  DEFAULT_KARPATHY_GIST,
+  DEFAULT_WIKI_SUMMARIES_README,
+  DEFAULT_WIKI_ENTITIES_README,
+  DEFAULT_WIKI_CONCEPTS_README,
+  DEFAULT_WIKI_ANALYSES_README,
+} from "./wiki-templates.js";
 import { detectEnvironments, injectCapabilityConfig, getCapabilityManualInstructions, scanExistingFiles, scanRootFilesHeuristic } from "./environment.js";
 import { AI_PATHS } from "../schema-constants.js";
 
@@ -52,13 +64,15 @@ program
   .option("--full", "Full tier: adds governance, evals, and ACP")
   .option("--dir <dir>", "Target directory (default: current directory)")
   .option("--download-model", "Pre-download the hybrid search model (~23MB) for faster first search")
+  .option("--wiki", "Also scaffold .ai/wiki/ + .ai/sources/ (Karpathy LLM Wiki pattern)")
   .action(async (opts) => {
     const targetDir = resolve(opts.dir ?? process.cwd());
     const aiDir = join(targetDir, ".ai");
     const full = opts.full ?? false;
+    const wiki = opts.wiki ?? false;
 
     if (existsSync(aiDir)) {
-      const updated = await scaffoldUpdates(aiDir, full);
+      const updated = await scaffoldUpdates(aiDir, full, wiki);
       if (updated.length > 0) {
         console.log(`\n✓ Added ${updated.length} missing file(s) to existing .ai/`);
       } else if (full) {
@@ -76,7 +90,7 @@ program
     }
 
     console.log(`Initializing ai-memory in ${targetDir}...`);
-    await scaffoldAiDir(aiDir, full);
+    await scaffoldAiDir(aiDir, full, wiki);
 
     if (opts.downloadModel) {
       console.log(`\nDownloading hybrid search model (~23MB)...`);
@@ -93,7 +107,7 @@ program
     console.log(`  Supported tools:   cursor, claude-code, antigravity, copilot`);
   });
 
-async function scaffoldAiDir(aiDir: string, full: boolean): Promise<void> {
+async function scaffoldAiDir(aiDir: string, full: boolean, wiki: boolean = false): Promise<void> {
   // Core dirs (always)
   const coreDirs = [
     "",
@@ -135,6 +149,31 @@ async function scaffoldAiDir(aiDir: string, full: boolean): Promise<void> {
     await writeTemplateFile(aiDir, "rules/doc-placement.md", DEFAULT_DOC_PLACEMENT_RULE);
     await writeTemplateFile(aiDir, "agents/docs-manager.md", DEFAULT_DOCS_MANAGER_AGENT);
   }
+
+  if (wiki) {
+    const wikiDirs = [
+      "sources",
+      "sources/assets",
+      "wiki",
+      "wiki/summaries",
+      "wiki/entities",
+      "wiki/concepts",
+      "wiki/analyses",
+    ];
+    for (const dir of wikiDirs) {
+      await mkdir(join(aiDir, dir), { recursive: true });
+    }
+    await writeTemplateFile(aiDir, "wiki/SCHEMA.md", DEFAULT_WIKI_SCHEMA);
+    await writeTemplateFile(aiDir, "wiki/index.md", DEFAULT_WIKI_INDEX);
+    await writeTemplateFile(aiDir, "wiki/log.md", DEFAULT_WIKI_LOG);
+    await writeTemplateFile(aiDir, "wiki/summaries/README.md", DEFAULT_WIKI_SUMMARIES_README);
+    await writeTemplateFile(aiDir, "wiki/entities/README.md", DEFAULT_WIKI_ENTITIES_README);
+    await writeTemplateFile(aiDir, "wiki/concepts/README.md", DEFAULT_WIKI_CONCEPTS_README);
+    await writeTemplateFile(aiDir, "wiki/analyses/README.md", DEFAULT_WIKI_ANALYSES_README);
+    await writeTemplateFile(aiDir, "sources/README.md", DEFAULT_SOURCES_README);
+    await writeTemplateFile(aiDir, "sources/assets/.gitkeep", DEFAULT_SOURCES_ASSETS_GITKEEP);
+    await writeTemplateFile(aiDir, "reference/karpathy-llm-wiki.md", DEFAULT_KARPATHY_GIST);
+  }
 }
 
 async function writeTemplateFile(aiDir: string, relativePath: string, content: string): Promise<void> {
@@ -145,7 +184,7 @@ async function writeTemplateFile(aiDir: string, relativePath: string, content: s
 }
 
 /** Add only missing files when .ai/ already exists. Never overwrites. Returns paths added. */
-async function scaffoldUpdates(aiDir: string, full: boolean): Promise<string[]> {
+async function scaffoldUpdates(aiDir: string, full: boolean, wiki: boolean = false): Promise<string[]> {
   const added: string[] = [];
 
   async function addIfMissing(relativePath: string, content: string): Promise<void> {
@@ -169,6 +208,31 @@ async function scaffoldUpdates(aiDir: string, full: boolean): Promise<string[]> 
     await addIfMissing("agents/docs-manager.md", DEFAULT_DOCS_MANAGER_AGENT);
   }
 
+  if (wiki) {
+    const wikiDirs = [
+      "sources",
+      "sources/assets",
+      "wiki",
+      "wiki/summaries",
+      "wiki/entities",
+      "wiki/concepts",
+      "wiki/analyses",
+    ];
+    for (const dir of wikiDirs) {
+      await mkdir(join(aiDir, dir), { recursive: true });
+    }
+    await addIfMissing("wiki/SCHEMA.md", DEFAULT_WIKI_SCHEMA);
+    await addIfMissing("wiki/index.md", DEFAULT_WIKI_INDEX);
+    await addIfMissing("wiki/log.md", DEFAULT_WIKI_LOG);
+    await addIfMissing("wiki/summaries/README.md", DEFAULT_WIKI_SUMMARIES_README);
+    await addIfMissing("wiki/entities/README.md", DEFAULT_WIKI_ENTITIES_README);
+    await addIfMissing("wiki/concepts/README.md", DEFAULT_WIKI_CONCEPTS_README);
+    await addIfMissing("wiki/analyses/README.md", DEFAULT_WIKI_ANALYSES_README);
+    await addIfMissing("sources/README.md", DEFAULT_SOURCES_README);
+    await addIfMissing("sources/assets/.gitkeep", DEFAULT_SOURCES_ASSETS_GITKEEP);
+    await addIfMissing("reference/karpathy-llm-wiki.md", DEFAULT_KARPATHY_GIST);
+  }
+
   return added;
 }
 
@@ -180,6 +244,7 @@ program
   .requiredOption("--to <tool>", `Target tool (${Object.keys(TOOL_ADAPTERS).join(", ")})`)
   .option("--dir <dir>", "Project root (default: current directory)")
   .option("--capability <cap>", "Inject capability config (browser, screen_capture, desktop_automation). Repeatable.", (v, acc: string[]) => (acc ?? []).concat(v), [])
+  .option("--wiki", "Also scaffold wiki + sources when creating .ai/")
   .action(async (opts) => {
     const tool = opts.to.toLowerCase();
     const adapter = TOOL_ADAPTERS[tool];
@@ -194,8 +259,10 @@ program
 
     if (!existsSync(aiDir)) {
       console.log(`.ai/ not found — running init first...`);
-      await scaffoldAiDir(aiDir, false);
+      await scaffoldAiDir(aiDir, false, opts.wiki ?? false);
       console.log(`✓ Scaffolded .ai/\n`);
+    } else if (opts.wiki) {
+      await scaffoldUpdates(aiDir, false, true);
     }
 
     const destPath = join(projectRoot, adapter.dest);
@@ -771,6 +838,21 @@ program
       }
     } else {
       checks.push({ name: "Harness rules", status: "warn", detail: "No harness.json — run `ai-memory generate-harness` or init --full" });
+    }
+
+    // 7. Wiki scaffold (optional; only if wiki/index.md exists)
+    if (existsSync(join(aiDir, "wiki/index.md"))) {
+      const wikiFiles = ["wiki/SCHEMA.md", "wiki/log.md", "sources/README.md"];
+      const missing = wikiFiles.filter((f) => !existsSync(join(aiDir, f)));
+      if (missing.length === 0) {
+        checks.push({ name: "Wiki scaffold", status: "pass", detail: "SCHEMA.md, log.md, sources/README.md present" });
+      } else {
+        checks.push({
+          name: "Wiki scaffold",
+          status: "warn",
+          detail: `wiki scaffold incomplete — re-run \`ai-memory init --wiki\` (missing: ${missing.join(", ")})`,
+        });
+      }
     }
 
     // Output
