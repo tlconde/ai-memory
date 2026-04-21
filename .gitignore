@@ -45,3 +45,10 @@ CLAUDE.md
 
 # Tool-specific (never publish)
 plugins/ai-memory/rules/context7-tool-reference.md
+
+# Benchmark artifacts — datasets live on external SSD (see specs/plan.md)
+benchmarks/longmemeval/data/
+benchmarks/longmemeval/runs/
+benchmarks/longmemeval/third_party/
+benchmarks/longmemeval/dist/
+benchmarks/longmemeval/.env.local

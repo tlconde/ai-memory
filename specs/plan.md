@@ -29,6 +29,19 @@ benchmarks/longmemeval/
 **Node (new):** `openai` (devDep, used only by bench). Pin to latest 4.x.
 **Python:** use the upstream LongMemEval repo's `evaluate_qa.py` via a local clone or submodule under `benchmarks/longmemeval/third_party/longmemeval/`. We do NOT vendor their code; we clone to a pinned commit.
 
+## Data location (external, not in repo)
+
+Datasets live on an external SSD, not the laptop or the repo. The harness resolves the directory from `LME_DATA_DIR` (required; no default path-hunting).
+
+```
+LME_DATA_DIR="/Volumes/SSD EXT/ai-memory-bench-data/longmemeval"
+├── longmemeval_oracle.json       15M  sha256=821a2034d219ab45846873dd14c14f12cfe7776e73527a483f9dac095d38620c
+├── longmemeval_s_cleaned.json   265M  sha256=d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442
+└── sha256.txt                         reference hash file
+```
+
+Hashes recorded 2026-04-20. Harness verifies the hash on load and aborts on mismatch (wrong file, partial download, upstream update).
+
 ## Schema (types.ts)
 
 ```ts
