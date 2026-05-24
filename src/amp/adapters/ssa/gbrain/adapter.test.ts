@@ -121,6 +121,11 @@ describe("frame-codec", () => {
     if (!decoded.success) return;
     assert.equal(decoded.frame.id, "frame-001");
   });
+
+  it("does not collapse distinct frame ids into the same gbrain slug", () => {
+    assert.notEqual(frameIdToSlug("a/b"), frameIdToSlug("a b"));
+    assert.notEqual(frameIdToSlug(""), frameIdToSlug("???"));
+  });
 });
 
 describe("GbrainServeStdioTransport", () => {

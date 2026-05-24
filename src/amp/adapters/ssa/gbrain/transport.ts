@@ -1,5 +1,5 @@
 /**
- * gbrain MCP transport — primary v1 path is stdio via `gbrain serve`.
+ * gbrain MCP transport - primary v1 path is stdio via `gbrain serve`.
  *
  * Falsifiable claim: adapter talks to gbrain through MCP tools (put_page, get_page,
  * list_pages) over JSON-RPC, not direct PGLite access.

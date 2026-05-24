@@ -1,5 +1,5 @@
 /**
- * `amp doctor` — inspect config, runtime, specs, paths, and capability gaps.
+ * `amp doctor` - inspect config, runtime, specs, paths, and capability gaps.
  *
  * Falsifiable claim: doctor reports actionable findings without requiring live
  * gbrain or Hermes sessions.
@@ -148,7 +148,7 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
       finding(
         "warning",
         "project-config",
-        `${PROJECT_CONFIG_REL} not found — run \`amp init\` in ${projectRoot}.`
+        `${PROJECT_CONFIG_REL} not found - run \`amp init\` in ${projectRoot}.`
       )
     );
   } else {
@@ -274,7 +274,7 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
       finding(
         "warning",
         "path-roots",
-        `${SKILLS_FROM_AMP_REL}/ missing — init does not create harness dirs; run propagate when ready.`
+        `${SKILLS_FROM_AMP_REL}/ missing - init does not create harness dirs; run propagate when ready.`
       )
     );
   }
@@ -287,7 +287,7 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
       finding(
         "info",
         "path-roots",
-        `${CURSOR_RULES_FROM_AMP_REL}/ missing — expected after procedure propagation.`
+        `${CURSOR_RULES_FROM_AMP_REL}/ missing - expected after procedure propagation.`
       )
     );
   }
@@ -301,7 +301,7 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
       finding(
         "warning",
         "gbrain-binary",
-        "`gbrain` not on PATH — SSA transport checks skipped; install gbrain for live substrate ops."
+        "`gbrain` not on PATH - SSA transport checks skipped; install gbrain for live substrate ops."
       )
     );
   }
@@ -312,15 +312,15 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
 }
 
 const LEVEL_PREFIX: Record<AmpDoctorFindingLevel, string> = {
-  ok: "✓",
-  info: "·",
-  warning: "⚠",
-  error: "✗",
+  ok: "OK",
+  info: "INFO",
+  warning: "WARN",
+  error: "ERROR",
 };
 
 /** Human-readable doctor report lines for CLI and tests. */
 export function formatAmpDoctorReport(result: AmpDoctorResult): string[] {
-  const lines: string[] = [`AMP doctor — ${result.projectRoot}`, ""];
+  const lines: string[] = [`AMP doctor - ${result.projectRoot}`, ""];
 
   for (const item of result.findings) {
     const prefix = LEVEL_PREFIX[item.level];
@@ -329,9 +329,9 @@ export function formatAmpDoctorReport(result: AmpDoctorResult): string[] {
 
   lines.push("");
   if (result.ok) {
-    lines.push("✓ Doctor finished with no blocking errors.");
+    lines.push("OK Doctor finished with no blocking errors.");
   } else {
-    lines.push("✗ Doctor found blocking errors — fix items marked ✗ before capture/propagate.");
+    lines.push("ERROR Doctor found blocking errors - fix ERROR items before capture/propagate.");
   }
 
   return lines;

@@ -2,8 +2,10 @@
  * AMP frame ↔ gbrain markdown page codec.
  *
  * Pages store the canonical frame JSON in YAML frontmatter (`amp_frame`).
- * Live gbrain read semantics are PROVISIONAL — tests use fake transport only.
+ * Live gbrain read semantics are PROVISIONAL - tests use fake transport only.
  */
+
+import { Buffer } from "node:buffer";
 
 import matter from "gray-matter";
 
@@ -17,13 +19,10 @@ import {
 export const AMP_FRAME_FRONTMATTER_KEY = "amp_frame";
 export const AMP_FRAME_SLUG_PREFIX = "amp/frames/";
 
-/** Map frame id to gbrain slug: `amp/frames/{sanitized-id}`. */
+/** Map frame id to a collision-resistant gbrain slug. */
 export function frameIdToSlug(frameId: string): string {
-  const sanitized = frameId
-    .replace(/[^a-zA-Z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-+/g, "-");
-  return `${AMP_FRAME_SLUG_PREFIX}${sanitized || "unknown"}`;
+  const encoded = Buffer.from(frameId, "utf8").toString("base64url");
+  return `${AMP_FRAME_SLUG_PREFIX}${encoded}`;
 }
 
 export function isAmpFrameSlug(slug: string): boolean {

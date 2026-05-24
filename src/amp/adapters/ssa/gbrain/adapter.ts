@@ -2,7 +2,7 @@
  * gbrain SSA knowledge adapter (read/write/list via MCP page tools).
  *
  * Primary transport: {@link GbrainServeStdioTransport} (`gbrain serve` stdio MCP).
- * Live gbrain read/delete claims remain PROVISIONAL — unit tests use {@link FakeGbrainMcpTransport}.
+ * Live gbrain read/delete claims remain PROVISIONAL - unit tests use {@link FakeGbrainMcpTransport}.
  */
 
 import { dirname, join } from "node:path";
@@ -179,7 +179,7 @@ export class GbrainKnowledgeAdapter {
     return listSuccess(filtered);
   }
 
-  /** Owned by V1-10 — returns capability error in V1-09. */
+  /** Owned by V1-10 - returns capability error in V1-09. */
   async searchFrames(_query: string): Promise<SearchResult<Frame>> {
     return unsupportedSearchResult("search");
   }

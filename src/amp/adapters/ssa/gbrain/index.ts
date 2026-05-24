@@ -1,5 +1,5 @@
 /**
- * gbrain SSA adapter — MCP stdio (`gbrain serve`) knowledge backend.
+ * gbrain SSA adapter - MCP stdio (`gbrain serve`) knowledge backend.
  */
 
 export {
