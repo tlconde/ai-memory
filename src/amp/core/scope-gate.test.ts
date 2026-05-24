@@ -42,4 +42,31 @@ describe("scope promotion gate", () => {
     const promoted = applyScopePromotion(PROJECT_FRAME, "user", confirmation);
     assert.equal(promoted.scope.kind, "user");
   });
+
+  it("fails closed when promoting to project scope without project_ref", () => {
+    const userFrame = createFrame({
+      ...PROJECT_FRAME,
+      id: "pref-user",
+      scope: { kind: "user" },
+    });
+
+    assert.throws(
+      () => applyScopePromotion(userFrame, "project"),
+      ScopePromotionError
+    );
+  });
+
+  it("promotes to project scope when explicit project_ref is supplied", () => {
+    const userFrame = createFrame({
+      ...PROJECT_FRAME,
+      id: "pref-user",
+      scope: { kind: "user" },
+    });
+
+    const promoted = applyScopePromotion(userFrame, "project", undefined, {
+      projectRef: "ai-memory",
+    });
+    assert.equal(promoted.scope.kind, "project");
+    assert.equal(promoted.scope.project_ref, "ai-memory");
+  });
 });

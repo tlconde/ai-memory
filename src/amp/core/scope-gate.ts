@@ -34,6 +34,10 @@ export interface ScopePromotionRequest {
   confirmedBy: string;
 }
 
+export interface ApplyScopePromotionOptions {
+  projectRef?: string;
+}
+
 export class ScopePromotionError extends Error {
   constructor(message: string) {
     super(message);
@@ -76,7 +80,12 @@ export function isScopeConfirmationFor(
 }
 
 /** Apply scope promotion when confirmation is valid; throws otherwise. */
-export function applyScopePromotion(frame: Frame, targetScope: Frame["scope"]["kind"], confirmation?: Frame): Frame {
+export function applyScopePromotion(
+  frame: Frame,
+  targetScope: Frame["scope"]["kind"],
+  confirmation?: Frame,
+  options: ApplyScopePromotionOptions = {}
+): Frame {
   if (!canPromoteScope(frame, targetScope, confirmation)) {
     throw new ScopePromotionError(
       `Cannot promote frame ${frame.id} from ${frame.scope.kind} to ${targetScope} without explicit confirmation`
@@ -85,14 +94,23 @@ export function applyScopePromotion(frame: Frame, targetScope: Frame["scope"]["k
 
   if (frame.scope.kind === targetScope) return frame;
 
-  const nextScope =
-    targetScope === "project"
-      ? { kind: targetScope as "project", project_ref: frame.scope.project_ref ?? "unknown" }
-      : { kind: targetScope };
+  if (targetScope === "project") {
+    const projectRef =
+      frame.scope.kind === "project" ? frame.scope.project_ref : options.projectRef;
+    if (!projectRef) {
+      throw new ScopePromotionError(
+        `Cannot promote frame ${frame.id} to project scope without explicit project_ref`
+      );
+    }
+    return createFrame({
+      ...frame,
+      scope: { kind: "project", project_ref: projectRef },
+    });
+  }
 
   return createFrame({
     ...frame,
-    scope: nextScope,
+    scope: { kind: targetScope },
   });
 }
 
