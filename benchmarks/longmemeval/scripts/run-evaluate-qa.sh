@@ -36,5 +36,5 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
-exec uv run --python 3.12 --with openai --with tqdm --with backoff \
+exec uv run --python 3.12 --with openai --with tqdm --with backoff --with numpy \
   python "$EVAL_PY" "$MODEL" "$HYP" "$REF"

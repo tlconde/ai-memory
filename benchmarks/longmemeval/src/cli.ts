@@ -33,7 +33,9 @@ const BENCH_ROOT = resolve(__dirname, "..");
 
 const EMBED_MODEL = "Xenova/all-MiniLM-L6-v2";
 const DEFAULT_READER = "gemini-2.5-pro";
-const DEFAULT_JUDGE = "gpt-4o-2024-08-06";
+// Upstream evaluate_qa.py uses a short-key `model_zoo`; "gpt-4o" maps internally
+// to gpt-4o-2024-08-06 (pinned). Passing the full version string fails the check.
+const DEFAULT_JUDGE = "gpt-4o";
 
 // ─── arg parsing ──────────────────────────────────────────────────────────────
 
@@ -315,10 +317,10 @@ Usage:
   run          --dataset oracle|s --mode hybrid|keyword|semantic
                --granularity turn|session --topk 10
                (--limit N | --no-limit)
-               [--reader-model gemini-2.5-pro] [--judge-model gpt-4o-2024-08-06]
+               [--reader-model gemini-2.5-pro] [--judge-model gpt-4o]
                [--concurrency 4] [--out runs/<timestamp>]
 
-  score        --run runs/<timestamp> [--judge-model gpt-4o-2024-08-06]
+  score        --run runs/<timestamp> [--judge-model gpt-4o]
 
   fetch-scorer    clone upstream LongMemEval at the pinned SHA into third_party/
 

@@ -54,7 +54,14 @@ export interface GenaiLike {
     generateContent(req: {
       model: string;
       contents: string;
-      config: { temperature: number; maxOutputTokens: number };
+      config: {
+        temperature: number;
+        maxOutputTokens: number;
+        // Gemini 2.5 models consume thinking tokens from the output budget.
+        // Setting thinkingBudget: 0 disables thinking so short answers don't
+        // truncate. Ignored by models that don't support thinking.
+        thinkingConfig?: { thinkingBudget: number };
+      };
     }): Promise<{
       text?: string;
       usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
@@ -107,7 +114,11 @@ export async function read(
       const resp = await client.models.generateContent({
         model: options.model,
         contents: prompt,
-        config: { temperature: 0, maxOutputTokens: 150 },
+        config: {
+          temperature: 0,
+          maxOutputTokens: 150,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       });
       const text = (resp.text ?? "").trim();
       const inputTokens = resp.usageMetadata?.promptTokenCount ?? 0;

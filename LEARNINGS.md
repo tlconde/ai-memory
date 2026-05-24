@@ -303,3 +303,79 @@ Paper Table numbers: ambiguous — requires reading arXiv 2410.10813 PDF directl
 - M file is 2.74 GB — streaming parse recommended; do not `json.load` on small memory.
 - `question_type` `multi-session` collapses two generation tasks (`two_hop`, `multi_session_synthesis`); `temporal-reasoning` collapses `temp_reasoning_implicit` and `temp_reasoning_explicit` (README task-name mapping).
 - Cleaned split (2025/09) changes some answers vs. original — change log: Google Sheets linked in README News.
+
+
+## T10 — Smoke test (attempt 1, aborted — free-tier quota)
+
+**Date:** 2026-04-21
+**Config:** `--dataset oracle --mode hybrid --granularity turn --topk 10 --limit 10` with default reader `gemini-2.5-pro`
+**Result:** 10/10 errors in 28s (concurrency 4 visible in timings)
+**Cause:** `gemini-2.5-pro` has `limit: 0` for the free-tier Gemini API. Error:
+> "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.5-pro"
+
+**What worked (harness pipeline validated despite no successful reads):**
+- Dataset SHA256 verification passed on oracle (15M)
+- Cost-safety flag check triggered correctly (requires --limit or --no-limit)
+- Concurrency=4 observed: p50=10s, 10 questions in 28s (not 10×11s)
+- Per-question error capture: all errors written to `errors.log` as JSON, JSONL row still written with `hypothesis: "[ERROR] <msg>"` and `error: true`
+- Runner did not crash on repeated 429s; ETA updated live; manifest was still written
+- `.env.local` auto-load worked (GEMINI_API_KEY picked up without issue)
+
+**Decision:** switch reader to `gemini-2.5-flash` for smoke. Published comparators
+(Emergence/Zep/Mastra) use GPT-4o-class readers, so Gemini reader choice does
+not affect positioning of retrieval quality — the reader just needs to be
+competent. Flash is ~10× cheaper and has a free tier.
+
+**Open question for headline run:** do we stay on Flash or upgrade to Pro (paid)
+for final numbers? Flash may underperform Pro on temporal-reasoning heavy
+questions. Re-evaluate after smoke completes.
+
+
+## T10 — Smoke test (attempt 2, completed but contaminated — thinking-tokens)
+
+**Date:** 2026-04-21
+**Config:** `--reader-model gemini-2.5-flash --limit 10 --dataset oracle --mode hybrid --granularity turn --topk 10`
+**Duration:** reader 8.6s (10 questions, concurrency 4), judge ~30s (GPT-4o)
+**Raw accuracy:** 10.00% (1/10) — **NOT the harness's true signal.**
+
+**Contamination:** 4/10 hypotheses truncated mid-answer:
+```
+"The Samsung Galaxy S2"       ← ok
+"I don't know"                 ← ok
+"The bike was taken care of"   ← truncated (no period, incomplete)
+"I don'"                       ← truncated at 6 chars
+"The user attended"            ← truncated
+"I don't"                      ← truncated
+"I don't know"                 ← ok
+"I don't"                      ← truncated
+"I don't know"                 ← ok
+"I don't know"                 ← ok
+```
+
+**Root cause:** Gemini 2.5 models (Pro and Flash) default to "thinking mode"
+with hidden reasoning tokens that count against `maxOutputTokens`. Our config
+sets `maxOutputTokens: 150`; the reasoning chain consumed most of it before
+visible output completed. Fix: pass `thinkingConfig: { thinkingBudget: 0 }` in
+the generateContent config to disable thinking for the reader (the task is
+extractive QA, not reasoning — we don't need a chain of thought).
+
+**Fix applied:** `reader.ts:57-60` — thinkingBudget=0 + extended GenaiLike interface.
+
+**Secondary findings (scorer wiring):**
+1. `evaluate_qa.py` requires `numpy` — upstream `requirements-lite.txt` was
+   incomplete. Added `numpy>=1.26,<3` to our `python/requirements.txt` and the
+   `uv run` invocation in `scripts/run-evaluate-qa.sh`.
+2. Upstream `model_zoo` uses SHORT keys: `gpt-4o` → internally mapped to
+   `gpt-4o-2024-08-06`. Passing the full version string fails validation.
+   Fixed DEFAULT_JUDGE in `cli.ts:36` to `"gpt-4o"` and updated help text.
+   Note: manifests written before the fix still contain the long form; the
+   `score` subcommand accepts `--judge-model gpt-4o` override.
+3. Concurrency=4 observed empirically: 10 questions in 8.6s with p50=2.7s
+   per question — so ~2.5 questions/s sustained (matches expected 4-way
+   parallelism with ~3s per call).
+
+**Next smoke:** re-run with thinking-disabled Flash. Target: the 9
+truncated/abstention hypotheses should become real answers, lifting accuracy
+into the range where we can see whether the retriever actually surfaced
+correct context or not.
+
