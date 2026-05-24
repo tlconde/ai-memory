@@ -19,6 +19,11 @@ export {
 } from "./compile-cursor.js";
 
 export {
+  compileProcedureToSkillMd,
+  type CompiledSkillMd,
+} from "./compile-skill-md.js";
+
+export {
   AMP_PROCEDURE_ARTIFACT_VERSION,
   AmpCompatibilitySchema,
   CanonicalProcedureSchema,

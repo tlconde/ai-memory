@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import { ClaudeCodeAdapter } from "./adapter.js";
 import { PathSafetyError } from "../../../path-safety/guard.js";
+import { createCanonicalProcedure } from "../../../procedural/schema.js";
 
 describe("ClaudeCodeAdapter path guards", () => {
   let basePath = "";
@@ -40,5 +41,16 @@ describe("ClaudeCodeAdapter path guards", () => {
       "---\nname: test-skill\ndescription: test\n---\n"
     );
     assert.ok(path.includes(join("from-amp", "test-skill", "SKILL.md")));
+  });
+
+  it("writes compiled canonical procedure under from-amp/<name>/SKILL.md", async () => {
+    const adapter = new ClaudeCodeAdapter({ basePath });
+    const procedure = createCanonicalProcedure({
+      name: "compiled-skill",
+      description: "Compiled through the Claude Code adapter.",
+      body: "# Compiled skill\n",
+    });
+    const path = await adapter.writeCompiledProcedure(procedure);
+    assert.ok(path.includes(join("from-amp", "compiled-skill", "SKILL.md")));
   });
 });
