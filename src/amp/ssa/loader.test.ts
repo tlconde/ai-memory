@@ -11,6 +11,7 @@ import { loadSsaSpecFromFile, loadSsaSpecFromYaml, tryLoadSsaSpecFromFile } from
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const RAW_FS_SPEC = join(REPO_ROOT, "ssa-files/raw-fs.yaml");
+const GBRAIN_SPEC = join(REPO_ROOT, "ssa-files/gbrain.yaml");
 
 describe("loadSsaSpecFromYaml", () => {
   let tempRoot = "";
@@ -29,6 +30,26 @@ describe("loadSsaSpecFromYaml", () => {
     assert.equal(spec.role, "substrate");
     assert.equal(spec.capability_coverage.curation_mode, "native");
     assert.equal(spec.capability_coverage.vector_search, "unsupported");
+  });
+
+  it("loads canonical gbrain.yaml from the repo", () => {
+    const spec = loadSsaSpecFromFile(GBRAIN_SPEC);
+    assert.equal(spec.id, "gbrain");
+    assert.equal(spec.role, "substrate");
+    assert.equal(spec.capability_coverage.frame_kinds.episodic, "native");
+    assert.equal(spec.capability_coverage.frame_kinds.semantic, "native");
+    assert.equal(spec.capability_coverage.frame_kinds.crystal, "wrapped");
+    assert.equal(spec.capability_coverage.vector_search, "wrapped");
+    assert.equal(spec.capability_coverage.graph_traversal, "unsupported");
+    assert.equal(spec.capability_coverage.transactions, "unsupported");
+    assert.equal(spec.capability_coverage.embedding_storage, "wrapped");
+    assert.equal(spec.capability_coverage.full_text_search, "wrapped");
+    assert.equal(spec.capability_coverage.profile_slots, "unsupported");
+    assert.equal(spec.capability_coverage.procedural_registry, "unsupported");
+    assert.equal(
+      spec.external_claims?.find((c) => c.claim.includes("gbrain serve"))?.label,
+      "VERIFIED"
+    );
   });
 
   it("loads valid SSA YAML from a temp path", async () => {

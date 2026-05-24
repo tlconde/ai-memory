@@ -1,0 +1,48 @@
+id: gbrain
+name: gbrain personal knowledge brain
+version: 0.1.0
+role: substrate
+capability_coverage:
+  frame_kinds:
+    episodic: native
+    semantic: native
+    crystal: wrapped
+  curation_mode: native
+  vector_search: wrapped
+  graph_traversal: unsupported
+  transactions: unsupported
+  embedding_storage: wrapped
+  full_text_search: wrapped
+  profile_slots: unsupported
+  procedural_registry: unsupported
+external_claims:
+  - claim: Primary v1 transport is MCP stdio via `gbrain serve`
+    label: VERIFIED
+    evidence: amp-gbrain-spike.md §Decision; `gbrain serve --help` and `gbrain --tools-json` observed locally
+  - claim: MCP tools include put_page, get_page, list_pages, and search
+    label: VERIFIED
+    evidence: amp-gbrain-spike.md §MCP entrypoint; tools-json excerpt lists get_page, put_page, list_pages, search
+  - claim: MCP query tool provides hybrid/keyword search parity for AMP search operations
+    label: PROVISIONAL
+    evidence: query tool listed in tools-json; AMP search mapping not yet conformance-tested
+  - claim: MCP get_page satisfies AMP read semantics for slug-based page retrieval
+    label: PROVISIONAL
+    evidence: CLI write verified in spike; get_page/read path not captured in clean-run spike session
+  - claim: MCP delete_page and restore_page satisfy AMP mutate/delete semantics
+    label: PROVISIONAL
+    evidence: Tools listed in tools-json; delete cleanup not captured in spike session
+  - claim: Local brain may report schema migration warnings (e.g. page_links) that block doctor until migrate
+    label: PROVISIONAL
+    evidence: amp-gbrain-spike.md §Health; `gbrain doctor --json` observed migration failure
+  - claim: gbrain CLI (put/get/list/search) is available for operator parity checks but is not the adapter contract surface
+    label: VERIFIED
+    evidence: amp-gbrain-spike.md §CLI read/write parity; `gbrain call put_page` succeeded locally
+  - claim: ai-memory MCP (`ai-memory mcp`) operates on `.ai/` markdown and is not gbrain SSA transport
+    label: VERIFIED
+    evidence: amp-gbrain-spike.md §ai-memory MCP is not gbrain; src/mcp-server tools differ from gbrain pages
+  - claim: Whether AMP CI/fixtures will have gbrain initialized is unknown; fixtures should default to fake/in-memory unless explicitly enabled
+    label: UNKNOWN
+    evidence: amp-gbrain-spike.md §Brain engine; no CI gbrain fixture lane verified yet
+  - claim: Direct PGLite access to ~/.gbrain/brain.pglite is rejected for v1 adapter transport
+    label: VERIFIED
+    evidence: amp-gbrain-spike.md §Decision; bypasses capability honesty and tool semantics
