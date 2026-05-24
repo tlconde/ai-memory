@@ -13,6 +13,9 @@ describe("registerAmpCommands", () => {
     assert.ok(amp, "expected amp command group");
     assert.match(amp.description(), /Agent Memory Protocol/);
 
+    const init = amp.commands.find((cmd) => cmd.name() === "init");
+    assert.ok(init, "expected amp init subcommand");
+
     const status = amp.commands.find((cmd) => cmd.name() === "status");
     assert.ok(status, "expected amp status shell subcommand");
   });
