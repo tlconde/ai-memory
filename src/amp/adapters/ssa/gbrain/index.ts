@@ -6,6 +6,8 @@ export {
   GbrainKnowledgeAdapter,
   createFrame,
   type GbrainKnowledgeAdapterOptions,
+  type GbrainSearchMode,
+  type GbrainSearchOptions,
 } from "./adapter.js";
 export { FakeGbrainMcpTransport } from "./fake-transport.js";
 export {
@@ -18,7 +20,9 @@ export {
 } from "./frame-codec.js";
 export {
   GbrainServeStdioTransport,
+  extractSearchHitRefs,
   normalizeMcpToolResult,
   type GbrainMcpTransport,
+  type GbrainSearchHitRef,
   type GbrainServeStdioTransportOptions,
 } from "./transport.js";

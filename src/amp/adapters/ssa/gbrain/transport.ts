@@ -115,6 +115,69 @@ export function extractPageContent(toolResult: unknown): string | undefined {
   return undefined;
 }
 
+export type GbrainSearchHitRef = {
+  slug: string;
+  score: number;
+};
+
+/** Parse gbrain MCP `search` / `query` tool payloads into slug + score refs. */
+export function extractSearchHitRefs(toolResult: unknown): GbrainSearchHitRef[] {
+  if (Array.isArray(toolResult)) {
+    return toolResult
+      .map((entry) => parseSearchHitRef(entry))
+      .filter((hit): hit is GbrainSearchHitRef => hit !== undefined);
+  }
+
+  if (typeof toolResult !== "object" || toolResult === null) {
+    return [];
+  }
+
+  const record = toolResult as Record<string, unknown>;
+  for (const key of ["results", "hits", "pages", "matches"] as const) {
+    const collection = record[key];
+    if (Array.isArray(collection)) {
+      return collection
+        .map((entry) => parseSearchHitRef(entry))
+        .filter((hit): hit is GbrainSearchHitRef => hit !== undefined);
+    }
+  }
+
+  if (typeof record.slug === "string") {
+    const single = parseSearchHitRef(record);
+    return single ? [single] : [];
+  }
+
+  return [];
+}
+
+function parseSearchHitRef(entry: unknown): GbrainSearchHitRef | undefined {
+  if (typeof entry === "string") {
+    return { slug: entry, score: 1 };
+  }
+  if (typeof entry !== "object" || entry === null) {
+    return undefined;
+  }
+  const record = entry as Record<string, unknown>;
+  const slug =
+    typeof record.slug === "string"
+      ? record.slug
+      : typeof record.page_slug === "string"
+        ? record.page_slug
+        : undefined;
+  if (!slug) {
+    return undefined;
+  }
+  const score =
+    typeof record.score === "number"
+      ? record.score
+      : typeof record.rank_score === "number"
+        ? record.rank_score
+        : typeof record.similarity === "number"
+          ? record.similarity
+          : 1;
+  return { slug, score };
+}
+
 export function extractListedSlugs(toolResult: unknown): string[] {
   if (typeof toolResult !== "object" || toolResult === null) {
     return [];

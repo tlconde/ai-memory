@@ -27,7 +27,10 @@ export const INVARIANT_TEST_REGISTRY: InvariantTestMapping[] = [
   {
     invariantId: INVARIANT_IDS.INV_2_INJECTABILITY_HONEST,
     description: "Capability coverage reports unsupported features honestly",
-    testFiles: ["src/amp/adapter-contract/capability-coverage.test.ts"],
+    testFiles: [
+      "src/amp/adapter-contract/capability-coverage.test.ts",
+      "src/amp/conformance/gbrain-capability-honesty.test.ts",
+    ],
   },
   {
     invariantId: INVARIANT_IDS.INV_3_CLOUD_BOUNDED,

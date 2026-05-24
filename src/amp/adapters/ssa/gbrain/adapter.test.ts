@@ -12,7 +12,7 @@ import { createFrame } from "../../../core/frame-schema.js";
 import { decodePageContentToFrame, frameIdToSlug } from "./frame-codec.js";
 import { FakeGbrainMcpTransport } from "./fake-transport.js";
 import { GbrainKnowledgeAdapter } from "./adapter.js";
-import { GbrainServeStdioTransport } from "./transport.js";
+import { GbrainServeStdioTransport, extractSearchHitRefs } from "./transport.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../../../");
 const GBRAIN_SPEC = join(REPO_ROOT, "ssa-files/gbrain.yaml");
@@ -79,14 +79,39 @@ describe("GbrainKnowledgeAdapter with FakeGbrainMcpTransport", () => {
     assert.equal(coverage.profile_slots, "unsupported");
   });
 
+  it("searches frames via MCP search tool (keyword mode)", async () => {
+    const fake = new FakeGbrainMcpTransport();
+    const adapter = new GbrainKnowledgeAdapter({ transport: fake, ssaSpecPath: GBRAIN_SPEC });
+    await adapter.writeFrames([SAMPLE_FRAME]);
+
+    const search = await adapter.searchFrames("indentation");
+    assert.equal(search.success, true);
+    if (!search.success) return;
+    assert.equal(search.hits.length, 1);
+    assert.equal(search.hits[0]?.item.id, "frame-001");
+    assert.equal(search.hits[0]?.rank, 0);
+  });
+
+  it("searches frames via MCP query tool in hybrid mode", async () => {
+    const fake = new FakeGbrainMcpTransport();
+    const adapter = new GbrainKnowledgeAdapter({ transport: fake, ssaSpecPath: GBRAIN_SPEC });
+    await adapter.writeFrames([SAMPLE_FRAME]);
+
+    const search = await adapter.searchFrames("indentation", { mode: "hybrid" });
+    assert.equal(search.success, true);
+    if (!search.success) return;
+    assert.equal(search.hits.length, 1);
+    assert.equal(search.hits[0]?.item.id, "frame-001");
+  });
+
   it("returns capability errors for unsupported operations", async () => {
     const adapter = new GbrainKnowledgeAdapter({
       transport: new FakeGbrainMcpTransport(),
       ssaSpecPath: GBRAIN_SPEC,
     });
 
-    const search = await adapter.searchFrames("indentation");
-    assert.equal(isUnsupportedCapabilityResult(search), true);
+    const graphSearch = await adapter.searchFrames("indentation", { mode: "graph" });
+    assert.equal(isUnsupportedCapabilityResult(graphSearch), true);
 
     const mutate = await adapter.mutateFrame("frame-001", { content: "x" });
     assert.equal(isUnsupportedCapabilityResult(mutate), true);
@@ -133,6 +158,21 @@ describe("GbrainServeStdioTransport", () => {
     const transport = new GbrainServeStdioTransport();
     assert.ok(transport);
     assert.equal(typeof transport.callTool, "function");
+  });
+});
+
+describe("extractSearchHitRefs", () => {
+  it("parses results arrays with slug and score", () => {
+    const hits = extractSearchHitRefs({
+      results: [
+        { slug: "amp/frames/abc", score: 0.92 },
+        { slug: "other/page", score: 0.5 },
+      ],
+    });
+    assert.deepEqual(hits, [
+      { slug: "amp/frames/abc", score: 0.92 },
+      { slug: "other/page", score: 0.5 },
+    ]);
   });
 });
 
