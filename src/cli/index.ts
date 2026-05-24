@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { DEFAULT_DOCS_SCHEMA_JSON } from "../docs-schema.js";
 import { TOOL_ADAPTERS, getMCPJson, MCP_LAUNCHER, MCP_LAUNCHER_PATH, CANONICAL_SKILLS } from "./adapters.js";
 import { detectEnvironments, injectCapabilityConfig, getCapabilityManualInstructions } from "./environment.js";
+import { registerAmpCommands } from "../amp/cli/index.js";
 import { AI_PATHS } from "../schema-constants.js";
 
 // ─── CLI helpers ─────────────────────────────────────────────────────────────
@@ -43,6 +44,8 @@ program
   .name("ai-memory")
   .description("Persistent AI memory for any project.")
   .version(PKG_VERSION);
+
+registerAmpCommands(program);
 
 // ─── init ───────────────────────────────────────────────────────────────────
 
@@ -727,7 +730,14 @@ evalCmd.addCommand(
     })
 );
 
-program.parse(process.argv);
+const isDirectCliInvocation =
+  process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url)) &&
+  !process.argv.includes("--test");
+
+if (isDirectCliInvocation) {
+  program.parse(process.argv);
+}
 
 // ─── Scaffold templates ───────────────────────────────────────────────────────
 
