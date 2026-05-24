@@ -1,0 +1,17 @@
+id: hermes
+name: Hermes Agent
+version: 0.1.0
+role: surface
+injection_modes:
+  - filesystem-native
+from_amp_path: skills/from-amp/
+emitted_artifact:
+  format: skill-md
+  naming: folder-per-skill
+external_claims:
+  - claim: Skill discovery via skills.external_dirs in Hermes config
+    label: VERIFIED
+  - claim: Auto-discovery of project skills/from-amp/ without external_dirs config
+    label: PROVISIONAL
+  - claim: Live session load of AMP-emitted skill body in Hermes chat
+    label: PROVISIONAL
