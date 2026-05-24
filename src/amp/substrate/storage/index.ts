@@ -10,3 +10,4 @@ export * from "./knowledge-store.js";
 export * from "./episodic-signal.js";
 export * from "./runtime-store.js";
 export * from "./consolidation-minimal.js";
+export { consolidateToGbrain, episodicSignalToSemanticFrame } from "../consolidation/index.js";
