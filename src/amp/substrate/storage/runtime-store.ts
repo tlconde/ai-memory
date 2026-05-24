@@ -7,12 +7,10 @@
 
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 
+import { defaultRuntimeDbPath } from "../../config/paths.js";
 import type { EpisodicSignal, RuntimeQueueItem } from "./episodic-signal.js";
-
-export const AMP_RUNTIME_PATH_ENV = "AMP_RUNTIME_PATH";
 
 export interface RuntimeStoreOptions {
   dbPath: string;
@@ -144,16 +142,7 @@ export class RuntimeStore {
 
 /** Resolve runtime DB path from env or platform default. */
 export function resolveRuntimeDbPath(env: NodeJS.ProcessEnv = process.env): string {
-  const override = env[AMP_RUNTIME_PATH_ENV]?.trim();
-  if (override) return override;
-
-  if (process.platform === "darwin") {
-    return join(homedir(), "Library", "Application Support", "amp", "runtime.db");
-  }
-
-  const xdgDataHome = env.XDG_DATA_HOME?.trim();
-  const base = xdgDataHome && xdgDataHome.length > 0 ? xdgDataHome : join(homedir(), ".local", "share");
-  return join(base, "amp", "runtime.db");
+  return defaultRuntimeDbPath({ env });
 }
 
 export function enqueueEpisodicSignal(store: RuntimeStore, signal: EpisodicSignal): void {
