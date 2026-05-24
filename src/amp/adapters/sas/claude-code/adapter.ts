@@ -5,7 +5,9 @@
 import { join } from "node:path";
 
 import { FromAmpWriter } from "../from-amp-writer.js";
+import { compileProcedureToSkillMd } from "../../../procedural/compile-skill-md.js";
 import { PathSafetyError } from "../../../path-safety/guard.js";
+import type { CanonicalProcedure } from "../../../procedural/schema.js";
 
 export const CLAUDE_FROM_AMP_DIR = "from-amp";
 
@@ -30,6 +32,11 @@ export class ClaudeCodeAdapter {
 
   async writeEmittedSkill(skillName: string, content: string): Promise<string> {
     return this.writer.writeRelative([skillName, "SKILL.md"], content);
+  }
+
+  async writeCompiledProcedure(procedure: CanonicalProcedure): Promise<string> {
+    const compiled = compileProcedureToSkillMd(procedure);
+    return this.writer.writeRelative(compiled.relativePath.split("/"), compiled.content);
   }
 }
 
