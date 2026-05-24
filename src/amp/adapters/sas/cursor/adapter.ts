@@ -4,6 +4,7 @@
 
 import { join } from "node:path";
 
+import { compileProcedureToCursorMdc, type CanonicalProcedure } from "../../../procedural/index.js";
 import { FromAmpWriter } from "../from-amp-writer.js";
 
 export const CURSOR_FROM_AMP_REL = join(".cursor", "rules", "from-amp");
@@ -30,5 +31,10 @@ export class CursorAdapter {
 
   async writeEmittedRule(relativePath: string, content: string): Promise<string> {
     return this.writer.writeRelative([relativePath], content);
+  }
+
+  async writeCompiledRule(procedure: CanonicalProcedure): Promise<string> {
+    const compiled = compileProcedureToCursorMdc(procedure);
+    return this.writeEmittedRule(compiled.filename, compiled.content);
   }
 }
