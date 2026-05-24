@@ -7,6 +7,12 @@
 export const AMP_PROCEDURAL_MODULE_VERSION = "1.0.0";
 
 export {
+  ProcedureRegistry,
+  ProcedureRegistryError,
+  type ProcedureRegistryEntry,
+} from "./registry.js";
+
+export {
   AMP_PROCEDURE_ARTIFACT_VERSION,
   AmpCompatibilitySchema,
   CanonicalProcedureSchema,
