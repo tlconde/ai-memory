@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { CapabilityCoverage } from "../../../adapter-contract/capability-coverage.js";
+import { isCapabilitySupported } from "../../../adapter-contract/capability-coverage.js";
 import {
   unsupportedCapabilityError,
   unsupportedListResult,
@@ -21,11 +22,14 @@ import {
   listSuccess,
   readFailure,
   readSuccess,
+  searchFailure,
+  searchSuccess,
   writeFailure,
   writeSuccess,
   type ListResult,
   type MutateResult,
   type ReadResult,
+  type SearchHit,
   type SearchResult,
   type WriteResult,
 } from "../../../adapter-contract/operation-results.js";
@@ -52,6 +56,7 @@ import { FakeGbrainMcpTransport } from "./fake-transport.js";
 import {
   extractListedSlugs,
   extractPageContent,
+  extractSearchHitRefs,
   GbrainServeStdioTransport,
   type GbrainMcpTransport,
   type GbrainServeStdioTransportOptions,
@@ -61,6 +66,13 @@ const DEFAULT_GBRAIN_SSA_SPEC = join(
   dirname(fileURLToPath(import.meta.url)),
   "../../../../../ssa-files/gbrain.yaml"
 );
+
+export type GbrainSearchMode = "keyword" | "hybrid" | "vector" | "graph";
+
+export type GbrainSearchOptions = {
+  mode?: GbrainSearchMode;
+  limit?: number;
+};
 
 export type GbrainKnowledgeAdapterOptions = {
   transport?: GbrainMcpTransport;
@@ -179,9 +191,61 @@ export class GbrainKnowledgeAdapter {
     return listSuccess(filtered);
   }
 
-  /** Owned by V1-10 - returns capability error in V1-09. */
-  async searchFrames(_query: string): Promise<SearchResult<Frame>> {
-    return unsupportedSearchResult("search");
+  /**
+   * Search AMP frames via gbrain MCP `search` (keyword) or `query` (hybrid/vector).
+   *
+   * PROVISIONAL: live gbrain search parity is tested via {@link FakeGbrainMcpTransport} only.
+   */
+  async searchFrames(
+    query: string,
+    options: GbrainSearchOptions = {}
+  ): Promise<SearchResult<Frame>> {
+    const mode = options.mode ?? "keyword";
+    const capabilityError = checkSearchModeCapability(this.coverage, mode);
+    if (capabilityError) {
+      return unsupportedSearchResult(capabilityError);
+    }
+
+    const tool = resolveGbrainSearchTool(mode);
+    const toolArgs: Record<string, unknown> = { query };
+    if (options.limit !== undefined) {
+      toolArgs.limit = options.limit;
+    }
+
+    let toolResult: unknown;
+    try {
+      toolResult = await this.transport.callTool(tool, toolArgs);
+    } catch (cause) {
+      return searchFailure(toTransportAmpError(cause, tool));
+    }
+
+    const refs = extractSearchHitRefs(toolResult).filter((hit) => isAmpFrameSlug(hit.slug));
+    const hits: SearchHit<Frame>[] = [];
+
+    for (const [rank, ref] of refs.entries()) {
+      let pageResult: unknown;
+      try {
+        pageResult = await this.transport.callTool("get_page", { slug: ref.slug });
+      } catch (cause) {
+        return searchFailure(toTransportAmpError(cause, "get_page"));
+      }
+
+      const content = extractPageContent(pageResult);
+      if (content === undefined) continue;
+
+      const decoded = decodePageContentToFrame(content);
+      if (!decoded.success) {
+        return searchFailure(frameSchemaMismatch({ error: decoded.error, slug: ref.slug }));
+      }
+
+      hits.push({
+        item: decoded.frame,
+        score: ref.score,
+        rank,
+      });
+    }
+
+    return searchSuccess(hits);
   }
 
   async mutateFrame(_id: string, _patch: Partial<Frame>): Promise<MutateResult<Frame>> {
@@ -243,6 +307,37 @@ function toTransportAmpError(cause: unknown, tool: string): AmpError {
 
 function listFailureTransport(error: AmpError): ListResult<Frame> {
   return { success: false, error };
+}
+
+function checkSearchModeCapability(
+  coverage: CapabilityCoverage,
+  mode: GbrainSearchMode
+): string | undefined {
+  if (mode === "graph") {
+    return "graph_traversal";
+  }
+  if (mode === "keyword" && !isCapabilitySupported(coverage, "full_text_search")) {
+    return "full_text_search";
+  }
+  if (mode === "vector" && !isCapabilitySupported(coverage, "vector_search")) {
+    return "vector_search";
+  }
+  if (mode === "hybrid") {
+    if (!isCapabilitySupported(coverage, "vector_search")) {
+      return "vector_search";
+    }
+    if (!isCapabilitySupported(coverage, "full_text_search")) {
+      return "full_text_search";
+    }
+  }
+  return undefined;
+}
+
+function resolveGbrainSearchTool(mode: GbrainSearchMode): "search" | "query" {
+  if (mode === "keyword") {
+    return "search";
+  }
+  return "query";
 }
 
 export { createFrame };

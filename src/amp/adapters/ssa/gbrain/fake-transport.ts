@@ -5,6 +5,7 @@
 import {
   extractListedSlugs,
   extractPageContent,
+  extractSearchHitRefs,
   type GbrainMcpTransport,
 } from "./transport.js";
 import { isAmpFrameSlug } from "./frame-codec.js";
@@ -38,6 +39,10 @@ export class FakeGbrainMcpTransport implements GbrainMcpTransport {
         });
         return { pages: slugs.map((slug) => ({ slug })) };
       }
+      case "search":
+      case "query": {
+        return this.runFakeSearch(name, args);
+      }
       default:
         throw new Error(`FakeGbrainMcpTransport: unsupported tool ${name}`);
     }
@@ -61,6 +66,39 @@ export class FakeGbrainMcpTransport implements GbrainMcpTransport {
 
   hasPage(slug: string): boolean {
     return this.pages.has(slug);
+  }
+
+  /** Test helper: last keyword search results from fake transport. */
+  lastSearchHits(): ReturnType<typeof extractSearchHitRefs> {
+    return this.lastHits;
+  }
+
+  private lastHits: ReturnType<typeof extractSearchHitRefs> = [];
+
+  private runFakeSearch(
+    tool: "search" | "query",
+    args: Record<string, unknown>
+  ): { results: Array<{ slug: string; score: number }> } {
+    const query = String(args.query ?? "")
+      .trim()
+      .toLowerCase();
+    const limit = typeof args.limit === "number" ? args.limit : 20;
+    const hits: Array<{ slug: string; score: number }> = [];
+
+    for (const [slug, content] of this.pages) {
+      if (!isAmpFrameSlug(slug)) continue;
+      const haystack = content.toLowerCase();
+      if (query && !haystack.includes(query)) continue;
+      hits.push({
+        slug,
+        score: tool === "query" ? 0.9 : 0.75,
+      });
+    }
+
+    hits.sort((left, right) => right.score - left.score);
+    const limited = hits.slice(0, limit);
+    this.lastHits = limited;
+    return { results: limited };
   }
 }
 
