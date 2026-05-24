@@ -1,0 +1,10 @@
+id: claude-code
+name: Claude Code
+version: 0.1.0
+role: surface
+injection_modes:
+  - filesystem-native
+from_amp_path: from-amp
+emitted_artifact:
+  format: skill-md
+  naming: folder-per-skill

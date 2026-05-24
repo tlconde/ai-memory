@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMP — Agent Memory Protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@400;500;600&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #0a0a0a;
+  --ink-soft: #1a1a1a;
+  --paper: #f4f0e8;
+  --paper-soft: #ebe5d8;
+  --line: #1a1a1a;
+  --rule: #d4cab5;
+  --accent: #c43d2a;
+  --accent-soft: #f4d8d2;
+  --crystal: #2d4a3e;
+  --crystal-soft: #d4e0d8;
+  --semantic: #3d4a6b;
+  --semantic-soft: #d8ddea;
+  --episodic: #8b6914;
+  --episodic-soft: #f0e6c8;
+  --mute: #5a5650;
+  --mute-soft: #a8a094;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Inter Tight', sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.container { max-width: 1280px; margin: 0 auto; padding: 0 48px; }
+@media (max-width: 768px) { .container { padding: 0 24px; } }
+
+/* HEADER */
+header {
+  border-bottom: 2px solid var(--line);
+  padding: 32px 0 24px;
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  z-index: 100;
+  backdrop-filter: blur(8px);
+}
+header .container { display: flex; justify-content: space-between; align-items: baseline; gap: 32px; flex-wrap: wrap; }
+.logo {
+  font-family: 'Fraunces', serif;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.logo-mark {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  transform: rotate(45deg);
+}
+.logo-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+nav { display: flex; gap: 24px; font-family: 'JetBrains Mono', monospace; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+nav a { color: var(--ink); text-decoration: none; padding: 4px 0; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
+nav a:hover { border-bottom-color: var(--accent); }
+
+/* HERO */
+.hero { padding: 96px 0 80px; border-bottom: 1px solid var(--rule); position: relative; overflow: hidden; }
+.hero::before {
+  content: "";
+  position: absolute;
+  top: 0; right: -100px;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: "";
+  display: block;
+  width: 32px;
+  height: 1px;
+  background: var(--accent);
+}
+h1.hero-title {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(48px, 7vw, 96px);
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  margin-bottom: 32px;
+  max-width: 900px;
+}
+h1.hero-title em {
+  font-style: italic;
+  color: var(--accent);
+  font-weight: 500;
+}
+.hero-lead {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1.4;
+  max-width: 720px;
+  color: var(--ink-soft);
+  margin-bottom: 48px;
+}
+.hero-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 24px;
+  padding-top: 32px;
+  border-top: 1px solid var(--rule);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+.meta-item .meta-label { color: var(--mute); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; font-size: 10px; }
+.meta-item .meta-value { color: var(--ink); }
+
+/* SECTION */
+section { padding: 96px 0; border-bottom: 1px solid var(--rule); position: relative; }
+.section-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 0.15em;
+  margin-bottom: 16px;
+  display: block;
+}
+h2 {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(36px, 5vw, 64px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  margin-bottom: 32px;
+  max-width: 900px;
+}
+h2 em { font-style: italic; color: var(--accent); }
+h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 48px 0 16px;
+}
+h4 {
+  font-family: 'Inter Tight', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin: 32px 0 12px;
+  color: var(--ink-soft);
+}
+p { font-size: 17px; line-height: 1.65; max-width: 720px; margin-bottom: 20px; color: var(--ink-soft); }
+p.lead { font-family: 'Fraunces', serif; font-size: 22px; font-style: italic; color: var(--ink); }
+
+ul, ol { margin: 16px 0 24px 24px; max-width: 720px; }
+li { font-size: 17px; line-height: 1.6; margin-bottom: 8px; color: var(--ink-soft); }
+strong { color: var(--ink); font-weight: 600; }
+em { color: var(--ink); }
+code { font-family: 'JetBrains Mono', monospace; font-size: 13px; background: var(--paper-soft); padding: 2px 6px; border-radius: 3px; }
+
+/* PROBLEM CARDS */
+.problem-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  margin: 48px 0;
+  border: 1px solid var(--line);
+}
+.problem-card {
+  background: var(--paper);
+  padding: 32px;
+  position: relative;
+}
+.problem-num {
+  font-family: 'Fraunces', serif;
+  font-size: 64px;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--accent);
+  line-height: 1;
+  margin-bottom: 16px;
+}
+.problem-card h4 { margin-top: 0; margin-bottom: 12px; }
+.problem-card p { font-size: 15px; margin-bottom: 0; }
+
+/* COMMITMENTS */
+.commitments { margin: 48px 0; }
+.commitment {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 32px;
+  padding: 28px 0;
+  border-top: 1px solid var(--rule);
+  align-items: baseline;
+}
+.commitment:last-child { border-bottom: 1px solid var(--rule); }
+.commitment-num {
+  font-family: 'Fraunces', serif;
+  font-size: 36px;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--accent);
+}
+.commitment-title {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+.commitment-body { font-size: 16px; color: var(--ink-soft); line-height: 1.55; }
+
+/* DIAGRAM CONTAINER */
+.diagram-section { padding: 80px 0; }
+.diagram-wrap {
+  background: var(--paper-soft);
+  border: 1px solid var(--rule);
+  padding: 48px;
+  margin: 48px 0;
+  overflow-x: auto;
+  position: relative;
+}
+.diagram-wrap::before {
+  content: "";
+  position: absolute;
+  top: 12px; left: 12px;
+  width: 8px; height: 8px;
+  background: var(--accent);
+  transform: rotate(45deg);
+}
+.diagram-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--mute);
+  margin-bottom: 24px;
+}
+.diagram-svg { width: 100%; height: auto; display: block; }
+
+/* CALLOUTS */
+.callout {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 24px 32px;
+  margin: 32px 0;
+  max-width: 720px;
+}
+.callout p:last-child { margin-bottom: 0; }
+.callout strong { color: var(--accent); }
+
+.frame-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin: 48px 0;
+}
+@media (max-width: 768px) { .frame-grid { grid-template-columns: 1fr; } }
+.frame {
+  padding: 28px;
+  border: 1px solid var(--line);
+  position: relative;
+  background: var(--paper);
+}
+.frame.episodic { border-top: 6px solid var(--episodic); }
+.frame.semantic { border-top: 6px solid var(--semantic); }
+.frame.crystal { border-top: 6px solid var(--crystal); }
+.frame-name {
+  font-family: 'Fraunces', serif;
+  font-size: 28px;
+  font-weight: 500;
+  font-style: italic;
+  margin-bottom: 12px;
+}
+.frame.episodic .frame-name { color: var(--episodic); }
+.frame.semantic .frame-name { color: var(--semantic); }
+.frame.crystal .frame-name { color: var(--crystal); }
+.frame-attr { margin: 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.frame-attr-key { color: var(--mute); }
+.frame-attr-val { color: var(--ink); }
+.frame-example {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 15px;
+  padding: 16px;
+  background: var(--paper-soft);
+  border-left: 2px solid var(--mute-soft);
+  margin-top: 16px;
+  color: var(--ink-soft);
+}
+
+/* SUBSTRATE SUB-LAYERS */
+.sublayers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+  margin: 48px 0;
+}
+.sublayer {
+  border: 1px solid var(--line);
+  padding: 28px;
+  background: var(--paper);
+  position: relative;
+}
+.sublayer-num {
+  position: absolute;
+  top: 0; right: 0;
+  background: var(--accent);
+  color: var(--paper);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 4px 10px;
+  letter-spacing: 0.1em;
+}
+.sublayer-name {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+.sublayer-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--mute);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 16px;
+}
+.sublayer p { font-size: 14px; margin-bottom: 12px; }
+.sublayer ul { margin-left: 18px; }
+.sublayer li { font-size: 14px; }
+
+/* TABLE */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 32px 0;
+  font-size: 15px;
+}
+th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--rule); }
+th { font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--mute); font-weight: 500; }
+td { color: var(--ink-soft); }
+td code { font-size: 12px; }
+table tr:hover td { background: var(--paper-soft); }
+
+/* FOOTER */
+footer {
+  padding: 64px 0 48px;
+  background: var(--ink);
+  color: var(--paper);
+  border-top: 4px solid var(--accent);
+}
+footer h4 { color: var(--paper); margin-bottom: 16px; }
+footer p { color: var(--mute-soft); font-size: 14px; max-width: 600px; }
+footer .footer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 48px; margin-bottom: 48px; }
+footer code { background: var(--ink-soft); color: var(--paper); }
+.footer-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--mute-soft); padding-top: 32px; border-top: 1px solid var(--ink-soft); }
+
+/* DECORATIVE */
+.ornament {
+  text-align: center;
+  font-family: 'Fraunces', serif;
+  font-size: 24px;
+  color: var(--mute-soft);
+  margin: 80px 0;
+  letter-spacing: 1em;
+  text-indent: 1em;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="logo">
+      <span class="logo-mark"></span>
+      AMP
+      <span class="logo-sub">v2 · draft · may 2026</span>
+    </div>
+    <nav>
+      <a href="#vision">Vision</a>
+      <a href="#problem">Problem</a>
+      <a href="#commitments">Commitments</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#frames">Frames</a>
+      <a href="#detail">Detail</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" id="vision">
+  <div class="container">
+    <div class="eyebrow">Agent Memory Protocol — substrate-level specification</div>
+    <h1 class="hero-title">The <em>durable layer</em> between you and every AI you use.</h1>
+    <p class="hero-lead">
+      Models change. Agents change. Tools change. Your knowledge, your preferences, your work-in-progress, and your skills shouldn't.
+      AMP is the substrate that survives all of them — making information captured in any AI surface reachable from every other, with corrections that propagate cleanly and memory that mutates as a first-class operation.
+    </p>
+    <div class="hero-meta">
+      <div class="meta-item">
+        <div class="meta-label">Category</div>
+        <div class="meta-value">Substrate protocol</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Status</div>
+        <div class="meta-value">Working draft v2</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Novelty tier</div>
+        <div class="meta-value">N2 — Applied Novel</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Target hardware</div>
+        <div class="meta-value">Consumer laptop, CPU-only</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="problem">
+  <div class="container">
+    <span class="section-num">§ 01 · The problem</span>
+    <h2>Information <em>stranded</em>, corrections <em>lost</em>, work <em>repeated</em>.</h2>
+    <p class="lead">Every AI you use builds its own private picture of you. None of them talk to each other. You correct one; the others stay wrong. You teach Claude something useful; Cursor never learns it. You build a skill in Hermes; Codex never sees it.</p>
+    <p>AMP exists because the fragmentation is structural, not accidental. Each surface optimizes for its own context window, its own session, its own vendor account. The substrate beneath them — the durable layer that ought to remember — doesn't exist yet.</p>
+
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="problem-num">01</div>
+        <h4>State is stranded</h4>
+        <p>Cursor saves project preferences. Claude Code saves them separately. Codex separately again. The same fact is captured in each surface, often in slightly different forms.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-num">02</div>
+        <h4>Surface memory is volatile</h4>
+        <p>Compaction loses information that mattered. Users start fresh sessions and re-explain everything they already taught the system.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-num">03</div>
+        <h4>Corrections don't propagate</h4>
+        <p>Correcting one surface doesn't update the others. Users correct each surface, every time, forever.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-num">04</div>
+        <h4>Procedures don't follow</h4>
+        <p>A skill authored in Hermes is unavailable in Claude Code. Cross-harness skill portability requires manual file copying every time.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-num">05</div>
+        <h4>Defaults never improve</h4>
+        <p>When a system mis-classifies a fact, the correction trains nothing. The same mistake recurs in every future session.</p>
+      </div>
+      <div class="problem-card" style="background: var(--ink); color: var(--paper);">
+        <div class="problem-num" style="color: var(--accent);">∴</div>
+        <h4 style="color: var(--paper);">The substrate is missing</h4>
+        <p style="color: var(--mute-soft);">A durable layer between models, harnesses, and storage. Replaceable above and below; persistent across both. AMP fills this gap.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="commitments">
+  <div class="container">
+    <span class="section-num">§ 02 · Architectural commitments</span>
+    <h2>Seven principles that <em>shape everything</em>.</h2>
+    <p>These commitments came from iterative pressure-testing. They survived multiple rounds of user correction. They are restated at the top because principles stated once drop between conversations; principles in the lead framing survive.</p>
+
+    <div class="commitments">
+      <div class="commitment">
+        <div class="commitment-num">i</div>
+        <div>
+          <div class="commitment-title">The three-layer model: Model · Harness · Substrate</div>
+          <div class="commitment-body">Models are replaceable. Harnesses are replaceable. Substrate is the durable layer that survives both. Storage backends plug into the substrate; multiple backends may coexist; the substrate orchestrates them.</div>
+        </div>
+      </div>
+      <div class="commitment">
+        <div class="commitment-num">ii</div>
+        <div>
+          <div class="commitment-title">Skills as the empowerment surface</div>
+          <div class="commitment-body">Skills should grow without bound. AMP stores a canonical procedural artifact, then compiles it into harness-native emitted files. Cursor's .mdc and Claude's SKILL.md are outputs, not competing sources of truth.</div>
+        </div>
+      </div>
+      <div class="commitment">
+        <div class="commitment-num">iii</div>
+        <div>
+          <div class="commitment-title">Knowledge, procedures, and models are structurally different</div>
+          <div class="commitment-body">Knowledge has mutation semantics. Procedures have a scaffold-fill-check-version lifecycle. Models interpret both. AMP orchestrates their interconnection — it does not collapse them into one shape.</div>
+        </div>
+      </div>
+      <div class="commitment">
+        <div class="commitment-num">iv</div>
+        <div>
+          <div class="commitment-title">Determinism where possible</div>
+          <div class="commitment-body">Schema-based operations beat freeform. Typed slots beat untyped properties. Explicit confidence beats implicit hand-waving. Where behavior can be made deterministic, it should be.</div>
+        </div>
+      </div>
+      <div class="commitment">
+        <div class="commitment-num">v</div>
+        <div>
+          <div class="commitment-title">Single-user knowledge scope (v1)</div>
+          <div class="commitment-body">No cross-user knowledge sharing in v1. The shareable layer is the protocol itself and skills (with personalizations removed). Knowledge stays single-tenant.</div>
+        </div>
+      </div>
+      <div class="commitment">
+        <div class="commitment-num">vi</div>
+        <div>
+          <div class="commitment-title">AMP defines — backends declare — users informed</div>
+          <div class="commitment-body">AMP defines the full standard. Each backend's adapter declares capability coverage. Missing capabilities surface to users as informed gaps — not as failures, not as silent omissions.</div>
+        </div>
+      </div>
+      <div class="commitment">
+        <div class="commitment-num">vii</div>
+        <div>
+          <div class="commitment-title">Falsifiability invariant</div>
+          <div class="commitment-body">Every behavior claim has a concrete falsifiable test. Vague claims are insufficient. Specific testable claims are the standard, throughout.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="architecture" class="diagram-section">
+  <div class="container">
+    <span class="section-num">§ 03 · High-level architecture</span>
+    <h2>Four layers, with <em>AMP at the centre</em>.</h2>
+    <p>The system has four layers. AMP is Layer 2 — the substrate. Layer 0 (models) and Layer 1 (harnesses) sit above. Layer 3 (storage backends) sits below. AMP orchestrates the interconnection.</p>
+
+    <div class="diagram-wrap">
+      <div class="diagram-label">High-level architecture — four layers</div>
+      <svg class="diagram-svg" viewBox="0 0 1100 720" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0a0a0a"/>
+          </marker>
+          <pattern id="dotgrid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="0.6" fill="#d4cab5"/>
+          </pattern>
+        </defs>
+        <rect width="1100" height="720" fill="url(#dotgrid)"/>
+
+        <!-- Layer 0: Models -->
+        <g transform="translate(60, 40)">
+          <rect x="0" y="0" width="980" height="100" fill="#f4f0e8" stroke="#0a0a0a" stroke-width="2"/>
+          <text x="20" y="28" font-family="JetBrains Mono, monospace" font-size="10" fill="#5a5650" letter-spacing="0.1em">LAYER 0 · REPLACEABLE</text>
+          <text x="20" y="60" font-family="Fraunces, serif" font-size="26" font-style="italic" fill="#0a0a0a">Models</text>
+          <text x="20" y="86" font-family="Inter Tight, sans-serif" font-size="13" fill="#1a1a1a">Claude · Codex · GPT · Gemini · open-weights</text>
+          <g transform="translate(560, 36)">
+            <rect x="0" y="0" width="100" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="50" y="29" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">Claude</text>
+          </g>
+          <g transform="translate(680, 36)">
+            <rect x="0" y="0" width="100" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="50" y="29" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">Codex</text>
+          </g>
+          <g transform="translate(800, 36)">
+            <rect x="0" y="0" width="100" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="50" y="29" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">GPT</text>
+          </g>
+          <g transform="translate(920, 36)">
+            <rect x="0" y="0" width="60" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="30" y="29" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">…</text>
+          </g>
+        </g>
+
+        <!-- Connector L0 -> L1 -->
+        <line x1="550" y1="140" x2="550" y2="180" stroke="#0a0a0a" stroke-width="1.5" marker-end="url(#arrow-h)" marker-start="url(#arrow-h)"/>
+        <text x="565" y="165" font-family="JetBrains Mono, monospace" font-size="10" fill="#5a5650">provider API</text>
+
+        <!-- Layer 1: Harnesses -->
+        <g transform="translate(60, 180)">
+          <rect x="0" y="0" width="980" height="100" fill="#f4f0e8" stroke="#0a0a0a" stroke-width="2"/>
+          <text x="20" y="28" font-family="JetBrains Mono, monospace" font-size="10" fill="#5a5650" letter-spacing="0.1em">LAYER 1 · REPLACEABLE</text>
+          <text x="20" y="60" font-family="Fraunces, serif" font-size="26" font-style="italic" fill="#0a0a0a">Harnesses</text>
+          <text x="20" y="86" font-family="Inter Tight, sans-serif" font-size="13" fill="#1a1a1a">Hermes · OpenClaw · Claude Code · Cursor · Claude Desktop · Codex CLI</text>
+          <g transform="translate(450, 36)">
+            <rect x="0" y="0" width="80" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="40" y="29" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">Hermes</text>
+          </g>
+          <g transform="translate(550, 36)">
+            <rect x="0" y="0" width="80" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="40" y="29" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">OpenClaw</text>
+          </g>
+          <g transform="translate(650, 36)">
+            <rect x="0" y="0" width="80" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="40" y="29" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">Cursor</text>
+          </g>
+          <g transform="translate(750, 36)">
+            <rect x="0" y="0" width="100" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="50" y="29" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">Claude Code</text>
+          </g>
+          <g transform="translate(870, 36)">
+            <rect x="0" y="0" width="60" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="30" y="29" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">…</text>
+          </g>
+        </g>
+
+        <!-- Connector L1 -> L2 -->
+        <line x1="550" y1="280" x2="550" y2="320" stroke="#c43d2a" stroke-width="2.5" marker-end="url(#arrow-h)" marker-start="url(#arrow-h)"/>
+        <text x="565" y="305" font-family="JetBrains Mono, monospace" font-size="10" fill="#c43d2a" font-weight="600">substrate protocol (AMP)</text>
+
+        <!-- Layer 2: Substrate (highlighted) -->
+        <g transform="translate(60, 320)">
+          <rect x="0" y="0" width="980" height="180" fill="#f4d8d2" stroke="#c43d2a" stroke-width="3"/>
+          <text x="20" y="28" font-family="JetBrains Mono, monospace" font-size="10" fill="#c43d2a" letter-spacing="0.1em" font-weight="600">LAYER 2 · DURABLE · THIS IS AMP</text>
+          <text x="20" y="62" font-family="Fraunces, serif" font-size="32" font-style="italic" fill="#0a0a0a" font-weight="500">Substrate</text>
+          <text x="20" y="88" font-family="Inter Tight, sans-serif" font-size="13" fill="#1a1a1a">Frames · Profile slots · Procedures · Active intent · Routing</text>
+
+          <!-- four sub-layers -->
+          <g transform="translate(20, 110)">
+            <rect x="0" y="0" width="225" height="56" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="14" y="22" font-family="JetBrains Mono, monospace" font-size="9" fill="#c43d2a" letter-spacing="0.1em">SUB-LAYER 1</text>
+            <text x="14" y="42" font-family="Fraunces, serif" font-size="15" font-weight="500">Storage</text>
+          </g>
+          <g transform="translate(255, 110)">
+            <rect x="0" y="0" width="225" height="56" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="14" y="22" font-family="JetBrains Mono, monospace" font-size="9" fill="#c43d2a" letter-spacing="0.1em">SUB-LAYER 2</text>
+            <text x="14" y="42" font-family="Fraunces, serif" font-size="15" font-weight="500">Inference</text>
+          </g>
+          <g transform="translate(490, 110)">
+            <rect x="0" y="0" width="225" height="56" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="14" y="22" font-family="JetBrains Mono, monospace" font-size="9" fill="#c43d2a" letter-spacing="0.1em">SUB-LAYER 3</text>
+            <text x="14" y="42" font-family="Fraunces, serif" font-size="15" font-weight="500">Consolidation</text>
+          </g>
+          <g transform="translate(725, 110)">
+            <rect x="0" y="0" width="235" height="56" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="14" y="22" font-family="JetBrains Mono, monospace" font-size="9" fill="#c43d2a" letter-spacing="0.1em">SUB-LAYER 4</text>
+            <text x="14" y="42" font-family="Fraunces, serif" font-size="15" font-weight="500">Propagation</text>
+          </g>
+        </g>
+
+        <!-- Connector L2 -> L3 -->
+        <line x1="550" y1="500" x2="550" y2="540" stroke="#0a0a0a" stroke-width="1.5" marker-end="url(#arrow-h)" marker-start="url(#arrow-h)"/>
+        <text x="565" y="525" font-family="JetBrains Mono, monospace" font-size="10" fill="#5a5650">SSA-defined transport</text>
+
+        <!-- Layer 3: Storage -->
+        <g transform="translate(60, 540)">
+          <rect x="0" y="0" width="980" height="100" fill="#f4f0e8" stroke="#0a0a0a" stroke-width="2"/>
+          <text x="20" y="28" font-family="JetBrains Mono, monospace" font-size="10" fill="#5a5650" letter-spacing="0.1em">LAYER 3 · PLUGGABLE</text>
+          <text x="20" y="60" font-family="Fraunces, serif" font-size="26" font-style="italic" fill="#0a0a0a">Storage backends</text>
+          <text x="20" y="86" font-family="Inter Tight, sans-serif" font-size="13" fill="#1a1a1a">gbrain · Mem0 · raw filesystem · crystals-DB · Cognee</text>
+
+          <g transform="translate(560, 36)">
+            <rect x="0" y="0" width="80" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="40" y="29" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">gbrain</text>
+          </g>
+          <g transform="translate(660, 36)">
+            <rect x="0" y="0" width="80" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="40" y="29" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">Mem0</text>
+          </g>
+          <g transform="translate(760, 36)">
+            <rect x="0" y="0" width="80" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="40" y="29" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">raw-fs</text>
+          </g>
+          <g transform="translate(860, 36)">
+            <rect x="0" y="0" width="60" height="48" fill="#f4f0e8" stroke="#0a0a0a"/>
+            <text x="30" y="29" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">…</text>
+          </g>
+        </g>
+
+        <!-- Side labels -->
+        <text x="40" y="93" font-family="Fraunces, serif" font-size="14" font-style="italic" fill="#5a5650" text-anchor="end">UP</text>
+        <text x="40" y="593" font-family="Fraunces, serif" font-size="14" font-style="italic" fill="#5a5650" text-anchor="end">DOWN</text>
+
+        <!-- AMP circle indicator -->
+        <g transform="translate(30, 410)">
+          <circle r="14" fill="#c43d2a"/>
+          <text y="5" font-family="Fraunces, serif" font-size="13" font-style="italic" fill="#f4f0e8" text-anchor="middle" font-weight="600">AMP</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="callout">
+      <p><strong>Replaceability is the load-bearing claim.</strong> Swap Claude for Gemini — the substrate doesn't care. Swap Hermes for Cursor — the substrate doesn't care. Swap gbrain for Mem0 — the substrate still serves the same operations, with capability gaps surfaced to the user.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <span class="section-num">§ 04 · Layer 1 — Layer 2 transports</span>
+    <h2>Four ways harnesses <em>reach the substrate</em>.</h2>
+    <p>The boundary between Layer 1 (harness) and Layer 2 (substrate) is the load-bearing surface of AMP. Four transports — locked.</p>
+
+    <table>
+      <thead>
+        <tr><th>Mode</th><th>Connection</th><th>Latency</th><th>Used by</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Local MCP stdio</strong></td>
+          <td>Same machine, MCP over stdio</td>
+          <td>Real-time, in-session</td>
+          <td>Claude Desktop, Cursor, Claude Code, Codex CLI</td>
+        </tr>
+        <tr>
+          <td><strong>Remote MCP</strong></td>
+          <td>OAuth-protected public endpoint</td>
+          <td>Real-time, in-session</td>
+          <td>claude.ai web, Cowork</td>
+        </tr>
+        <tr>
+          <td><strong>Filesystem-native</strong></td>
+          <td>fs-watch on harness files; writes to <code>from-amp/</code></td>
+          <td>Next session start</td>
+          <td>Cursor, Claude Code, Hermes, OpenClaw, Codex</td>
+        </tr>
+        <tr>
+          <td><strong>Briefing paste</strong></td>
+          <td>Substrate generates structured briefing; user pastes</td>
+          <td>Manual, user-triggered</td>
+          <td>ChatGPT, Gemini, any surface accepting pasted text</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="frames">
+  <div class="container">
+    <span class="section-num">§ 05 · The frame layer</span>
+    <h2>Three kinds, <em>each with distinct semantics</em>.</h2>
+    <p>The substrate's knowledge layer is built on three frame kinds. Every piece of stored knowledge is one of these. The kinds are operationally distinct — they have different mutation rules, different retrieval patterns, different validity models.</p>
+
+    <div class="frame-grid">
+      <div class="frame episodic">
+        <div class="frame-name">Episodic</div>
+        <div class="frame-attr"><span class="frame-attr-key">mutation:</span> <span class="frame-attr-val">append-only</span></div>
+        <div class="frame-attr"><span class="frame-attr-key">validity:</span> <span class="frame-attr-val">never expires</span></div>
+        <div class="frame-attr"><span class="frame-attr-key">retrieval:</span> <span class="frame-attr-val">time-windowed</span></div>
+        <p style="font-size: 14px; margin-top: 12px;">Events that happened. Immutable once written. Conversations, observations, signals, corrections, transitions.</p>
+        <div class="frame-example">"Met Aurora on May 22 at Prosus event"</div>
+      </div>
+      <div class="frame semantic">
+        <div class="frame-name">Semantic</div>
+        <div class="frame-attr"><span class="frame-attr-key">mutation:</span> <span class="frame-attr-val">supersedes</span></div>
+        <div class="frame-attr"><span class="frame-attr-key">validity:</span> <span class="frame-attr-val">valid_from / valid_until</span></div>
+        <div class="frame-attr"><span class="frame-attr-key">retrieval:</span> <span class="frame-attr-val">scope-filtered</span></div>
+        <p style="font-size: 14px; margin-top: 12px;">Stable facts about the world. Mutable through supersedes. Preferences, identity facts, time-bounded claims about people and projects.</p>
+        <div class="frame-example">"Aurora works at company X (since June 2024)"</div>
+      </div>
+      <div class="frame crystal">
+        <div class="frame-name">Crystal</div>
+        <div class="frame-attr"><span class="frame-attr-key">mutation:</span> <span class="frame-attr-val">refine conditions</span></div>
+        <div class="frame-attr"><span class="frame-attr-key">validity:</span> <span class="frame-attr-val">indefinite, refinable</span></div>
+        <div class="frame-attr"><span class="frame-attr-key">retrieval:</span> <span class="frame-attr-val">confidence-weighted</span></div>
+        <p style="font-size: 14px; margin-top: 12px;">Falsifiable claims about regularities of the environment or of designed systems. Not for human behavior. Refined through conditions, not replaced.</p>
+        <div class="frame-example">"Throwing glass on hard surfaces breaks it — refined: tempered glass at low velocity is exception"</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p><strong>Profile is NOT a fourth kind.</strong> Profile slots like <code>reading_list</code>, <code>active_intent</code>, and <code>relationships</code> are saved queries over these three kinds plus the runtime registry and graph. They look like typed storage to the user; they are computed views underneath. This kept the kind count at three after rigorous pressure-testing.</p>
+    </div>
+  </div>
+</section>
+
+<section id="detail" class="diagram-section">
+  <div class="container">
+    <span class="section-num">§ 06 · Low-level architecture</span>
+    <h2>Inside the substrate: <em>storage, inference, consolidation, propagation</em>.</h2>
+    <p>The substrate is itself decomposed into four sub-layers. Each has a specific responsibility. Together they implement the durable layer.</p>
+
+    <div class="sublayers">
+      <div class="sublayer">
+        <div class="sublayer-num">SL · 1</div>
+        <div class="sublayer-name">Storage</div>
+        <div class="sublayer-tag">runtime + knowledge</div>
+        <p>The runtime store holds operational state: active intent, harness health, propagation queue, sync state, unprocessed signals. Cache-like.</p>
+        <p>The knowledge store holds processed frames, the graph, embeddings, profile schema, procedural registry. Durable.</p>
+      </div>
+      <div class="sublayer">
+        <div class="sublayer-num">SL · 2</div>
+        <div class="sublayer-name">Inference</div>
+        <div class="sublayer-tag">replaceable classifiers</div>
+        <ul>
+          <li>Kind classifier</li>
+          <li>Curation_mode classifier</li>
+          <li>Entity extractor</li>
+          <li>Slot router</li>
+          <li>Edge type inferrer</li>
+        </ul>
+        <p>v0: rule-based. v1: corrections train per-user adjustments. v2: small fine-tuned models.</p>
+      </div>
+      <div class="sublayer">
+        <div class="sublayer-num">SL · 3</div>
+        <div class="sublayer-name">Consolidation</div>
+        <div class="sublayer-tag">the overnight processor</div>
+        <p>Runs on idle, schedule, or demand. The biological-sleep analogue.</p>
+        <ol style="margin-top: 8px; font-size: 13px;">
+          <li>Drain unprocessed episodic</li>
+          <li>Extract entities</li>
+          <li>Wire typed edges</li>
+          <li>Refresh embeddings</li>
+          <li>Detect contradictions</li>
+          <li>Decay / prune</li>
+          <li>Write to knowledge</li>
+          <li>Clear runtime</li>
+          <li>Session manifest</li>
+        </ol>
+      </div>
+      <div class="sublayer">
+        <div class="sublayer-num">SL · 4</div>
+        <div class="sublayer-name">Propagation</div>
+        <div class="sublayer-tag">cross-harness skill flow</div>
+        <p>Watches the procedural artifact registry. When the user authors or updates a skill, propagation compiles the canonical AMP artifact into every verified compatible harness's <code>from-amp/</code> directory.</p>
+        <p style="font-size: 13px;">Cursor target uses <code>.mdc</code> extension and flat naming. Other harnesses use folder-per-skill.</p>
+      </div>
+    </div>
+
+    <h3>Cron jobs that keep the substrate alive</h3>
+    <table>
+      <thead>
+        <tr><th>Cron</th><th>Frequency</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Consolidation</strong></td><td>Idle / scheduled / on-demand</td><td>Process runtime → knowledge</td></tr>
+        <tr><td><strong>Propagation</strong></td><td>On registry change</td><td>Push skills to harness filesystems</td></tr>
+        <tr><td><strong>Health check</strong></td><td>Hourly</td><td>Verify adapters, runtime, knowledge consistency</td></tr>
+        <tr><td><strong>Decay</strong></td><td>Weekly</td><td>Identify stale frames, low-confidence facts, orphans</td></tr>
+        <tr><td><strong>Inference training</strong></td><td>Weekly or on-demand</td><td>Train inference classifiers from correction corpus</td></tr>
+      </tbody>
+    </table>
+
+    <div class="diagram-wrap" style="margin-top: 64px;">
+      <div class="diagram-label">Low-level — substrate sub-layer interactions</div>
+      <svg class="diagram-svg" viewBox="0 0 1100 640" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow-l" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0a0a0a"/>
+          </marker>
+          <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#c43d2a"/>
+          </marker>
+        </defs>
+        <rect width="1100" height="640" fill="#ebe5d8"/>
+
+        <!-- Harness inputs (top) -->
+        <g transform="translate(40, 30)">
+          <rect width="1020" height="60" fill="#f4f0e8" stroke="#0a0a0a" stroke-width="1.5"/>
+          <text x="20" y="22" font-family="JetBrains Mono, monospace" font-size="10" fill="#5a5650" letter-spacing="0.1em">FROM HARNESSES (Layer 1)</text>
+          <text x="20" y="45" font-family="Fraunces, serif" font-size="16" font-style="italic">incoming signals · queries · corrections · skill updates</text>
+        </g>
+
+        <!-- Arrow down -->
+        <line x1="550" y1="90" x2="550" y2="120" stroke="#c43d2a" stroke-width="2" marker-end="url(#arrow-red)"/>
+
+        <!-- Storage sub-layer (split) -->
+        <g transform="translate(40, 120)">
+          <!-- Runtime store -->
+          <g transform="translate(0, 0)">
+            <rect width="490" height="160" fill="#f4d8d2" stroke="#c43d2a" stroke-width="2"/>
+            <text x="20" y="24" font-family="JetBrains Mono, monospace" font-size="10" fill="#c43d2a" letter-spacing="0.1em">STORAGE · RUNTIME</text>
+            <text x="20" y="58" font-family="Fraunces, serif" font-size="22" font-style="italic">Runtime store</text>
+            <text x="20" y="78" font-family="Inter Tight, sans-serif" font-size="11" fill="#5a5650">cache-like · hot data · cleaned up post-consolidation</text>
+            <text x="20" y="108" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a1a1a">· active intent (current)</text>
+            <text x="20" y="125" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a1a1a">· unprocessed episodic signals</text>
+            <text x="20" y="142" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a1a1a">· propagation queue · health pings · sync state</text>
+          </g>
+          <!-- Knowledge store -->
+          <g transform="translate(510, 0)">
+            <rect width="510" height="160" fill="#d4e0d8" stroke="#2d4a3e" stroke-width="2"/>
+            <text x="20" y="24" font-family="JetBrains Mono, monospace" font-size="10" fill="#2d4a3e" letter-spacing="0.1em">STORAGE · KNOWLEDGE</text>
+            <text x="20" y="58" font-family="Fraunces, serif" font-size="22" font-style="italic">Knowledge store</text>
+            <text x="20" y="78" font-family="Inter Tight, sans-serif" font-size="11" fill="#5a5650">durable · graph · indexed · queried via SSA</text>
+            <text x="20" y="108" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a1a1a">· frames (episodic, semantic, crystal)</text>
+            <text x="20" y="125" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a1a1a">· graph edges · embeddings · profile slots</text>
+            <text x="20" y="142" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a1a1a">· procedural artifact registry</text>
+          </g>
+        </g>
+
+        <!-- Consolidation arrow (curve from runtime to knowledge) -->
+        <path d="M 285 300 Q 550 360, 815 300" fill="none" stroke="#c43d2a" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#arrow-red)"/>
+        <text x="550" y="355" font-family="Fraunces, serif" font-size="15" font-style="italic" fill="#c43d2a" text-anchor="middle">consolidation pipeline →</text>
+
+        <!-- Inference sub-layer (left) -->
+        <g transform="translate(40, 380)">
+          <rect width="240" height="160" fill="#f4f0e8" stroke="#0a0a0a" stroke-width="1.5"/>
+          <text x="20" y="24" font-family="JetBrains Mono, monospace" font-size="10" fill="#c43d2a" letter-spacing="0.1em">SUB-LAYER · INFERENCE</text>
+          <text x="20" y="58" font-family="Fraunces, serif" font-size="20" font-style="italic">Inference</text>
+          <text x="20" y="80" font-family="Inter Tight, sans-serif" font-size="11" fill="#5a5650">replaceable classifiers</text>
+          <text x="20" y="106" font-family="JetBrains Mono, monospace" font-size="11">· kind classifier</text>
+          <text x="20" y="121" font-family="JetBrains Mono, monospace" font-size="11">· curation_mode</text>
+          <text x="20" y="136" font-family="JetBrains Mono, monospace" font-size="11">· entity extractor</text>
+          <text x="20" y="151" font-family="JetBrains Mono, monospace" font-size="11">· slot router</text>
+        </g>
+
+        <!-- Consolidation sub-layer (middle) -->
+        <g transform="translate(300, 380)">
+          <rect width="240" height="160" fill="#f4f0e8" stroke="#0a0a0a" stroke-width="1.5"/>
+          <text x="20" y="24" font-family="JetBrains Mono, monospace" font-size="10" fill="#c43d2a" letter-spacing="0.1em">SUB-LAYER · CONSOLIDATION</text>
+          <text x="20" y="58" font-family="Fraunces, serif" font-size="20" font-style="italic">Consolidation</text>
+          <text x="20" y="80" font-family="Inter Tight, sans-serif" font-size="11" fill="#5a5650">overnight pipeline</text>
+          <text x="20" y="106" font-family="JetBrains Mono, monospace" font-size="11">· drain → extract → wire</text>
+          <text x="20" y="121" font-family="JetBrains Mono, monospace" font-size="11">· embed → detect → decay</text>
+          <text x="20" y="136" font-family="JetBrains Mono, monospace" font-size="11">· write to knowledge</text>
+          <text x="20" y="151" font-family="JetBrains Mono, monospace" font-size="11">· clear runtime</text>
+        </g>
+
+        <!-- Propagation sub-layer (right) -->
+        <g transform="translate(560, 380)">
+          <rect width="240" height="160" fill="#f4f0e8" stroke="#0a0a0a" stroke-width="1.5"/>
+          <text x="20" y="24" font-family="JetBrains Mono, monospace" font-size="10" fill="#c43d2a" letter-spacing="0.1em">SUB-LAYER · PROPAGATION</text>
+          <text x="20" y="58" font-family="Fraunces, serif" font-size="20" font-style="italic">Propagation</text>
+          <text x="20" y="80" font-family="Inter Tight, sans-serif" font-size="11" fill="#5a5650">cross-harness skill flow</text>
+          <text x="20" y="106" font-family="JetBrains Mono, monospace" font-size="11">· watch registry</text>
+          <text x="20" y="121" font-family="JetBrains Mono, monospace" font-size="11">· write to from-amp/</text>
+          <text x="20" y="136" font-family="JetBrains Mono, monospace" font-size="11">· .mdc for Cursor</text>
+          <text x="20" y="151" font-family="JetBrains Mono, monospace" font-size="11">· detect conflicts</text>
+        </g>
+
+        <!-- Routing / Profile (right column) -->
+        <g transform="translate(820, 380)">
+          <rect width="240" height="160" fill="#f4f0e8" stroke="#0a0a0a" stroke-width="1.5"/>
+          <text x="20" y="24" font-family="JetBrains Mono, monospace" font-size="10" fill="#c43d2a" letter-spacing="0.1em">VIEWS · PROFILE</text>
+          <text x="20" y="58" font-family="Fraunces, serif" font-size="20" font-style="italic">Profile slots</text>
+          <text x="20" y="80" font-family="Inter Tight, sans-serif" font-size="11" fill="#5a5650">saved queries over primitives</text>
+          <text x="20" y="106" font-family="JetBrains Mono, monospace" font-size="11">· reading_list</text>
+          <text x="20" y="121" font-family="JetBrains Mono, monospace" font-size="11">· active_intent</text>
+          <text x="20" y="136" font-family="JetBrains Mono, monospace" font-size="11">· relationships</text>
+          <text x="20" y="151" font-family="JetBrains Mono, monospace" font-size="11">· strategic_goals · identity</text>
+        </g>
+
+        <!-- SSA layer at bottom -->
+        <g transform="translate(40, 570)">
+          <rect width="1020" height="50" fill="#f4f0e8" stroke="#0a0a0a" stroke-width="1.5"/>
+          <text x="20" y="20" font-family="JetBrains Mono, monospace" font-size="10" fill="#5a5650" letter-spacing="0.1em">SSA TRANSPORT TO STORAGE BACKENDS (Layer 3)</text>
+          <text x="20" y="40" font-family="Inter Tight, sans-serif" font-size="13">gbrain MCP stdio · Mem0 REST · raw filesystem · …</text>
+        </g>
+
+        <!-- Connecting line from knowledge to SSA -->
+        <line x1="765" y1="280" x2="765" y2="570" stroke="#2d4a3e" stroke-width="1.5" stroke-dasharray="3 3"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <span class="section-num">§ 07 · The unified knowledge graph</span>
+    <h2>One graph. <em>Three curation modes.</em></h2>
+    <p>The earlier draft had two databases — one personal, one for LLM-curated knowledge. The current architecture is cleaner: <strong>a single unified knowledge graph</strong>, where every node carries a <code>curation_mode</code> property.</p>
+
+    <div class="frame-grid">
+      <div class="frame" style="border-top-color: var(--accent);">
+        <div class="frame-name" style="color: var(--accent);">personal</div>
+        <div class="frame-attr"><span class="frame-attr-key">scope rule:</span> <span class="frame-attr-val">strict (Invariant 1)</span></div>
+        <div class="frame-attr"><span class="frame-attr-key">default for:</span> <span class="frame-attr-val">user-symbiosis content</span></div>
+        <p style="font-size: 14px; margin-top: 12px;">Facts about the user's world. The personal observation store. Scope never inferred upward.</p>
+      </div>
+      <div class="frame" style="border-top-color: var(--semantic);">
+        <div class="frame-name" style="color: var(--semantic);">llm_curated</div>
+        <div class="frame-attr"><span class="frame-attr-key">scope rule:</span> <span class="frame-attr-val">distillation allowed</span></div>
+        <div class="frame-attr"><span class="frame-attr-key">default for:</span> <span class="frame-attr-val">background knowledge</span></div>
+        <p style="font-size: 14px; margin-top: 12px;">Karpathy-style LLM wiki. Reference material the system curates for itself. Reframable, distillable.</p>
+      </div>
+      <div class="frame" style="border-top-color: var(--crystal);">
+        <div class="frame-name" style="color: var(--crystal);">shared</div>
+        <div class="frame-attr"><span class="frame-attr-key">scope rule:</span> <span class="frame-attr-val">opt-in by user</span></div>
+        <div class="frame-attr"><span class="frame-attr-key">default for:</span> <span class="frame-attr-val">explicit promotion only</span></div>
+        <p style="font-size: 14px; margin-top: 12px;">Accessible from both consumer contexts. Rare; explicit user opt-in. Promotion requires action.</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p><strong>The router is now a query filter, not a multi-backend dispatcher.</strong> Reads default to filtering by current consumer context. Writes go through curation-mode-specific gates. Cross-mode references work naturally because edges span freely in a unified graph.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <span class="section-num">§ 08 · Procedures — adopt, don't invent</span>
+    <h2>AMP doesn't define a skills format. <em>The standard exists already.</em></h2>
+    <p>AMP uses a compiler model for procedures. The canonical AMP artifact is the durable source; Cursor <code>.mdc</code>, Claude Code <code>SKILL.md</code>, and future harness-specific files are emitted artifacts. Claude Code and Codex support Agent Skills directly; Cursor is rules-based; Gemini skill placement remains provisional until tested.</p>
+
+    <h3>What AMP adds</h3>
+    <p>Beyond the standard <code>name</code> and <code>description</code> fields, AMP adds:</p>
+    <ul>
+      <li><code>amp_artifact_version</code> — version pinning</li>
+      <li><code>amp_compatibility</code> — required frame kinds, profile slots, curation modes</li>
+      <li><code>harness_compatibility</code> — declares which harnesses can execute this skill</li>
+      <li><code>harness_overlays</code> — per-harness behavior tweaks (Cursor globs, Claude Code hooks, etc.)</li>
+      <li>Relationship metadata: <code>extends</code>, <code>required_by</code>, <code>conflicts_with</code></li>
+    </ul>
+
+    <h3>The from-amp invariant</h3>
+    <p>AMP writes <em>only</em> to <code>from-amp/</code> subdirectories within each harness's skill directory. User-authored content lives outside; AMP never touches it. This is Invariant 4 — protocol-level, not implementation detail.</p>
+
+    <table>
+      <thead><tr><th>Harness</th><th>AMP-managed path</th></tr></thead>
+      <tbody>
+        <tr><td>Claude Code</td><td><code>~/.claude/skills/from-amp/&lt;name&gt;/SKILL.md</code></td></tr>
+        <tr><td>Cursor</td><td><code>.cursor/rules/from-amp/&lt;name&gt;.mdc</code></td></tr>
+        <tr><td>Hermes / OpenClaw / gbrain</td><td><code>skills/from-amp/&lt;name&gt;/SKILL.md</code></td></tr>
+        <tr><td>Codex CLI</td><td><code>from-amp/&lt;name&gt;/SKILL.md</code> after local placement verification</td></tr>
+        <tr><td>Gemini CLI</td><td>extension-bundled skills supported; AMP placement provisional</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <span class="section-num">§ 09 · The RL feedback loop</span>
+    <h2>Defaults that <em>actually improve</em>.</h2>
+    <p>Corrections are training signal. When AMP infers a default (which kind, which curation_mode, which entity, which slot) and the user overrides it, the disagreement is recorded with full provenance. The corpus of corrections becomes the dataset for retraining the inference layer's classifiers.</p>
+
+    <p>v0 ships rule-based defaults. v1 adds the feedback loop: per-user adjustments learned from correction frequency. v2 could ship small fine-tuned models per inference task.</p>
+
+    <p>The architecture absorbs this cleanly: the inference sub-layer is a first-class substrate component (§ 06). Each classifier is replaceable. Versioning is per-classifier. The training cron runs weekly or on-demand.</p>
+
+    <div class="callout">
+      <p><strong>This is what makes AMP compound.</strong> Without the feedback loop, AMP is static infrastructure. With it, AMP gets sharper for each user over time — the same mistake doesn't recur. The longer you use it, the better its defaults match how you think.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <span class="section-num">§ 10 · Deployment shapes</span>
+    <h2>Three ways to <em>run AMP</em>.</h2>
+
+    <div class="frame-grid">
+      <div class="frame" style="border-top-color: var(--episodic);">
+        <div class="frame-name" style="color: var(--episodic);">Shape A · Local-only</div>
+        <p style="font-size: 14px;">Substrate runs locally with consolidation daemon. v1 starts with verified Cursor and Claude Code filesystem adapters; other local harnesses come after placement and load behavior are tested. Cloud surfaces get briefing-only mode.</p>
+        <p style="font-size: 13px; color: var(--mute); margin-top: 12px;"><strong>Network:</strong> none required</p>
+      </div>
+      <div class="frame" style="border-top-color: var(--semantic);">
+        <div class="frame-name" style="color: var(--semantic);">Shape B · Hybrid</div>
+        <p style="font-size: 14px;">Same as Shape A, plus AMP exposes a public OAuth-protected MCP endpoint. Adds claude.ai web and Cowork coverage. ChatGPT still gets briefing-only.</p>
+        <p style="font-size: 13px; color: var(--mute); margin-top: 12px;"><strong>Network:</strong> public-reachable URL (VPS, Tailscale Funnel, Cloudflare Tunnel)</p>
+      </div>
+      <div class="frame" style="border-top-color: var(--mute);">
+        <div class="frame-name" style="color: var(--mute);">Shape C · Briefing-only</div>
+        <p style="font-size: 14px;">No daemon, no fs-watcher, no MCP server. AMP runs as a CLI library. User triggers briefing generation on demand. Reduced functionality — no consolidation, no inference training.</p>
+        <p style="font-size: 13px; color: var(--mute); margin-top: 12px;"><strong>Use case:</strong> cloud-only users, no daemon preference</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <h4>Status</h4>
+        <p>Working draft v2. Locked decisions consolidated. Open questions enumerated in the spec. Pressure-tested across multiple rounds.</p>
+      </div>
+      <div>
+        <h4>Companion documents</h4>
+        <p><code>AMP-CONSOLIDATED-SPEC.md</code> — the protocol spec<br>
+        <code>CURSOR-IMPLEMENTATION-GUIDE.md</code> — for Cursor working on the codebase</p>
+      </div>
+      <div>
+        <h4>Reference implementations</h4>
+        <p><code>github.com/garrytan/gbrain</code> — storage backend reference<br>
+        <code>github.com/nousresearch/hermes-agent</code> — harness reference<br>
+        <code>github.com/openclaw/openclaw</code> — harness reference</p>
+      </div>
+      <div>
+        <h4>Open standards adopted</h4>
+        <p>MCP (Model Context Protocol)<br>
+        Agent Skills open standard<br>
+        JSON-RPC 2.0 error semantics<br>
+        Hybrid retrieval (vector + keyword + RRF + graph)</p>
+      </div>
+    </div>
+    <div class="footer-meta">
+      AMP · Agent Memory Protocol · v2 working draft · generated 24 May 2026 · single-user · single-backend · CPU-only laptop · falsifiability invariant enforced
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,17 @@
+id: raw-fs
+name: Raw filesystem knowledge store (vertical slice)
+version: 0.1.0
+role: substrate
+capability_coverage:
+  frame_kinds:
+    episodic: native
+    semantic: native
+    crystal: wrapped
+  curation_mode: native
+  vector_search: unsupported
+  graph_traversal: unsupported
+  transactions: wrapped
+  embedding_storage: unsupported
+  full_text_search: unsupported
+  profile_slots: unsupported
+  procedural_registry: unsupported

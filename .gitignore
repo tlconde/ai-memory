@@ -19,6 +19,32 @@ chat-history/
 chat-history.md
 experiments/
 docs/
+!docs/
+docs/*
+!docs/specs/
+docs/specs/*
+!docs/specs/AMP_CONSOLIDATED_SPEC.md
+!docs/guides/
+docs/guides/*
+!docs/guides/CURSOR_IMPLEMENTATION_GUIDE.md
+!docs/architecture/
+docs/architecture/*
+!docs/architecture/AMP_ARCHITECTURE.html
+!docs/plans/
+docs/plans/*
+!docs/plans/AMP_VERTICAL_SLICE_GOAL.md
+!docs/plans/AMP_VERTICAL_SLICE_DECISIONS.md
+!docs/plans/AMP_RALPH_TASKS.md
+!docs/plans/AMP_V1_PLAN.md
+!docs/plans/AMP_V1_TASKS.md
+!docs/plans/AMP_V1_ORCHESTRATION.md
+!docs/plans/AMP_V1_COMPOSER_PROMPT.md
+!docs/plans/AMP_V1_LAUNCH_BOARD.md
+
+# Tool orchestrator scratch artifacts
+tools/cursor-sdk-amp-orchestrator/direct-composer-*-prompt.md
+tools/cursor-sdk-amp-orchestrator/reports/direct-composer*fix-report.md
+
 scripts/
 
 # Experiment sandbox artifacts
@@ -28,6 +54,7 @@ scripts/
 # Build / test artifacts
 coverage/
 .cache/
+tsconfig.tsbuildinfo
 
 # Session transcripts / compound dumps (never publish)
 *.jsonl

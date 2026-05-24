@@ -1,0 +1,10 @@
+id: cursor
+name: Cursor IDE
+version: 0.1.0
+role: surface
+injection_modes:
+  - filesystem-native
+from_amp_path: .cursor/rules/from-amp
+emitted_artifact:
+  format: mdc
+  naming: flat

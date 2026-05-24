@@ -1,0 +1,7 @@
+[project]
+name = "cursor-sdk-amp-orchestrator"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "cursor-sdk>=0.1.5",
+]
