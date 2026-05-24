@@ -12,6 +12,7 @@ import { loadSasSpecFromFile, tryLoadSasSpecFromFile } from "./loader.js";
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const CURSOR_SPEC = join(REPO_ROOT, "sas-files/cursor.yaml");
 const CLAUDE_CODE_SPEC = join(REPO_ROOT, "sas-files/claude-code.yaml");
+const HERMES_SPEC = join(REPO_ROOT, "sas-files/hermes.yaml");
 
 describe("loadSasSpecFromFile", () => {
   let tempRoot = "";
@@ -40,6 +41,19 @@ describe("loadSasSpecFromFile", () => {
     assert.equal(spec.emitted_artifact.format, "skill-md");
     assert.equal(spec.emitted_artifact.naming, "folder-per-skill");
     assert.equal(spec.from_amp_path, "from-amp");
+  });
+
+  it("loads canonical hermes.yaml from the repo", () => {
+    const spec = loadSasSpecFromFile(HERMES_SPEC);
+    assert.equal(spec.id, "hermes");
+    assert.equal(spec.role, "surface");
+    assert.deepEqual(spec.injection_modes, ["filesystem-native"]);
+    assert.equal(spec.from_amp_path, "skills/from-amp/");
+    assert.equal(spec.emitted_artifact.format, "skill-md");
+    assert.equal(spec.emitted_artifact.naming, "folder-per-skill");
+    assert.equal(spec.external_claims?.[0]?.label, "VERIFIED");
+    assert.equal(spec.external_claims?.[1]?.label, "PROVISIONAL");
+    assert.equal(spec.external_claims?.[2]?.label, "PROVISIONAL");
   });
 
   it("loads valid SAS YAML from a temp path", async () => {
