@@ -16,6 +16,9 @@ describe("registerAmpCommands", () => {
     const init = amp.commands.find((cmd) => cmd.name() === "init");
     assert.ok(init, "expected amp init subcommand");
 
+    const doctor = amp.commands.find((cmd) => cmd.name() === "doctor");
+    assert.ok(doctor, "expected amp doctor subcommand");
+
     const status = amp.commands.find((cmd) => cmd.name() === "status");
     assert.ok(status, "expected amp status shell subcommand");
   });
