@@ -7,6 +7,7 @@
 
 import type { Command } from "commander";
 
+import { formatAmpDoctorReport, runAmpDoctor } from "./doctor.js";
 import { formatAmpInitMessages, runAmpInit } from "./init.js";
 
 export const AMP_CLI_SHELL_VERSION = "1.0.0";
@@ -35,12 +36,27 @@ export function registerAmpCommands(program: Command): Command {
     });
 
   amp
+    .command("doctor")
+    .description("Inspect config, runtime, SSA/SAS specs, paths, and capability gaps")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .action(async (opts: { projectRoot?: string }) => {
+      const result = runAmpDoctor({ projectRoot: opts.projectRoot });
+      for (const line of formatAmpDoctorReport(result)) {
+        process.stdout.write(`${line}\n`);
+      }
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+    });
+
+  amp
     .command("status")
-    .description("Show AMP CLI shell status (subcommands land in later v1 tasks)")
+    .description("Show AMP CLI shell status")
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
+      process.stdout.write("Wired: init, doctor.\n");
       process.stdout.write(
-        "Planned: doctor, capture, consolidate, retrieve, propagate (not wired in this task).\n"
+        "Planned: capture, consolidate, retrieve, propagate (not wired yet).\n"
       );
     });
 
