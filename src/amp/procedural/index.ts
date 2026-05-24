@@ -13,6 +13,12 @@ export {
 } from "./registry.js";
 
 export {
+  CompileCursorError,
+  compileProcedureToCursorMdc,
+  type CompiledCursorMdc,
+} from "./compile-cursor.js";
+
+export {
   AMP_PROCEDURE_ARTIFACT_VERSION,
   AmpCompatibilitySchema,
   CanonicalProcedureSchema,
