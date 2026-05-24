@@ -28,6 +28,17 @@ const SAMPLE_FRAME = createFrame({
 });
 
 describe("GbrainKnowledgeAdapter with FakeGbrainMcpTransport", () => {
+  it("defaults to fake transport unless live stdio is explicitly requested", () => {
+    const safeDefault = new GbrainKnowledgeAdapter({ ssaSpecPath: GBRAIN_SPEC });
+    assert.ok(safeDefault.transport instanceof FakeGbrainMcpTransport);
+
+    const liveOptIn = new GbrainKnowledgeAdapter({
+      ssaSpecPath: GBRAIN_SPEC,
+      useLiveTransport: true,
+    });
+    assert.ok(liveOptIn.transport instanceof GbrainServeStdioTransport);
+  });
+
   it("writes and reads a frame via put_page/get_page", async () => {
     const fake = new FakeGbrainMcpTransport();
     const adapter = new GbrainKnowledgeAdapter({ transport: fake, ssaSpecPath: GBRAIN_SPEC });

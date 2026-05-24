@@ -11,7 +11,11 @@ import {
 import { frameSchemaMismatch } from "../../core/errors.js";
 import type { Frame } from "../../core/frame-schema.js";
 import { parseFrame } from "../../core/frame-schema.js";
-import type { KnowledgeListFilter, KnowledgeStore } from "../../substrate/storage/knowledge-store.js";
+import {
+  matchesKnowledgeListFilter,
+  type KnowledgeListFilter,
+  type KnowledgeStore,
+} from "../../substrate/storage/knowledge-store.js";
 
 export type { KnowledgeListFilter, KnowledgeStore };
 
@@ -38,12 +42,7 @@ export class InMemoryKnowledgeStore implements KnowledgeStore {
   }
 
   list(filter: KnowledgeListFilter = {}): Frame[] {
-    return [...this.frames.values()].filter((frame) => {
-      if (filter.scopeKind && frame.scope.kind !== filter.scopeKind) return false;
-      if (filter.projectRef && frame.scope.project_ref !== filter.projectRef) return false;
-      if (filter.curationMode && frame.curation_mode !== filter.curationMode) return false;
-      return true;
-    });
+    return [...this.frames.values()].filter((frame) => matchesKnowledgeListFilter(frame, filter));
   }
 
   capabilities(): CapabilityCoverage {

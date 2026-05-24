@@ -19,6 +19,7 @@ import {
   unsupportedWriteResult,
 } from "../../../adapter-contract/unsupported-capability.js";
 import {
+  listFailure,
   listSuccess,
   readFailure,
   readSuccess,
@@ -44,7 +45,10 @@ import {
 import { AmpError, AmpErrorCode, frameSchemaMismatch, isAmpError } from "../../../core/errors.js";
 import { createFrame, parseFrame, type Frame } from "../../../core/frame-schema.js";
 import { loadSsaSpecFromFile } from "../../../ssa/loader.js";
-import type { KnowledgeListFilter } from "../../../substrate/storage/knowledge-store.js";
+import {
+  matchesKnowledgeListFilter,
+  type KnowledgeListFilter,
+} from "../../../substrate/storage/knowledge-store.js";
 
 import {
   decodePageContentToFrame,
@@ -77,8 +81,10 @@ export type GbrainSearchOptions = {
 export type GbrainKnowledgeAdapterOptions = {
   transport?: GbrainMcpTransport;
   ssaSpecPath?: string;
-  /** When true and no transport provided, uses {@link FakeGbrainMcpTransport}. */
+  /** @deprecated Fake transport is now the safe default when no transport is provided. */
   useFakeTransport?: boolean;
+  /** Explicitly opt in to spawning live `gbrain serve` when no transport is provided. */
+  useLiveTransport?: boolean;
   stdioTransport?: GbrainServeStdioTransportOptions;
 };
 
@@ -93,10 +99,10 @@ export class GbrainKnowledgeAdapter {
 
     if (options.transport) {
       this.transport = options.transport;
-    } else if (options.useFakeTransport) {
-      this.transport = new FakeGbrainMcpTransport();
-    } else {
+    } else if (options.useLiveTransport || options.stdioTransport) {
       this.transport = new GbrainServeStdioTransport(options.stdioTransport);
+    } else {
+      this.transport = new FakeGbrainMcpTransport();
     }
   }
 
@@ -144,17 +150,15 @@ export class GbrainKnowledgeAdapter {
       return readFailure(toTransportAmpError(cause, "get_page"));
     }
 
-    const pageContent = extractPageContent(toolResult);
-    if (pageContent === undefined) {
+    const decoded = pageResultToFrame(slug, toolResult);
+    if (decoded.success && decoded.frame === undefined) {
       return readSuccess([]);
     }
-
-    const decoded = decodePageContentToFrame(pageContent);
     if (!decoded.success) {
-      return readFailure(frameSchemaMismatch({ error: decoded.error, slug }));
+      return readFailure(decoded.error);
     }
 
-    return readSuccess([decoded.frame]);
+    return decoded.frame === undefined ? readSuccess([]) : readSuccess([decoded.frame]);
   }
 
   async listFrames(filter: KnowledgeListFilter = {}): Promise<ListResult<Frame>> {
@@ -162,29 +166,30 @@ export class GbrainKnowledgeAdapter {
     try {
       toolResult = await this.transport.callTool("list_pages", { prefix: "amp/frames" });
     } catch (cause) {
-      return listFailureTransport(toTransportAmpError(cause, "list_pages"));
+      return listFailure(toTransportAmpError(cause, "list_pages"));
     }
 
     const slugs = extractListedSlugs(toolResult).filter(isAmpFrameSlug);
+    const decodedPages = await Promise.all(
+      slugs.map(async (slug) => {
+        let pageResult: unknown;
+        try {
+          pageResult = await this.transport.callTool("get_page", { slug });
+        } catch (cause) {
+          return { success: false as const, error: toTransportAmpError(cause, "get_page") };
+        }
+        return pageResultToFrame(slug, pageResult);
+      })
+    );
+
     const frames: Frame[] = [];
-
-    for (const slug of slugs) {
-      let pageResult: unknown;
-      try {
-        pageResult = await this.transport.callTool("get_page", { slug });
-      } catch (cause) {
-        return listFailureTransport(toTransportAmpError(cause, "get_page"));
-      }
-
-      const content = extractPageContent(pageResult);
-      if (content === undefined) continue;
-
-      const decoded = decodePageContentToFrame(content);
+    for (const decoded of decodedPages) {
       if (!decoded.success) {
-        return listFailureTransport(frameSchemaMismatch({ error: decoded.error, slug }));
+        return listFailure(decoded.error);
       }
-
-      frames.push(decoded.frame);
+      if (decoded.frame !== undefined) {
+        frames.push(decoded.frame);
+      }
     }
 
     const filtered = frames.filter((frame) => matchesKnowledgeListFilter(frame, filter));
@@ -220,29 +225,39 @@ export class GbrainKnowledgeAdapter {
     }
 
     const refs = extractSearchHitRefs(toolResult).filter((hit) => isAmpFrameSlug(hit.slug));
+    const decodedHits = await Promise.all(
+      refs.map(async (ref, rank) => {
+        let pageResult: unknown;
+        try {
+          pageResult = await this.transport.callTool("get_page", { slug: ref.slug });
+        } catch (cause) {
+          return { success: false as const, error: toTransportAmpError(cause, "get_page") };
+        }
+
+        const decoded = pageResultToFrame(ref.slug, pageResult);
+        if (!decoded.success || decoded.frame === undefined) {
+          return decoded;
+        }
+
+        return {
+          success: true as const,
+          hit: {
+            item: decoded.frame,
+            score: ref.score,
+            rank,
+          },
+        };
+      })
+    );
+
     const hits: SearchHit<Frame>[] = [];
-
-    for (const [rank, ref] of refs.entries()) {
-      let pageResult: unknown;
-      try {
-        pageResult = await this.transport.callTool("get_page", { slug: ref.slug });
-      } catch (cause) {
-        return searchFailure(toTransportAmpError(cause, "get_page"));
-      }
-
-      const content = extractPageContent(pageResult);
-      if (content === undefined) continue;
-
-      const decoded = decodePageContentToFrame(content);
+    for (const decoded of decodedHits) {
       if (!decoded.success) {
-        return searchFailure(frameSchemaMismatch({ error: decoded.error, slug: ref.slug }));
+        return searchFailure(decoded.error);
       }
-
-      hits.push({
-        item: decoded.frame,
-        score: ref.score,
-        rank,
-      });
+      if ("hit" in decoded) {
+        hits.push(decoded.hit);
+      }
     }
 
     return searchSuccess(hits);
@@ -285,11 +300,23 @@ export class GbrainKnowledgeAdapter {
   }
 }
 
-function matchesKnowledgeListFilter(frame: Frame, filter: KnowledgeListFilter): boolean {
-  if (filter.scopeKind && frame.scope.kind !== filter.scopeKind) return false;
-  if (filter.projectRef && frame.scope.project_ref !== filter.projectRef) return false;
-  if (filter.curationMode && frame.curation_mode !== filter.curationMode) return false;
-  return true;
+function pageResultToFrame(
+  slug: string,
+  toolResult: unknown
+):
+  | { success: true; frame: Frame | undefined }
+  | { success: false; error: AmpError } {
+  const content = extractPageContent(toolResult);
+  if (content === undefined) {
+    return { success: true, frame: undefined };
+  }
+
+  const decoded = decodePageContentToFrame(content);
+  if (!decoded.success) {
+    return { success: false, error: frameSchemaMismatch({ error: decoded.error, slug }) };
+  }
+
+  return { success: true, frame: decoded.frame };
 }
 
 function toTransportAmpError(cause: unknown, tool: string): AmpError {
@@ -303,10 +330,6 @@ function toTransportAmpError(cause: unknown, tool: string): AmpError {
     data: { tool },
     retriable: true,
   });
-}
-
-function listFailureTransport(error: AmpError): ListResult<Frame> {
-  return { success: false, error };
 }
 
 function checkSearchModeCapability(

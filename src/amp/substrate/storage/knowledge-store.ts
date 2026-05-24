@@ -20,3 +20,10 @@ export interface KnowledgeListFilter {
   projectRef?: string;
   curationMode?: Frame["curation_mode"];
 }
+
+export function matchesKnowledgeListFilter(frame: Frame, filter: KnowledgeListFilter): boolean {
+  if (filter.scopeKind && frame.scope.kind !== filter.scopeKind) return false;
+  if (filter.projectRef && frame.scope.project_ref !== filter.projectRef) return false;
+  if (filter.curationMode && frame.curation_mode !== filter.curationMode) return false;
+  return true;
+}
