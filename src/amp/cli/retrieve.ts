@@ -1,0 +1,153 @@
+/**
+ * `amp retrieve` — read consolidated preferences from the knowledge backend.
+ *
+ * Falsifiable claim: in-memory mode uses retrievePreferences; gbrain/fake-gbrain
+ * list frames via GbrainKnowledgeAdapter.listFrames.
+ */
+
+import { isListSuccess } from "../adapter-contract/operation-results.js";
+import type { Frame, ScopeKind } from "../core/frame-schema.js";
+import {
+  retrievePreferences,
+  type RetrievedPreference,
+} from "../substrate/retrieve-preference.js";
+import { resolveCliProjectContext } from "./cli-context.js";
+import {
+  createKnowledgeBackend,
+  resolveKnowledgeBackend,
+  type AmpKnowledgeBackend,
+} from "./knowledge-backend.js";
+
+export interface AmpRetrieveOptions {
+  scope?: ScopeKind;
+  projectRef?: string;
+  query?: string;
+  projectRoot?: string;
+  knowledge?: string;
+  useLiveGbrain?: boolean;
+  env?: NodeJS.ProcessEnv;
+  platform?: NodeJS.Platform;
+  homedir?: () => string;
+  ampRepoRoot?: string;
+  inMemoryStore?: import("../adapters/ssa/in-memory-knowledge-store.js").InMemoryKnowledgeStore;
+  gbrainAdapter?: import("../adapters/ssa/gbrain/adapter.js").GbrainKnowledgeAdapter;
+}
+
+export interface AmpRetrieveResult {
+  projectRoot: string;
+  knowledgeBackend: AmpKnowledgeBackend;
+  liveGbrain?: boolean;
+  scope: ScopeKind;
+  projectRef?: string;
+  query?: string;
+  preferences: RetrievedPreference[];
+}
+
+function filterFramesByQuery(frames: Frame[], query?: string): Frame[] {
+  if (!query) return frames;
+
+  const needle = query.toLowerCase();
+  return frames.filter((frame) =>
+    typeof frame.content === "string"
+      ? frame.content.toLowerCase().includes(needle)
+      : JSON.stringify(frame.content).toLowerCase().includes(needle)
+  );
+}
+
+async function retrieveFromGbrain(
+  adapter: import("../adapters/ssa/gbrain/adapter.js").GbrainKnowledgeAdapter,
+  input: { scope: ScopeKind; projectRef?: string; query?: string }
+): Promise<RetrievedPreference[]> {
+  const listResult = await adapter.listFrames({
+    scopeKind: input.scope,
+    projectRef: input.projectRef,
+    curationMode: "personal",
+  });
+
+  if (!isListSuccess(listResult)) {
+    throw listResult.error;
+  }
+
+  return filterFramesByQuery(listResult.items, input.query).map((frame) => ({ frame }));
+}
+
+/** Retrieve consolidated preferences from knowledge storage. */
+export async function runAmpRetrieve(
+  options: AmpRetrieveOptions = {}
+): Promise<AmpRetrieveResult> {
+  const context = resolveCliProjectContext({
+    projectRoot: options.projectRoot,
+    env: options.env,
+    platform: options.platform,
+    homedir: options.homedir,
+  });
+
+  const scope = options.scope ?? "project";
+  const projectRef =
+    scope === "project" ? (options.projectRef ?? context.projectRef) : options.projectRef;
+
+  const knowledgeBackend = resolveKnowledgeBackend({
+    explicit: options.knowledge,
+    env: options.env,
+  });
+
+  const handle = createKnowledgeBackend({
+    backend: knowledgeBackend,
+    ampRepoRoot: options.ampRepoRoot,
+    inMemoryStore: options.inMemoryStore,
+    gbrainAdapter: options.gbrainAdapter,
+    useLiveGbrain: options.useLiveGbrain,
+  });
+
+  let preferences: RetrievedPreference[];
+
+  if (handle.backend === "in-memory") {
+    preferences = retrievePreferences(handle.inMemory!, {
+      scope,
+      projectRef,
+      query: options.query,
+    });
+  } else {
+    preferences = await retrieveFromGbrain(handle.gbrain!, {
+      scope,
+      projectRef,
+      query: options.query,
+    });
+  }
+
+  return {
+    projectRoot: context.projectRoot,
+    knowledgeBackend: handle.backend,
+    liveGbrain: handle.liveGbrain,
+    scope,
+    projectRef,
+    query: options.query,
+    preferences,
+  };
+}
+
+/** Human-readable retrieve output lines for CLI and tests. */
+export function formatAmpRetrieveMessages(result: AmpRetrieveResult): string[] {
+  const lines = [
+    `Retrieved ${result.preferences.length} preference(s) from ${result.knowledgeBackend}.`,
+    `  scope: ${result.scope}${result.projectRef ? ` (${result.projectRef})` : ""}`,
+  ];
+
+  if (result.liveGbrain) {
+    lines.push("  PROVISIONAL: live gbrain transport — not conformance-tested in CI.");
+  }
+
+  if (result.preferences.length === 0) {
+    lines.push("  (no matches)");
+  } else {
+    for (const item of result.preferences) {
+      const content =
+        typeof item.frame.content === "string"
+          ? item.frame.content
+          : JSON.stringify(item.frame.content);
+      lines.push(`  - ${item.frame.id}: ${content}`);
+    }
+  }
+
+  return lines;
+}
