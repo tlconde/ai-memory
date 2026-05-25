@@ -27,6 +27,17 @@ export {
 } from "./paths.js";
 
 export {
+  ProjectionBudgetHardFailError,
+  evaluateProjectionBudget,
+  evaluateProjectionBudgetOrThrow,
+  type EvaluateProjectionBudgetOptions,
+  type EvaluateProjectionBudgetResult,
+  type ProjectionCombinedBudgetEvaluation,
+  type ProjectionDocumentInput,
+  type ProjectionFileBudgetEvaluation,
+} from "./budget.js";
+
+export {
   PROJECTION_FILE_SPECS,
   ProjectionBudgetMetadataSchema,
   ProjectionBudgetStatusSchema,
