@@ -15,8 +15,3 @@ export interface AgentSetupResult {
   warnings: string[];
   errors: string[];
 }
-
-export interface AgentSetupOptions {
-  projectRoot: string;
-  mode: AgentSetupMode;
-}

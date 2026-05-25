@@ -114,7 +114,6 @@ describe("Local agent setup E2E", () => {
     const claudeDryRun = await runAmpAgentSetup({
       projectRoot,
       target: "claude-code",
-      dryRun: true,
     });
     assert.equal(claudeDryRun.ok, true);
     const claudeBefore = await readFile(join(projectRoot, CLAUDE_PROJECT_FILENAME), "utf8");
@@ -135,7 +134,6 @@ describe("Local agent setup E2E", () => {
     const cursorDryRun = await runAmpAgentSetup({
       projectRoot,
       target: "cursor",
-      dryRun: true,
     });
     assert.equal(cursorDryRun.ok, true);
     assert.equal(

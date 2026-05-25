@@ -4,7 +4,6 @@
 
 export type {
   AgentSetupMode,
-  AgentSetupOptions,
   AgentSetupResult,
   AgentSetupTarget,
 } from "./types.js";

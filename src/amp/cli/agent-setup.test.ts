@@ -43,7 +43,6 @@ describe("runAmpAgentSetup", () => {
     const result = await runAmpAgentSetup({
       projectRoot,
       target: "claude-code",
-      dryRun: true,
     });
     assert.equal(result.ok, false);
     assert.match(result.errors.join("\n"), /ai-memory amp init/);
@@ -55,7 +54,6 @@ describe("runAmpAgentSetup", () => {
     const result = await runAmpAgentSetup({
       projectRoot,
       target: "claude-code",
-      dryRun: true,
     });
     assert.equal(result.ok, true);
     assert.equal(existsSync(join(projectRoot, CLAUDE_PROJECT_FILENAME)), false);

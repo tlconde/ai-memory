@@ -11,6 +11,8 @@ import {
   type AgentSetupMode,
   type AgentSetupResult,
   type AgentSetupTarget,
+  type ClaudeCodeSetupOptions,
+  type CursorSetupOptions,
 } from "../agent-setup/index.js";
 import { projectConfigPath } from "../config/paths.js";
 
@@ -19,7 +21,7 @@ export type AmpAgentSetupTarget = AgentSetupTarget;
 export interface AmpAgentSetupOptions {
   projectRoot?: string;
   target: AmpAgentSetupTarget;
-  dryRun?: boolean;
+  /** When true, perform writes. Absence of --apply means dry-run. */
   apply?: boolean;
 }
 
@@ -27,11 +29,17 @@ export interface AmpAgentSetupResult extends AgentSetupResult {
   projectRoot: string;
 }
 
+type AgentSetupRunner = (
+  options: ClaudeCodeSetupOptions | CursorSetupOptions
+) => Promise<AgentSetupResult>;
+
+const AGENT_SETUP_RUNNERS: Record<AgentSetupTarget, AgentSetupRunner> = {
+  "claude-code": runClaudeCodeProjectSetup,
+  cursor: runCursorProjectSetup,
+};
+
 function resolveMode(options: AmpAgentSetupOptions): AgentSetupMode {
-  if (options.apply === true) {
-    return "apply";
-  }
-  return "dry-run";
+  return options.apply === true ? "apply" : "dry-run";
 }
 
 /** Plan or apply local agent-access setup for the requested target. */
@@ -57,11 +65,8 @@ export async function runAmpAgentSetup(
     };
   }
 
-  const setupOptions = { projectRoot, mode };
-  const result =
-    options.target === "claude-code"
-      ? await runClaudeCodeProjectSetup(setupOptions)
-      : await runCursorProjectSetup(setupOptions);
+  const runner = AGENT_SETUP_RUNNERS[options.target];
+  const result = await runner({ projectRoot, mode });
 
   return { projectRoot, ...result };
 }

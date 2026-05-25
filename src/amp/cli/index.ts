@@ -275,7 +275,6 @@ export function registerAmpCommands(program: Command): Command {
         const result = await runAmpAgentSetup({
           projectRoot: opts.projectRoot,
           target: opts.target,
-          dryRun: opts.dryRun ?? !opts.apply,
           apply: opts.apply ?? false,
         });
         for (const line of formatAmpAgentSetupReport(result)) {
