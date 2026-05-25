@@ -17,6 +17,11 @@ import {
 import { formatAmpInitMessages, runAmpInit } from "./init.js";
 import { formatAmpPropagateReport, runAmpPropagate } from "./propagate.js";
 import {
+  formatAmpAgentSetupReport,
+  isAmpAgentSetupTarget,
+  runAmpAgentSetup,
+} from "./agent-setup.js";
+import {
   formatAmpProjectionRenderReport,
   runAmpProjectionRender,
 } from "./projection.js";
@@ -30,7 +35,7 @@ export function registerAmpCommands(program: Command): Command {
   const amp = program
     .command("amp")
     .description(
-      "Agent Memory Protocol (AMP) substrate — init, doctor, capture, consolidate, retrieve, propagate, projection"
+      "Agent Memory Protocol (AMP) substrate — init, doctor, capture, consolidate, retrieve, propagate, projection, agent setup"
     );
 
   amp
@@ -243,13 +248,52 @@ export function registerAmpCommands(program: Command): Command {
       }
     );
 
+  const agent = amp.command("agent").description("Local agent-access setup for materialized projections");
+
+  agent
+    .command("setup")
+    .description("Plan or apply Claude Code / Cursor projection wiring")
+    .requiredOption("--target <kind>", "Setup target: claude-code or cursor")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--dry-run", "Plan setup without touching disk (default when --apply omitted)")
+    .option("--apply", "Apply setup writes")
+    .action(
+      async (opts: {
+        target: string;
+        projectRoot?: string;
+        dryRun?: boolean;
+        apply?: boolean;
+      }) => {
+        if (!isAmpAgentSetupTarget(opts.target)) {
+          process.stderr.write(
+            `Invalid agent setup target "${opts.target}" — expected claude-code or cursor.\n`
+          );
+          process.exitCode = 1;
+          return;
+        }
+
+        const result = await runAmpAgentSetup({
+          projectRoot: opts.projectRoot,
+          target: opts.target,
+          dryRun: opts.dryRun ?? !opts.apply,
+          apply: opts.apply ?? false,
+        });
+        for (const line of formatAmpAgentSetupReport(result)) {
+          process.stdout.write(`${line}\n`);
+        }
+        if (!result.ok) {
+          process.exitCode = 1;
+        }
+      }
+    );
+
   amp
     .command("status")
     .description("Show AMP CLI shell status")
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local --dry-run or --apply when AMP_KNOWLEDGE_BACKEND=in-memory).\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local --dry-run or --apply when AMP_KNOWLEDGE_BACKEND=in-memory), agent setup (claude-code and cursor dry-run/apply).\n"
       );
     });
 
