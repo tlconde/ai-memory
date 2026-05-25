@@ -206,7 +206,9 @@ export function registerAmpCommands(program: Command): Command {
 
   projection
     .command("render")
-    .description("Render projection artifacts (placeholder fixtures until AMP-PROJ-13)")
+    .description(
+      "Render projection artifacts (dry-run only until DB-backed materialization is wired)"
+    )
     .option("--project-root <path>", "Project root (default: current directory)")
     .option("--dry-run", "Plan writes without touching disk")
     .action(async (opts: { projectRoot?: string; dryRun?: boolean }) => {

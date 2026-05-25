@@ -20,7 +20,7 @@ import {
 } from "../projection/index.js";
 
 export const PROJECTION_MATERIALIZATION_BLOCKED_MESSAGE =
-  "projection materialization from DB is not wired until AMP-PROJ-13";
+  "projection materialization from DB is not wired until AMP-PROJ-14";
 
 export interface AmpProjectionRenderOptions {
   projectRoot?: string;

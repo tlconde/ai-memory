@@ -63,7 +63,7 @@ describe("runAmpProjectionRender", () => {
     assert.equal(result.budget.combined.status, "ok");
   });
 
-  it("refuses non-dry-run materialization until AMP-PROJ-13", async () => {
+  it("refuses non-dry-run materialization until AMP-PROJ-14", async () => {
     const projectRoot = join(tempRoot, "no-dry-run");
     await runAmpInit({ projectRoot });
 
@@ -145,7 +145,7 @@ describe("formatAmpProjectionRenderReport", () => {
       error: PROJECTION_MATERIALIZATION_BLOCKED_MESSAGE,
     });
 
-    assert.match(lines.join("\n"), /AMP-PROJ-13/);
+    assert.match(lines.join("\n"), /AMP-PROJ-14/);
     assert.match(lines.join("\n"), /materialization is not available yet/);
   });
 });
