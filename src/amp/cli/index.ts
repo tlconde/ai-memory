@@ -30,13 +30,21 @@ import { confirmLiveGbrainWriteFromCliOptions } from "./live-gbrain-safety.js";
 
 export const AMP_CLI_SHELL_VERSION = "1.0.0";
 
-/** Register the AMP command group on the root ai-memory program. */
-export function registerAmpCommands(program: Command): Command {
-  const amp = program
-    .command("amp")
-    .description(
-      "Agent Memory Protocol (AMP) substrate — init, doctor, capture, consolidate, retrieve, propagate, projection, agent setup"
-    );
+export type RegisterAmpCommandsOptions = {
+  /** When true, register AMP commands on `program` instead of under an `amp` subgroup. */
+  atRoot?: boolean;
+};
+
+/** Register AMP commands on the root ai-memory program or directly at root for the `amp` binary. */
+export function registerAmpCommands(
+  program: Command,
+  options: RegisterAmpCommandsOptions = {}
+): Command {
+  const amp = options.atRoot
+    ? program
+    : program.command("amp").description(
+        "Agent Memory Protocol (AMP) substrate — init, doctor, capture, consolidate, retrieve, propagate, projection, agent setup"
+      );
 
   amp
     .command("init")

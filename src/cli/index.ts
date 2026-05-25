@@ -9,6 +9,11 @@ import { TOOL_ADAPTERS, getMCPJson, MCP_LAUNCHER, MCP_LAUNCHER_PATH, CANONICAL_S
 import { detectEnvironments, injectCapabilityConfig, getCapabilityManualInstructions } from "./environment.js";
 import { registerAmpCommands } from "../amp/cli/index.js";
 import { AI_PATHS } from "../schema-constants.js";
+import {
+  isCliEntryInvocation,
+  resolveCliInvocationMode,
+  type CliInvocationMode,
+} from "./invocation-mode.js";
 
 // ─── CLI helpers ─────────────────────────────────────────────────────────────
 
@@ -38,14 +43,27 @@ function validateKebabCase(name: string, label: string): void {
   }
 }
 
+const CLI_ENTRY_PATH = fileURLToPath(import.meta.url);
+const invocationMode: CliInvocationMode = resolveCliInvocationMode(process.argv);
+
 const program = new Command();
 
-program
-  .name("ai-memory")
-  .description("Persistent AI memory for any project.")
-  .version(PKG_VERSION);
+if (invocationMode === "amp-direct") {
+  program
+    .name("amp")
+    .description(
+      "Agent Memory Protocol (AMP) substrate — init, doctor, capture, consolidate, retrieve, propagate, projection, agent setup"
+    )
+    .version(PKG_VERSION);
 
-registerAmpCommands(program);
+  registerAmpCommands(program, { atRoot: true });
+} else {
+  program
+    .name("ai-memory")
+    .description("Persistent AI memory for any project.")
+    .version(PKG_VERSION);
+
+  registerAmpCommands(program);
 
 // ─── init ───────────────────────────────────────────────────────────────────
 
@@ -730,9 +748,11 @@ evalCmd.addCommand(
     })
 );
 
+}
+
 const isDirectCliInvocation =
   process.argv[1] !== undefined &&
-  resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url)) &&
+  isCliEntryInvocation(process.argv[1], CLI_ENTRY_PATH) &&
   !process.argv.includes("--test");
 
 if (isDirectCliInvocation) {
