@@ -1,12 +1,19 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
+import { createFrame } from "../core/frame-schema.js";
 import { PROJECTION_FILE_KINDS } from "../projection/constants.js";
-import { DB_BACKED_MATERIALIZATION_NOT_WIRED } from "../projection/messages.js";
+import {
+  DB_BACKED_MATERIALIZATION_NOT_WIRED,
+  LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
+} from "../projection/messages.js";
+import { capturePreference } from "../substrate/capture-preference.js";
+import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
 import { runAmpInit } from "./init.js";
 import {
   formatAmpProjectionRenderReport,
@@ -36,6 +43,7 @@ describe("runAmpProjectionRender", () => {
     });
 
     assert.equal(result.ok, true);
+    assert.equal(result.source, "placeholder");
     assert.equal(result.dryRun, true);
     assert.equal(result.projectRef, "dry-run-all");
     assert.equal(result.writes.length, 4);
@@ -71,6 +79,7 @@ describe("runAmpProjectionRender", () => {
     const result = await runAmpProjectionRender({ projectRoot, dryRun: false });
 
     assert.equal(result.ok, false);
+    assert.equal(result.source, "placeholder");
     assert.equal(result.dryRun, false);
     assert.equal(result.blocked, true);
     assert.equal(result.error, DB_BACKED_MATERIALIZATION_NOT_WIRED);
@@ -105,6 +114,7 @@ describe("runAmpProjectionRender", () => {
     const lines = formatAmpProjectionRenderReport(result);
     const text = lines.join("\n");
 
+    assert.match(text, /source=placeholder/);
     assert.match(text, /Budget:/);
     assert.match(text, /combined: 0\/2000 \(ok\)/);
     assert.match(text, /Planned writes:/);
@@ -127,12 +137,142 @@ describe("runAmpProjectionRender", () => {
     assert.equal(existsSync(join(fakeHome, ".amp", "projection", "global.md")), false);
     assert.equal(existsSync(join(projectRoot, ".amp", "local", "projection.md")), false);
   });
+
+  it("local dry-run plans four writes with injected knowledge store", async () => {
+    const projectRoot = join(tempRoot, "local-dry-run");
+    const ampUserRoot = join(tempRoot, "amp-user-local-dry-run");
+    const fakeHome = join(tempRoot, "home-local-dry-run");
+    const env = { HOME: fakeHome, AMP_USER_ROOT: ampUserRoot, AMP_KNOWLEDGE_BACKEND: "in-memory" };
+    await runAmpInit({ projectRoot, env });
+
+    const knowledge = new InMemoryKnowledgeStore();
+    knowledge.write([
+      createFrame({
+        id: "local-pref",
+        kind: "semantic",
+        content: "Local dry-run preference.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "project", project_ref: "local-dry-run" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const result = await runAmpProjectionRender({
+      projectRoot,
+      source: "local",
+      dryRun: true,
+      homedir: () => fakeHome,
+      env,
+      knowledgeStore: knowledge,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.source, "local");
+    assert.equal(result.dryRun, true);
+    assert.equal(result.writes.length, 4);
+    assert.deepEqual(
+      result.writes.map((write) => write.path),
+      [
+        join(ampUserRoot, "projection", "global.md"),
+        join(ampUserRoot, "runtime", "global.md"),
+        join(projectRoot, ".amp", "local", "projection.md"),
+        join(projectRoot, ".amp", "local", "runtime.md"),
+      ]
+    );
+    for (const write of result.writes) {
+      assert.equal(write.dryRun, true);
+      assert.equal(existsSync(write.path), false);
+    }
+  });
+
+  it("local apply writes four projection files under injected AMP_USER_ROOT and project .amp/local", async () => {
+    const projectRoot = join(tempRoot, "local-apply");
+    const ampUserRoot = join(tempRoot, "amp-user-local-apply");
+    const fakeHome = join(tempRoot, "home-local-apply");
+    const env = { HOME: fakeHome, AMP_USER_ROOT: ampUserRoot, AMP_KNOWLEDGE_BACKEND: "in-memory" };
+    await runAmpInit({ projectRoot, env });
+
+    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const runtime = openRuntimeStore(context.runtimeDbPath);
+    capturePreference(runtime, {
+      content: "Runtime note for local apply.",
+      scope: "project",
+      projectRef: "local-apply",
+    });
+    runtime.close();
+
+    const knowledge = new InMemoryKnowledgeStore();
+    knowledge.write([
+      createFrame({
+        id: "apply-pref",
+        kind: "semantic",
+        content: "Local apply preference.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "project", project_ref: "local-apply" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const result = await runAmpProjectionRender({
+      projectRoot,
+      source: "local",
+      apply: true,
+      homedir: () => fakeHome,
+      env,
+      knowledgeStore: knowledge,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.source, "local");
+    assert.equal(result.dryRun, false);
+    assert.equal(result.writes.length, 4);
+
+    const canonicalPaths = [
+      join(ampUserRoot, "projection", "global.md"),
+      join(ampUserRoot, "runtime", "global.md"),
+      join(projectRoot, ".amp", "local", "projection.md"),
+      join(projectRoot, ".amp", "local", "runtime.md"),
+    ];
+
+    for (const path of canonicalPaths) {
+      assert.equal(existsSync(path), true, `expected ${path} to exist`);
+    }
+
+    const projectProjection = await readFile(
+      join(projectRoot, ".amp", "local", "projection.md"),
+      "utf8"
+    );
+    const projectRuntime = await readFile(join(projectRoot, ".amp", "local", "runtime.md"), "utf8");
+    assert.match(projectProjection, /Local apply preference\./);
+    assert.match(projectRuntime, /Runtime note for local apply\./);
+  });
+
+  it("fails local source when offline knowledge backend is unavailable", async () => {
+    const projectRoot = join(tempRoot, "local-no-knowledge");
+    await runAmpInit({ projectRoot });
+
+    const result = await runAmpProjectionRender({
+      projectRoot,
+      source: "local",
+      dryRun: true,
+      env: { AMP_KNOWLEDGE_BACKEND: "gbrain" },
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.source, "local");
+    assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
+    assert.match(result.error ?? "", /placeholder --dry-run/);
+    assert.equal(result.writes.length, 0);
+  });
 });
 
 describe("formatAmpProjectionRenderReport", () => {
   it("formats blocked apply refusal without task IDs", () => {
     const lines = formatAmpProjectionRenderReport({
       projectRoot: "/tmp/demo",
+      source: "placeholder",
       dryRun: false,
       writes: [],
       ok: false,
@@ -141,6 +281,7 @@ describe("formatAmpProjectionRenderReport", () => {
     });
 
     const text = lines.join("\n");
+    assert.match(text, /source=placeholder/);
     assert.match(text, /not wired yet/);
     assert.match(text, /materialization is not available yet/);
     assert.equal(text.includes("AMP-PROJ"), false);

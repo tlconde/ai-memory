@@ -208,19 +208,40 @@ export function registerAmpCommands(program: Command): Command {
     .command("render")
     .description("Plan or apply projection artifacts on disk")
     .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--source <kind>", "Projection source: placeholder (default) or local")
     .option("--dry-run", "Plan writes without touching disk")
-    .action(async (opts: { projectRoot?: string; dryRun?: boolean }) => {
-      const result = await runAmpProjectionRender({
-        projectRoot: opts.projectRoot,
-        dryRun: opts.dryRun ?? false,
-      });
-      for (const line of formatAmpProjectionRenderReport(result)) {
-        process.stdout.write(`${line}\n`);
+    .option("--apply", "Apply writes (requires --source local)")
+    .action(
+      async (opts: {
+        projectRoot?: string;
+        source?: string;
+        dryRun?: boolean;
+        apply?: boolean;
+      }) => {
+        const source =
+          opts.source === "local" || opts.source === "placeholder" ? opts.source : undefined;
+        if (opts.source && !source) {
+          process.stderr.write(
+            `Invalid projection source "${opts.source}" — expected placeholder or local.\n`
+          );
+          process.exitCode = 1;
+          return;
+        }
+
+        const result = await runAmpProjectionRender({
+          projectRoot: opts.projectRoot,
+          source,
+          dryRun: opts.dryRun ?? false,
+          apply: opts.apply ?? false,
+        });
+        for (const line of formatAmpProjectionRenderReport(result)) {
+          process.stdout.write(`${line}\n`);
+        }
+        if (!result.ok) {
+          process.exitCode = 1;
+        }
       }
-      if (!result.ok) {
-        process.exitCode = 1;
-      }
-    });
+    );
 
   amp
     .command("status")
@@ -228,7 +249,7 @@ export function registerAmpCommands(program: Command): Command {
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (dry-run planning; apply blocked until DB-backed source).\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local --dry-run or --apply when AMP_KNOWLEDGE_BACKEND=in-memory).\n"
       );
     });
 

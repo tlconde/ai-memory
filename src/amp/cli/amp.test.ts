@@ -39,9 +39,41 @@ describe("registerAmpCommands", () => {
 
     const projectionRender = projection.commands.find((cmd) => cmd.name() === "render");
     assert.ok(projectionRender, "expected amp projection render subcommand");
+    assert.ok(
+      projectionRender.options.some((option) => option.long?.includes("--source")),
+      "expected --source option on projection render"
+    );
+    assert.ok(
+      projectionRender.options.some((option) => option.long?.includes("--apply")),
+      "expected --apply option on projection render"
+    );
 
     const status = amp.commands.find((cmd) => cmd.name() === "status");
     assert.ok(status, "expected amp status shell subcommand");
+  });
+
+  it("status mentions local projection source", async () => {
+    const program = new Command().name("ai-memory");
+    registerAmpCommands(program);
+    const amp = program.commands.find((cmd) => cmd.name() === "amp");
+    assert.ok(amp);
+
+    const chunks: string[] = [];
+    const originalWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = ((chunk: string | Uint8Array) => {
+      chunks.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"));
+      return true;
+    }) as typeof process.stdout.write;
+
+    try {
+      await amp.commands.find((cmd) => cmd.name() === "status")?.parseAsync([], { from: "user" });
+    } finally {
+      process.stdout.write = originalWrite;
+    }
+
+    const output = chunks.join("");
+    assert.match(output, /--source local/);
+    assert.match(output, /AMP_KNOWLEDGE_BACKEND=in-memory/);
   });
 
   it("exports a stable shell version constant", () => {
