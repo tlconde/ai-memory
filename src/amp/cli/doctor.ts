@@ -11,6 +11,10 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { CapabilityCoverage } from "../adapter-contract/capability-coverage.js";
+import {
+  appendHermesDiscoveryFindings,
+  HERMES_CONFIG_PATH_ENV,
+} from "./checks/hermes-discovery.js";
 import { discoverAmpConfig } from "../config/discovery.js";
 import {
   AMP_USER_CONFIG_PATH_ENV,
@@ -50,6 +54,7 @@ const CURSOR_RULES_FROM_AMP_REL = join(".cursor", "rules", "from-amp");
 const SSA_GBRAIN_REL = join("ssa-files", "gbrain.yaml");
 const SAS_HERMES_REL = join("sas-files", "hermes.yaml");
 
+export { HERMES_CONFIG_PATH_ENV };
 
 function finding(
   level: AmpDoctorFindingLevel,
@@ -138,6 +143,7 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const env = options.env ?? process.env;
   const ampRepoRoot = resolveAmpRepoRoot(options.ampRepoRoot);
+  const resolveHome = options.homedir ?? (() => join(projectRoot, "home"));
   const findings: AmpDoctorFinding[] = [];
 
   const configPath = projectConfigPath(projectRoot, { env });
@@ -167,7 +173,7 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
           join(projectRoot, ".amp", "missing-user-config.yaml"),
       },
       platform: options.platform,
-      homedir: options.homedir ?? (() => join(projectRoot, "home")),
+      homedir: resolveHome,
     });
 
     findings.push(
@@ -291,6 +297,8 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
       )
     );
   }
+
+  appendHermesDiscoveryFindings(findings, projectRoot, env, resolveHome);
 
   if (hasCommandInPath("gbrain", env)) {
     findings.push(
