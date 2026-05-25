@@ -9,10 +9,10 @@ import {
   unsupportedSearchResult,
 } from "../../../adapter-contract/unsupported-capability.js";
 import { createFrame } from "../../../core/frame-schema.js";
-import { decodePageContentToFrame, frameIdToSlug } from "./frame-codec.js";
+import { decodePageContentToFrame, decodePageResultToFrame, frameIdToSlug } from "./frame-codec.js";
 import { FakeGbrainMcpTransport } from "./fake-transport.js";
 import { GbrainKnowledgeAdapter } from "./adapter.js";
-import { GbrainServeStdioTransport, extractSearchHitRefs } from "./transport.js";
+import { GbrainServeStdioTransport, extractListedSlugs, extractSearchHitRefs } from "./transport.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../../../");
 const GBRAIN_SPEC = join(REPO_ROOT, "ssa-files/gbrain.yaml");
@@ -162,6 +162,18 @@ describe("frame-codec", () => {
     assert.notEqual(frameIdToSlug("a/b"), frameIdToSlug("a b"));
     assert.notEqual(frameIdToSlug(""), frameIdToSlug("???"));
   });
+
+  it("parses live get_page frontmatter payloads", () => {
+    const parsed = decodePageResultToFrame({
+      slug: frameIdToSlug("frame-001"),
+      frontmatter: {
+        amp_frame: SAMPLE_FRAME,
+      },
+    });
+    assert.equal(parsed?.success, true);
+    if (!parsed?.success) return;
+    assert.equal(parsed.frame.id, "frame-001");
+  });
 });
 
 describe("GbrainServeStdioTransport", () => {
@@ -184,6 +196,16 @@ describe("extractSearchHitRefs", () => {
       { slug: "amp/frames/abc", score: 0.92 },
       { slug: "other/page", score: 0.5 },
     ]);
+  });
+});
+
+describe("extractListedSlugs", () => {
+  it("parses bare array list_pages payloads", () => {
+    const slugs = extractListedSlugs([
+      { slug: "amp/frames/h.abc", type: "note" },
+      { slug: "other/page", type: "note" },
+    ]);
+    assert.deepEqual(slugs, ["amp/frames/h.abc", "other/page"]);
   });
 });
 

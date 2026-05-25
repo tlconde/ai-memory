@@ -178,7 +178,23 @@ function parseSearchHitRef(entry: unknown): GbrainSearchHitRef | undefined {
   return { slug, score };
 }
 
+export function slugFromListEntry(entry: unknown): string | undefined {
+  if (typeof entry === "string") {
+    return entry;
+  }
+  if (typeof entry === "object" && entry !== null && typeof (entry as { slug?: string }).slug === "string") {
+    return (entry as { slug: string }).slug;
+  }
+  return undefined;
+}
+
 export function extractListedSlugs(toolResult: unknown): string[] {
+  if (Array.isArray(toolResult)) {
+    return toolResult
+      .map(slugFromListEntry)
+      .filter((slug): slug is string => typeof slug === "string");
+  }
+
   if (typeof toolResult !== "object" || toolResult === null) {
     return [];
   }
@@ -186,13 +202,7 @@ export function extractListedSlugs(toolResult: unknown): string[] {
   const pages = record.pages;
   if (Array.isArray(pages)) {
     return pages
-      .map((entry) => {
-        if (typeof entry === "string") return entry;
-        if (typeof entry === "object" && entry !== null && typeof (entry as { slug?: string }).slug === "string") {
-          return (entry as { slug: string }).slug;
-        }
-        return undefined;
-      })
+      .map(slugFromListEntry)
       .filter((slug): slug is string => typeof slug === "string");
   }
   if (Array.isArray(record.slugs)) {

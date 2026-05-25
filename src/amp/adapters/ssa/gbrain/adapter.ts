@@ -51,7 +51,7 @@ import {
 } from "../../../substrate/storage/knowledge-store.js";
 
 import {
-  decodePageContentToFrame,
+  decodePageResultToFrame,
   encodeFrameToPageContent,
   frameIdToSlug,
   isAmpFrameSlug,
@@ -59,7 +59,6 @@ import {
 import { FakeGbrainMcpTransport } from "./fake-transport.js";
 import {
   extractListedSlugs,
-  extractPageContent,
   extractSearchHitRefs,
   GbrainServeStdioTransport,
   type GbrainMcpTransport,
@@ -306,12 +305,10 @@ function pageResultToFrame(
 ):
   | { success: true; frame: Frame | undefined }
   | { success: false; error: AmpError } {
-  const content = extractPageContent(toolResult);
-  if (content === undefined) {
+  const decoded = decodePageResultToFrame(toolResult);
+  if (decoded === undefined) {
     return { success: true, frame: undefined };
   }
-
-  const decoded = decodePageContentToFrame(content);
   if (!decoded.success) {
     return { success: false, error: frameSchemaMismatch({ error: decoded.error, slug }) };
   }
