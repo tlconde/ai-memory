@@ -8,6 +8,7 @@ export const INVARIANT_IDS = {
   INV_3_CLOUD_BOUNDED: "INV-3",
   INV_4_FROM_AMP_ISOLATED: "INV-4",
   INV_5_FALSIFIABLE_CLAIMS: "INV-5",
+  INV_6_LOCAL_GITIGNORE: "INV-6",
 } as const;
 
 export type InvariantId = (typeof INVARIANT_IDS)[keyof typeof INVARIANT_IDS];
@@ -52,6 +53,17 @@ export const INVARIANT_TEST_REGISTRY: InvariantTestMapping[] = [
     testFiles: [
       "src/amp/core/frame-schema.test.ts",
       "src/amp/integration/preference-vertical-slice.test.ts",
+    ],
+  },
+  {
+    invariantId: INVARIANT_IDS.INV_6_LOCAL_GITIGNORE,
+    description: "AMP-managed project-local artifacts are git-ignored and not trackable",
+    testFiles: [
+      "src/amp/gitignore/ensure.test.ts",
+      "src/amp/gitignore/check.test.ts",
+      "src/amp/cli/init.test.ts",
+      "src/amp/cli/doctor.test.ts",
+      "src/amp/integration/invariant-6-git-status.test.ts",
     ],
   },
 ];
