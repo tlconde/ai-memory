@@ -70,9 +70,9 @@ git init
 export AMP_USER_ROOT="$(mktemp -d)"
 export AMP_KNOWLEDGE_BACKEND=in-memory
 
-ai-memory amp init
+amp init
 # capture/consolidate or seed knowledge as needed for your test
-ai-memory amp projection render --source local --apply
+amp projection render --source local --apply
 ```
 
 ### 2. Capture a Codex-specific runtime sentinel
@@ -80,15 +80,15 @@ ai-memory amp projection render --source local --apply
 Use capture with a unique string, e.g. `AMP_SENTINEL_CODEX_CONTEXT_20260525`, then re-render projection:
 
 ```bash
-ai-memory amp capture --note "AMP_SENTINEL_CODEX_CONTEXT_20260525"
-ai-memory amp projection render --source local --apply
+amp capture --note "AMP_SENTINEL_CODEX_CONTEXT_20260525"
+amp projection render --source local --apply
 ```
 
 ### 3. Dry-run then apply Codex setup
 
 ```bash
-ai-memory amp agent setup --target codex --dry-run
-ai-memory amp agent setup --target codex --apply
+amp agent setup --target codex --dry-run
+amp agent setup --target codex --apply
 ```
 
 Verify `AGENTS.md` contains marker delimiters and the sentinel in the runtime section.
@@ -96,7 +96,7 @@ Verify `AGENTS.md` contains marker delimiters and the sentinel in the runtime se
 ### 4. Doctor check
 
 ```bash
-ai-memory amp doctor
+amp doctor
 ```
 
 Expect ok finding: `AGENTS.md contains an AMP marker block with inlined projection context.`

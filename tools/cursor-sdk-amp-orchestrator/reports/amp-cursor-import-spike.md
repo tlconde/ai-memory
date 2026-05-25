@@ -8,12 +8,9 @@
 
 **Do not ship Claude-style recursive `@path` projection imports for Cursor in v1.5b.**
 
-For Cursor, AMP should **inline regenerated projection content into emitted `.cursor/rules/from-amp/*.mdc` artifacts** (or serve projections via MCP Tier 2) until a live Cursor session confirms:
+For Cursor, AMP **inlines regenerated projection content into emitted `.cursor/rules/from-amp/*.mdc` artifacts** (or serves projections via MCP Tier 2). Live load of the flattened rule is **VERIFIED** when the temp project is the workspace root.
 
-1. Single-level `@` injection works for plain `.md` files outside `.cursor/rules/` (e.g. `.amp/local/projection.md`).
-2. Whether `@` tokens inside injected file bodies are recursively expanded (Claude Code recurses up to 5 hops; Cursor docs are silent).
-
-Until those live checks pass, treat Cursor projection parity with the Claude resolver pattern in AMP spec §4.2.2 as **blocked**.
+Cursor **recursive `@` import chains** inside projection paths remain **UNKNOWN / not used** — do not rely on nested `@` expansion until a separate live protocol confirms behavior. Single-level `@` injection for plain `.md` files outside `.cursor/rules/` was spike scope only; Wave 16 chose flattened emit instead.
 
 ## Commands
 
@@ -155,7 +152,7 @@ Fixtures and protocol committed under `fixtures/cursor-import-spike/` for a foll
 
 | Track | Action |
 |---|---|
-| **v1.5b Cursor projection** | Emit **flattened** projection + runtime bodies inside `.cursor/rules/from-amp/amp-projection.mdc` (regenerated on consolidation). Avoid `@.amp/...` import chains until live protocol passes. |
+| **v1.5b Cursor projection** | Emit **flattened** projection + runtime bodies inside `.cursor/rules/from-amp/amp-projection.mdc` (regenerated on consolidation). Avoid `@.amp/...` import chains — recursive `@` remains **UNKNOWN / not used**. Live flattened rule load: **VERIFIED**. |
 | **Context budget** | Enforce AMP 2k-token cap at materialization time in the compiler, not via nested imports. |
 | **Follow-up spike** | Run `fixtures/cursor-import-spike/live-test-protocol.md` in Cursor ≥0.46; record version, rules-in-use UI, and marker visibility. |
 | **MCP fallback** | If live tests fail single-level injection for `.amp/` paths, prefer Tier 2 MCP reads over filesystem import chains. |

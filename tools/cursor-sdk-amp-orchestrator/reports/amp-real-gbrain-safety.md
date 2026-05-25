@@ -24,7 +24,7 @@ Checklist for operators testing AMP against a real local gbrain database without
 ## Operator sequence
 
 1. **Offline gate:** `npm run amp:acceptance`
-2. **Preflight:** `ai-memory amp gbrain-preflight --knowledge gbrain`
+2. **Preflight:** `amp gbrain-preflight --knowledge gbrain`
 3. **Backup:** copy gbrain data dir after `gbrain config show` (**PROVISIONAL** — see guide)
 4. **Migrate manually** if doctor warns: `gbrain init --migrate-only` (**PROVISIONAL**)
 5. **Live test (optional):** `AMP_LIVE_GBRAIN=1 npm test -- src/amp/integration/gbrain-live.test.ts`

@@ -64,15 +64,17 @@ Live gbrain, live Hermes sessions, Cursor/Claude harness session load, and netwo
 | `skills.external_dirs` read/check | **VERIFIED** | Fixture-isolated tests in `src/amp/cli/doctor.test.ts`; module `src/amp/cli/checks/hermes-discovery.ts` |
 | Live `hermes -s` session preload | **PROVISIONAL/UNKNOWN** | Manual steps in `amp-hermes-live.md`; not automated |
 
-### Harness session loading
+### Harness session loading (opt-in; not in acceptance gate)
 
-| Surface | Label |
-|---|---|
-| Cursor rule picker / live rule load | **PROVISIONAL/UNKNOWN** |
-| Claude Code skill discovery in session | **PROVISIONAL/UNKNOWN** |
-| Hermes `hermes -s` preload | **PROVISIONAL/UNKNOWN** |
+| Surface | Mechanism | Label |
+|---------|-----------|-------|
+| Claude Code project context via AMP setup | `CLAUDE.md` marker + `@` imports | **VERIFIED** |
+| Cursor flattened `.mdc` rule load | `.cursor/rules/from-amp/amp-projection.mdc` | **VERIFIED** |
+| Codex `AGENTS.md` marker block | Inlined projection/runtime bodies | **VERIFIED** |
+| Codex `@import` / Cursor recursive `@` in projection paths | Not used by AMP | **UNKNOWN / not used** |
+| Hermes `hermes -s` preload | Manual steps in `amp-hermes-live.md` | **PROVISIONAL/UNKNOWN** |
 
-Filesystem emit to `from-amp/` roots remains **VERIFIED** offline (INV-4, propagation E2E).
+Filesystem emit to `from-amp/` roots remains **VERIFIED** offline (INV-4, propagation E2E). Live gbrain reads remain **PROVISIONAL** (opt-in).
 
 ---
 

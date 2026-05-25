@@ -30,7 +30,7 @@ What should `amp agent setup --target codex` write, and how does Codex load proj
 | Decision | Rationale | Label |
 |----------|-----------|-------|
 | Target file: `<project>/AGENTS.md` | Matches manual live verification path | **VERIFIED (manual live report)** |
-| Inline `.amp/local/projection.md` + `runtime.md` bodies | Same flattening strategy as Cursor; avoids unverified `@import` | **PROVISIONAL** (design choice; aligns with manual test) |
+| Inline `.amp/local/projection.md` + `runtime.md` bodies | Same flattening strategy as Cursor; avoids unverified `@import` | **VERIFIED** (design + live load in `amp-codex-agent-setup-live.md`) |
 | AMP marker block `<!-- amp:agent-setup:codex:v1:start/end -->` | Preserves user content outside block; idempotent upsert | **VERIFIED** (unit tests) |
 | Require materialized projection files on `--apply` | Same strictness as Cursor (`requireFiles: true`) | **VERIFIED** (preflight tests) |
 | Do **not** emit `.agents/skills/` in this wave | Skills propagation is separate (`amp propagate`); out of agent-setup scope | **VERIFIED** (scope boundary) |
@@ -42,7 +42,7 @@ What should `amp agent setup --target codex` write, and how does Codex load proj
 - **UNKNOWN:** Whether Codex resolves `@path` or `@AGENTS.md`-style imports inside `AGENTS.md`.
 - **UNKNOWN:** Whether Codex walks parent directories for `AGENTS.md` when cwd is a subdirectory (not tested here).
 - **UNKNOWN:** Whether AMP marker HTML comments affect Codex parsing (assumed inert like Claude Code markers).
-- **PROVISIONAL:** Automated `amp agent setup --target codex` live loading until sentinel protocol in live report passes.
+- **VERIFIED:** Automated `amp agent setup --target codex` live loading — sentinel protocol passed; see `amp-codex-agent-setup-live.md`.
 
 ---
 
