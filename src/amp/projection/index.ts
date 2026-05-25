@@ -73,3 +73,8 @@ export {
   type ProjectionWriteResult,
   type WriteProjectionOptions,
 } from "./write.js";
+
+export {
+  writeProjectionFileAtomic,
+  writeProjectionFilesAtomic,
+} from "./atomic-write.js";
