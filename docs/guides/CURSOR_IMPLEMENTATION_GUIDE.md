@@ -100,6 +100,10 @@ Do **not** implement "transaction primitive against gbrain" as a build task. gbr
 
 Full gate steps, invariant policy, PROVISIONAL/UNKNOWN exclusions, and residual risks live in `docs/plans/AMP_V1_ACCEPTANCE_REPORT.md`. Executable policy lives in `src/amp/conformance/acceptance-gate.ts`.
 
+### Post-v1 live verification wave
+
+**Offline acceptance and live verification are separate.** `npm run amp:acceptance` exercises fake/in-memory transports only. Post-v1 live checks (real `gbrain serve`, live Hermes/Cursor session load) are tracked in spike reports under `tools/cursor-sdk-amp-orchestrator/reports/` — expected files: `amp-gbrain-live.md`, `amp-hermes-live.md`. See that directory for the current live-verification record; do not conflate live results with acceptance gate pass/fail.
+
 ---
 
 ## CLI knowledge backend defaults

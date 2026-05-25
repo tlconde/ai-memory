@@ -33,6 +33,9 @@ The reference implementation lives in `src/amp/` in the ai-memory repo. The cano
 | Acceptance report | Human-readable gate steps, invariant policy, PROVISIONAL/UNKNOWN exclusions, residual risks | `docs/plans/AMP_V1_ACCEPTANCE_REPORT.md` |
 | Acceptance implementation | Executable gate policy | `src/amp/conformance/acceptance-gate.ts` |
 | Implementation guide | Current build layout and remaining planned phases | `docs/guides/CURSOR_IMPLEMENTATION_GUIDE.md` |
+| Live verification reports | Post-v1 live transport and harness session spikes (separate from offline gate) | `tools/cursor-sdk-amp-orchestrator/reports/` (`amp-gbrain-live.md`, `amp-hermes-live.md`) |
+
+Offline acceptance (`npm run amp:acceptance`) and post-v1 live verification are intentionally separate. Live spike reports may upgrade individual PROVISIONAL claims; they do not replace the offline gate.
 
 ---
 
@@ -574,6 +577,8 @@ v1 verified scope (offline, acceptance-gated via `npm run amp:acceptance`):
 **Out of v1 verified scope:** Codex, Gemini, Windsurf, OpenClaw, and other harness adapters — placement and load behavior not verified in the implementation environment. SAS YAML stubs may exist; they are not acceptance-gated until verified.
 
 Acceptance exclusions and residual risks are documented in `docs/plans/AMP_V1_ACCEPTANCE_REPORT.md` and enforced by `src/amp/conformance/acceptance-gate.ts`.
+
+**Post-v1 live verification wave:** Real `gbrain serve` and live harness session checks (e.g. Hermes `hermes -s`) are recorded separately in `tools/cursor-sdk-amp-orchestrator/reports/` — see `amp-gbrain-live.md` and `amp-hermes-live.md` when published. Offline verified scope in the table above is unchanged until a live report upgrades a specific claim.
 
 ---
 
