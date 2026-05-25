@@ -17,7 +17,10 @@ import {
   projectConfigPath,
 } from "../config/paths.js";
 import { AMP_CONFIG_VERSION } from "../config/schema.js";
+import { ensureAmpGitignoreEntries } from "../gitignore/ensure.js";
+import { AMP_LOCAL_DIR_REL } from "../gitignore/paths.js";
 
+export const PROJECT_LOCAL_DIR_REL = join(PROJECT_CONFIG_DIR, "local");
 export const PROJECT_RUNTIME_DIR_REL = join(PROJECT_CONFIG_DIR, "runtime");
 export const DEFAULT_PROJECT_RUNTIME_DB_FILENAME = "runtime.db";
 
@@ -34,6 +37,11 @@ export interface AmpInitResult {
   configSkippedExisting: boolean;
   runtimeDbPath: string;
   runtimeDirCreated: boolean;
+  localDirCreated: boolean;
+  gitignorePath: string;
+  gitignoreCreated: boolean;
+  gitignoreEntriesAdded: string[];
+  gitignoreEntriesPresent: string[];
 }
 
 function deriveProjectRef(projectRoot: string): string {
@@ -70,6 +78,13 @@ async function ensureRuntimeDirectory(dbPath: string): Promise<boolean> {
   return !existed;
 }
 
+async function ensureLocalDirectory(projectRoot: string): Promise<boolean> {
+  const localDir = join(resolve(projectRoot), PROJECT_LOCAL_DIR_REL);
+  const existed = existsSync(localDir);
+  await mkdir(localDir, { recursive: true });
+  return !existed;
+}
+
 /** Initialize AMP project-local config and runtime directories. */
 export async function runAmpInit(options: AmpInitOptions = {}): Promise<AmpInitResult> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
@@ -99,6 +114,8 @@ export async function runAmpInit(options: AmpInitOptions = {}): Promise<AmpInitR
 
   const runtimeDbPath = resolved.runtime.dbPath;
   const runtimeDirCreated = await ensureRuntimeDirectory(runtimeDbPath);
+  const localDirCreated = await ensureLocalDirectory(projectRoot);
+  const gitignoreResult = await ensureAmpGitignoreEntries(projectRoot);
 
   return {
     projectRoot,
@@ -107,6 +124,11 @@ export async function runAmpInit(options: AmpInitOptions = {}): Promise<AmpInitR
     configSkippedExisting,
     runtimeDbPath,
     runtimeDirCreated,
+    localDirCreated,
+    gitignorePath: gitignoreResult.gitignorePath,
+    gitignoreCreated: gitignoreResult.gitignoreCreated,
+    gitignoreEntriesAdded: gitignoreResult.entriesAdded,
+    gitignoreEntriesPresent: gitignoreResult.entriesPresent,
   };
 }
 
@@ -124,6 +146,18 @@ export function formatAmpInitMessages(result: AmpInitResult): string[] {
     lines.push(`  + ${PROJECT_RUNTIME_DIR_REL}/`);
   } else {
     lines.push(`  ✓ ${PROJECT_RUNTIME_DIR_REL}/ ready.`);
+  }
+
+  if (result.localDirCreated) {
+    lines.push(`  + ${AMP_LOCAL_DIR_REL}`);
+  } else {
+    lines.push(`  ✓ ${AMP_LOCAL_DIR_REL} ready.`);
+  }
+
+  if (result.gitignoreCreated || result.gitignoreEntriesAdded.length > 0) {
+    lines.push("  + .gitignore (AMP local/runtime protection)");
+  } else {
+    lines.push("  ✓ .gitignore already protects AMP local/runtime paths.");
   }
 
   lines.push("");

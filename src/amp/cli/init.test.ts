@@ -10,8 +10,15 @@ import { discoverAmpConfig } from "../config/discovery.js";
 import { AMP_USER_CONFIG_PATH_ENV, PROJECT_CONFIG_REL } from "../config/paths.js";
 import { parseAmpConfigFile } from "../config/schema.js";
 import {
+  AMP_GITIGNORE_MARKER,
+  AMP_LOCAL_DIR_REL,
+  AMP_RUNTIME_DIR_REL,
+  DEFAULT_AMP_GITIGNORE_LINES,
+} from "../gitignore/paths.js";
+import {
   defaultProjectRuntimeDbPath,
   formatAmpInitMessages,
+  PROJECT_LOCAL_DIR_REL,
   PROJECT_RUNTIME_DIR_REL,
   runAmpInit,
 } from "./init.js";
@@ -43,6 +50,9 @@ describe("runAmpInit", () => {
     assert.equal(parsed.runtime?.db_path, defaultProjectRuntimeDbPath(projectRoot));
 
     await access(join(projectRoot, PROJECT_RUNTIME_DIR_REL));
+    await access(join(projectRoot, PROJECT_LOCAL_DIR_REL));
+    assert.equal(existsSync(join(projectRoot, ".amp", "local", "projection.md")), false);
+    assert.equal(existsSync(join(projectRoot, ".amp", "local", "runtime.md")), false);
     assert.equal(existsSync(join(projectRoot, ".cursor", "rules", "from-amp")), false);
     assert.equal(existsSync(join(projectRoot, ".claude", "skills", "from-amp")), false);
     assert.equal(existsSync(join(projectRoot, "skills", "from-amp")), false);
@@ -112,6 +122,53 @@ describe("runAmpInit", () => {
     assert.equal(resolved.projectRef, "discovery-project");
   });
 
+  it("ensures gitignore protection for AMP local and runtime paths", async () => {
+    const projectRoot = join(tempRoot, "gitignore-protection");
+    const result = await runAmpInit({ projectRoot });
+
+    assert.equal(result.localDirCreated, true);
+    assert.equal(result.gitignoreCreated, true);
+    assert.deepEqual(result.gitignoreEntriesAdded, [...DEFAULT_AMP_GITIGNORE_LINES]);
+    assert.deepEqual(result.gitignoreEntriesPresent, []);
+
+    const gitignore = await readFile(result.gitignorePath, "utf8");
+    assert.ok(gitignore.includes(AMP_GITIGNORE_MARKER));
+    assert.match(gitignore, new RegExp(`^${AMP_LOCAL_DIR_REL.replace("/", "\\/")}$`, "m"));
+    assert.match(gitignore, new RegExp(`^${AMP_RUNTIME_DIR_REL.replace("/", "\\/")}$`, "m"));
+  });
+
+  it("does not duplicate gitignore entries on repeated init", async () => {
+    const projectRoot = join(tempRoot, "gitignore-idempotent");
+    const first = await runAmpInit({ projectRoot });
+    const before = await readFile(first.gitignorePath, "utf8");
+
+    const second = await runAmpInit({ projectRoot });
+    const after = await readFile(second.gitignorePath, "utf8");
+
+    assert.deepEqual(second.gitignoreEntriesAdded, []);
+    assert.deepEqual(second.gitignoreEntriesPresent, [...DEFAULT_AMP_GITIGNORE_LINES]);
+    assert.equal(before, after);
+  });
+
+  it("prints gitignore protection in init output", () => {
+    const messages = formatAmpInitMessages({
+      projectRoot: "/tmp/project",
+      configPath: "/tmp/project/.amp/config.yaml",
+      configCreated: true,
+      configSkippedExisting: false,
+      runtimeDbPath: "/tmp/project/.amp/runtime/runtime.db",
+      runtimeDirCreated: true,
+      localDirCreated: true,
+      gitignorePath: "/tmp/project/.gitignore",
+      gitignoreCreated: true,
+      gitignoreEntriesAdded: [...DEFAULT_AMP_GITIGNORE_LINES],
+      gitignoreEntriesPresent: [],
+    });
+
+    assert.match(messages.join("\n"), /amp doctor/i);
+    assert.match(messages.join("\n"), /\.gitignore.*AMP local\/runtime protection/i);
+  });
+
   it("prints next-step guidance to run amp doctor", () => {
     const messages = formatAmpInitMessages({
       projectRoot: "/tmp/project",
@@ -120,8 +177,14 @@ describe("runAmpInit", () => {
       configSkippedExisting: false,
       runtimeDbPath: "/tmp/project/.amp/runtime/runtime.db",
       runtimeDirCreated: true,
+      localDirCreated: false,
+      gitignorePath: "/tmp/project/.gitignore",
+      gitignoreCreated: false,
+      gitignoreEntriesAdded: [],
+      gitignoreEntriesPresent: [...DEFAULT_AMP_GITIGNORE_LINES],
     });
 
     assert.match(messages.join("\n"), /amp doctor/i);
+    assert.match(messages.join("\n"), /\.gitignore already protects AMP local\/runtime paths/i);
   });
 });
