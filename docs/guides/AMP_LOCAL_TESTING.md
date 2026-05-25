@@ -1,7 +1,7 @@
 # AMP Local Testing — Operator Guide
 
 > **Audience:** Operators and contributors running AMP offline on a laptop or in CI
-> **Scope:** Local projection materialization (Wave 15), Invariant 6 safety, and acceptance gates
+> **Scope:** Local projection materialization (Wave 15), local agent-access setup (Wave 16), Invariant 6 safety, and acceptance gates
 > **Companion:** `docs/specs/AMP_CONSOLIDATED_SPEC.md` §4.2.1, §12.6
 
 ---
@@ -53,12 +53,14 @@ Default behavior without `--dry-run` attempts apply mode. Placeholder source blo
 
 ---
 
-## What is NOT implemented (Wave 15)
+## What is NOT implemented (Wave 15–16)
 
 | Capability | Status |
 |------------|--------|
 | Live gbrain projection source | **Not implemented** — projection render never uses live gbrain |
-| Live Claude/Cursor/Hermes import loading | **Not implemented** — no harness `@import` wiring in this wave |
+| Live session loading in Claude Code / Cursor | **PROVISIONAL/UNKNOWN** — filesystem wiring is verified; whether agents load context at session launch is not part of offline acceptance |
+| Cursor recursive `@` imports for projection files | **UNKNOWN** — Wave 16 uses flattened `.mdc` under `.cursor/rules/from-amp/` instead |
+| Claude global `~/.claude/CLAUDE.md` wiring | **Not implemented** — project `CLAUDE.md` marker block only |
 | Durable cross-CLI in-memory knowledge | **Not solved** — `AMP_KNOWLEDGE_BACKEND=in-memory` is process-local; separate shell invocations do not share knowledge unless you consolidate in-process or inject stores in tests |
 | Priority-based truncation | **PROVISIONAL** — budget metadata and hard-cap gate exist; dropping content by truncation priority (spec §4.2.3) is unfinished |
 | Token counting accuracy | **PROVISIONAL** — block `tokenEstimate` uses a deterministic char/4 heuristic; not a production tokenizer |
@@ -158,6 +160,69 @@ Tests inject `knowledgeStore` and `AMP_USER_ROOT` because durable offline knowle
 
 ---
 
+## Local agent-access setup (Wave 16)
+
+After project projection files exist under `.amp/local/`, wire them into local agent surfaces with explicit dry-run/apply:
+
+### Claude Code (project `CLAUDE.md`)
+
+**VERIFIED (filesystem):** `ai-memory amp agent setup --target claude-code` inserts or updates an AMP marker block in `<project>/CLAUDE.md` with:
+
+```markdown
+@.amp/local/projection.md
+@.amp/local/runtime.md
+```
+
+- Default is dry-run (no writes). Pass `--apply` to mutate disk.
+- User-authored content outside the marker block is preserved.
+- Claude Code `@path` import semantics are **VERIFIED** from Anthropic docs; this guide only verifies filesystem setup.
+
+### Cursor (flattened from-amp rule)
+
+**VERIFIED (filesystem):** `ai-memory amp agent setup --target cursor --apply` writes:
+
+`<project>/.cursor/rules/from-amp/amp-projection.mdc`
+
+The file inlines projection and runtime markdown — **no recursive `@` imports**. Cursor recursive import behavior remains **UNKNOWN**.
+
+### Safe command examples
+
+```bash
+# Preview Claude wiring
+ai-memory amp agent setup --target claude-code --dry-run --project-root "$TMP_PROJECT"
+
+# Apply Claude wiring (requires .amp/local/ directory)
+ai-memory amp agent setup --target claude-code --apply --project-root "$TMP_PROJECT"
+
+# Preview Cursor flattened rule
+ai-memory amp agent setup --target cursor --dry-run --project-root "$TMP_PROJECT"
+
+# Apply Cursor flattened rule (requires projection.md and runtime.md)
+ai-memory amp agent setup --target cursor --apply --project-root "$TMP_PROJECT"
+```
+
+### Doctor checks
+
+**VERIFIED:** `ai-memory amp doctor` reports `agent-setup` findings for marker block presence, flattened Cursor rule presence, and missing projection files.
+
+### How to undo
+
+| Surface | Undo |
+|---------|------|
+| Claude Code | Remove the AMP marker block from `CLAUDE.md` (content between `<!-- amp:agent-setup:claude-code:v1:start -->` and `<!-- amp:agent-setup:claude-code:v1:end -->`) |
+| Cursor | Delete `.cursor/rules/from-amp/amp-projection.mdc` |
+
+### Invariant 4 / 6 notes
+
+- **Invariant 4:** Cursor setup writes only under `.cursor/rules/from-amp/` via path guards.
+- **Invariant 6:** `.amp/local/` and `.amp/runtime/` remain gitignored; agent setup does not materialize projection content into harness files (Claude uses import pointers only).
+
+### Automated E2E
+
+**VERIFIED:** `src/amp/integration/agent-setup-local.test.ts` — init → capture/consolidate → local projection apply → Claude/Cursor setup dry-run/apply → doctor ok → git clean.
+
+---
+
 ## Placeholder dry-run (no stores required)
 
 For pipeline/path/budget parity without reading runtime or knowledge:
@@ -179,3 +244,4 @@ Uses `PlaceholderProjectionSource` — empty bodies, zero token counts, apply bl
 ## Related reports
 
 - `tools/cursor-sdk-amp-orchestrator/reports/amp-local-projection-materialization.md` — Wave 15 implementation report and claim labels
+- `tools/cursor-sdk-amp-orchestrator/reports/amp-local-agent-setup.md` — Wave 16 agent-access setup report and claim labels
