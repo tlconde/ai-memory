@@ -22,9 +22,9 @@ This guide explains how to dry-run and apply projections safely without touching
 | Rule | Why |
 |------|-----|
 | Set `AMP_USER_ROOT` to a temp directory | Global projection files resolve under `AMP_USER_ROOT`, not necessarily `~/.amp` |
-| Run `amp init` before projection commands | Creates `.amp/local/`, `.amp/runtime/`, and gitignore entries (Invariant 6) |
+| Run `ai-memory amp init` before projection commands | Creates `.amp/local/`, `.amp/runtime/`, and gitignore entries (Invariant 6) |
 | Never rely on real `~/.amp` in tests | Integration tests inject `AMP_USER_ROOT` and reject real homedir resolution |
-| Project-local outputs live under `.amp/local/` | Gitignored by `amp init`; must not appear in `git status` |
+| Project-local outputs live under `.amp/local/` | Gitignored by `ai-memory amp init`; must not appear in `git status` |
 
 **VERIFIED:** Invariant 6 tests and `src/amp/integration/projection-local-materialization.test.ts` enforce git cleanliness for AMP-managed paths.
 
@@ -34,8 +34,8 @@ This guide explains how to dry-run and apply projections safely without touching
 
 | Mode | Command shape | Writes disk? | Source | Status |
 |------|---------------|--------------|--------|--------|
-| Placeholder dry-run | `amp projection render --dry-run` | No | Fixture documents only | **VERIFIED** |
-| Placeholder apply | `amp projection render` (no flags) | No — blocked | Placeholder refuses apply | **VERIFIED** |
+| Placeholder dry-run | `ai-memory amp projection render --dry-run` | No | Fixture documents only | **VERIFIED** |
+| Placeholder apply | `ai-memory amp projection render` (no flags) | No — blocked | Placeholder refuses apply | **VERIFIED** |
 | Local dry-run | `--source local --dry-run` + `AMP_KNOWLEDGE_BACKEND=in-memory` | No | Runtime DB + in-memory knowledge | **VERIFIED** |
 | Local apply | `--source local --apply` + `AMP_KNOWLEDGE_BACKEND=in-memory` | Yes (four files) | Runtime DB + in-memory knowledge | **VERIFIED** |
 
@@ -80,6 +80,8 @@ When `AMP_USER_ROOT` is unset, global paths default to `~/.amp/...` (**avoid in 
 
 ## Recommended local workflow
 
+The package exposes AMP as a subcommand: `ai-memory amp <command>`. Examples below assume you run from the repo root after `npm run build` (or use `npx ai-memory` / `node dist/cli/index.js`).
+
 ### 1. Run the offline acceptance gate
 
 From the repo root:
@@ -88,7 +90,7 @@ From the repo root:
 npm run amp:acceptance
 ```
 
-**VERIFIED:** Runs typecheck, build, full test suite, conformance (INV-1..6), and CLI smoke (`amp init`, `amp doctor`, etc.) without live gbrain.
+**VERIFIED:** Runs typecheck, build, full test suite, conformance (INV-1..6), and CLI smoke (`ai-memory amp init`, `ai-memory amp doctor`, etc.) without live gbrain.
 
 ### 2. Prepare a temp project
 
@@ -96,7 +98,7 @@ npm run amp:acceptance
 TMP_PROJECT=$(mktemp -d)
 TMP_AMP_ROOT=$(mktemp -d)
 
-amp init --project-root "$TMP_PROJECT"
+ai-memory amp init --project-root "$TMP_PROJECT"
 ```
 
 This protects `.amp/local/` and `.amp/runtime/` in the project `.gitignore`.
@@ -106,7 +108,7 @@ This protects `.amp/local/` and `.amp/runtime/` in the project `.gitignore`.
 ```bash
 AMP_USER_ROOT="$TMP_AMP_ROOT" \
 AMP_KNOWLEDGE_BACKEND=in-memory \
-amp projection render --source local --dry-run --project-root "$TMP_PROJECT"
+ai-memory amp projection render --source local --dry-run --project-root "$TMP_PROJECT"
 ```
 
 Expect four planned writes, zero files created, budget summary in output.
@@ -116,7 +118,7 @@ Expect four planned writes, zero files created, budget summary in output.
 ```bash
 AMP_USER_ROOT="$TMP_AMP_ROOT" \
 AMP_KNOWLEDGE_BACKEND=in-memory \
-amp projection render --source local --apply --project-root "$TMP_PROJECT"
+ai-memory amp projection render --source local --apply --project-root "$TMP_PROJECT"
 ```
 
 **Note:** With only CLI invocations, in-memory knowledge starts empty each process. To see preference text in project projection bodies, either:
@@ -144,7 +146,7 @@ AMP-managed paths (`.amp/local/`, `.amp/runtime/`) must not appear.
 
 The integration test:
 
-1. Creates a temp git repo and runs `amp init`
+1. Creates a temp git repo and runs `ai-memory amp init`
 2. Captures a project preference into `RuntimeStore`
 3. Consolidates to an injected `InMemoryKnowledgeStore` in-process
 4. Captures a second runtime note (left queued, not consolidated)
@@ -161,7 +163,7 @@ Tests inject `knowledgeStore` and `AMP_USER_ROOT` because durable offline knowle
 For pipeline/path/budget parity without reading runtime or knowledge:
 
 ```bash
-amp projection render --dry-run --project-root "$TMP_PROJECT"
+ai-memory amp projection render --dry-run --project-root "$TMP_PROJECT"
 ```
 
 Uses `PlaceholderProjectionSource` — empty bodies, zero token counts, apply blocked.

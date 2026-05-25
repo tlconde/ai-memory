@@ -38,20 +38,20 @@ npm run amp:acceptance
 # Prepare project
 TMP_PROJECT=$(mktemp -d)
 TMP_AMP_ROOT=$(mktemp -d)
-amp init --project-root "$TMP_PROJECT"
+ai-memory amp init --project-root "$TMP_PROJECT"
 
 # Local dry-run (plan four writes, no disk)
 AMP_USER_ROOT="$TMP_AMP_ROOT" \
 AMP_KNOWLEDGE_BACKEND=in-memory \
-amp projection render --source local --dry-run --project-root "$TMP_PROJECT"
+ai-memory amp projection render --source local --dry-run --project-root "$TMP_PROJECT"
 
 # Local apply (explicit offline materialization)
 AMP_USER_ROOT="$TMP_AMP_ROOT" \
 AMP_KNOWLEDGE_BACKEND=in-memory \
-amp projection render --source local --apply --project-root "$TMP_PROJECT"
+ai-memory amp projection render --source local --apply --project-root "$TMP_PROJECT"
 
 # Placeholder dry-run (no store reads)
-amp projection render --dry-run --project-root "$TMP_PROJECT"
+ai-memory amp projection render --dry-run --project-root "$TMP_PROJECT"
 ```
 
 ---
@@ -60,8 +60,8 @@ amp projection render --dry-run --project-root "$TMP_PROJECT"
 
 | Scenario | Expected | Label |
 |----------|----------|-------|
-| `amp projection render --dry-run` | Plans 4 paths, no writes | **VERIFIED** |
-| `amp projection render` (default) | Placeholder apply blocked | **VERIFIED** |
+| `ai-memory amp projection render --dry-run` | Plans 4 paths, no writes | **VERIFIED** |
+| `ai-memory amp projection render` (default) | Placeholder apply blocked | **VERIFIED** |
 | `--source local --dry-run` + in-memory | Plans 4 paths from stores | **VERIFIED** |
 | `--source local --apply` + in-memory | Writes 4 files atomically | **VERIFIED** |
 | `--source local` without in-memory | Error → suggest placeholder dry-run | **VERIFIED** |
@@ -77,7 +77,7 @@ amp projection render --dry-run --project-root "$TMP_PROJECT"
 
 - Project files: `<project>/.amp/local/projection.md`, `<project>/.amp/local/runtime.md`
 - Global files: `$AMP_USER_ROOT/projection/global.md`, `$AMP_USER_ROOT/runtime/global.md`
-- `amp init` adds `.amp/local/` and `.amp/runtime/` to `.gitignore`
+- `ai-memory amp init` adds `.amp/local/` and `.amp/runtime/` to `.gitignore`
 - E2E asserts `git status --short --untracked-files=all` lists no AMP-managed paths
 
 **VERIFIED:** `src/amp/integration/projection-local-materialization.test.ts`, INV-6 conformance mapping
@@ -100,7 +100,7 @@ CLI cross-invocation cannot yet share in-memory knowledge. Automated E2E therefo
 
 | Spec claim | Implementation (Wave 15) | Action |
 |------------|--------------------------|--------|
-| §12.6 `amp init` emits initial projection files | Init creates dirs + gitignore; materialization is separate CLI step | Spec footnote added |
+| §12.6 `ai-memory amp init` emits initial projection files | Init creates dirs + gitignore; materialization is separate CLI step | Spec footnote added |
 | §4.2.3 truncation priority | Metadata budget + hard fail; priority drop not implemented | Documented as **PROVISIONAL** |
 | DB-backed / gbrain projection source | Not wired; placeholder apply blocked | Matches `DB_BACKED_MATERIALIZATION_NOT_WIRED` message |
 
@@ -128,7 +128,7 @@ node --import tsx --test src/amp/integration/projection-local-materialization.te
 
 ## Residual risks
 
-1. **Process-local knowledge** — Operators expecting `amp consolidate --knowledge in-memory` followed by a separate `amp projection render` shell command will see empty projection bodies unless runtime queue items remain.
+1. **Process-local knowledge** — Operators expecting `ai-memory amp consolidate --knowledge in-memory` followed by a separate `ai-memory amp projection render` shell command will see empty projection bodies unless runtime queue items remain.
 2. **PROVISIONAL token budget** — Combined cap enforcement exists; intelligent truncation and accurate token counts are not production-ready.
 3. **No harness import wiring** — Materialized files exist on disk but Claude/Cursor/Hermes will not load them until setup commands land (v1.5b design).
 4. **Global path override** — Forgetting `AMP_USER_ROOT` in tests writes under real `~/.amp` (default homedir behavior).

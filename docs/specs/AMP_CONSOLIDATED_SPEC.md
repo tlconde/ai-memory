@@ -236,7 +236,7 @@ Cursor parity is **not locked**. Cursor `@filename` / MDC import behavior requir
 Default cap: 2,000 tokens across all four projection files. Configurable via:
 
 ```bash
-amp config set context-budget <tokens>
+ai-memory amp config set context-budget <tokens>
 ```
 
 Truncation priority, dropping last first:
