@@ -7,11 +7,13 @@ import { resolve } from "node:path";
 
 import {
   runClaudeCodeProjectSetup,
+  runCodexProjectSetup,
   runCursorProjectSetup,
   type AgentSetupMode,
   type AgentSetupResult,
   type AgentSetupTarget,
   type ClaudeCodeSetupOptions,
+  type CodexSetupOptions,
   type CursorSetupOptions,
 } from "../agent-setup/index.js";
 import { projectConfigPath } from "../config/paths.js";
@@ -30,12 +32,13 @@ export interface AmpAgentSetupResult extends AgentSetupResult {
 }
 
 type AgentSetupRunner = (
-  options: ClaudeCodeSetupOptions | CursorSetupOptions
+  options: ClaudeCodeSetupOptions | CursorSetupOptions | CodexSetupOptions
 ) => Promise<AgentSetupResult>;
 
 const AGENT_SETUP_RUNNERS: Record<AgentSetupTarget, AgentSetupRunner> = {
   "claude-code": runClaudeCodeProjectSetup,
   cursor: runCursorProjectSetup,
+  codex: runCodexProjectSetup,
 };
 
 function resolveMode(options: AmpAgentSetupOptions): AgentSetupMode {
@@ -115,5 +118,5 @@ export function formatAmpAgentSetupReport(result: AmpAgentSetupResult): string[]
 }
 
 export function isAmpAgentSetupTarget(value: string): value is AmpAgentSetupTarget {
-  return value === "claude-code" || value === "cursor";
+  return value === "claude-code" || value === "cursor" || value === "codex";
 }

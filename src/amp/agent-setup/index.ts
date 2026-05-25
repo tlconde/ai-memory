@@ -9,15 +9,32 @@ export type {
 } from "./types.js";
 
 export {
+  CODEX_PROJECT_FILENAME,
+  PROJECTION_MATERIALIZATION_REQUIRED as CODEX_PROJECTION_FILES_MISSING,
+  buildCodexMarkerInner,
+  inspectCodexMarkerBlock,
+  runCodexProjectSetup,
+  type CodexSetupOptions,
+} from "./codex.js";
+
+export {
   AMP_AGENT_SETUP_MARKER_BEGIN,
   AMP_AGENT_SETUP_MARKER_END,
+  CLAUDE_CODE_MARKER,
+  CODEX_MARKER,
   MarkerBlockError,
   buildMarkerBlock,
+  buildMarkerBlockFor,
   hasCompleteMarkerBlock,
+  hasCompleteMarkerBlockFor,
   isMalformedMarkerBlock,
+  isMalformedMarkerBlockFor,
   parseMarkerBlock,
+  parseMarkerBlockFor,
   upsertMarkerBlock,
+  upsertMarkerBlockFor,
   type MarkerBlockParts,
+  type MarkerDelimiterPair,
 } from "./markers.js";
 
 export {

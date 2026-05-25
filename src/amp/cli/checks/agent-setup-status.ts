@@ -8,8 +8,10 @@ import { join } from "node:path";
 
 import {
   CLAUDE_PROJECT_FILENAME,
+  CODEX_PROJECT_FILENAME,
   CURSOR_PROJECTION_RULE_FILENAME,
   inspectClaudeCodeMarkerBlock,
+  inspectCodexMarkerBlock,
 } from "../../agent-setup/index.js";
 import { CURSOR_FROM_AMP_REL } from "../../adapters/sas/cursor/adapter.js";
 import {
@@ -25,6 +27,8 @@ const SETUP_COMMAND_CURSOR =
   "Run `ai-memory amp agent setup --target cursor --dry-run` to preview wiring.";
 const MATERIALIZE_COMMAND =
   "Run `ai-memory amp projection render --source local --apply` to materialize project projection files first.";
+const SETUP_COMMAND_CODEX =
+  "Run `ai-memory amp agent setup --target codex --dry-run` to preview wiring.";
 
 function finding(
   level: AmpDoctorFinding["level"],
@@ -114,5 +118,40 @@ export function appendAgentSetupStatusFindings(
         `${join(CURSOR_FROM_AMP_REL, CURSOR_PROJECTION_RULE_FILENAME)} missing. ${SETUP_COMMAND_CURSOR}`
       )
     );
+  }
+
+  const codexPath = join(projectRoot, CODEX_PROJECT_FILENAME);
+  const codexContent = readOptionalFile(codexPath);
+  if (!codexContent) {
+    findings.push(
+      finding(
+        "warning",
+        `${CODEX_PROJECT_FILENAME} has no AMP marker block yet. ${SETUP_COMMAND_CODEX}`
+      )
+    );
+  } else {
+    const marker = inspectCodexMarkerBlock(codexContent);
+    if (marker.malformed) {
+      findings.push(
+        finding(
+          "error",
+          `${CODEX_PROJECT_FILENAME} contains a malformed AMP marker block. Fix markers manually or re-run setup with --apply.`
+        )
+      );
+    } else if (marker.present) {
+      findings.push(
+        finding(
+          "ok",
+          `${CODEX_PROJECT_FILENAME} contains an AMP marker block with inlined projection context.`
+        )
+      );
+    } else {
+      findings.push(
+        finding(
+          "warning",
+          `${CODEX_PROJECT_FILENAME} exists but has no AMP marker block. ${SETUP_COMMAND_CODEX}`
+        )
+      );
+    }
   }
 }

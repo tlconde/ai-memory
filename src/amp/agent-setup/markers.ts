@@ -5,8 +5,25 @@
  * edit content outside the delimited block.
  */
 
-export const AMP_AGENT_SETUP_MARKER_BEGIN = "<!-- amp:agent-setup:claude-code:v1:start -->";
-export const AMP_AGENT_SETUP_MARKER_END = "<!-- amp:agent-setup:claude-code:v1:end -->";
+export interface MarkerDelimiterPair {
+  begin: string;
+  end: string;
+}
+
+export const CLAUDE_CODE_MARKER: MarkerDelimiterPair = {
+  begin: "<!-- amp:agent-setup:claude-code:v1:start -->",
+  end: "<!-- amp:agent-setup:claude-code:v1:end -->",
+};
+
+export const CODEX_MARKER: MarkerDelimiterPair = {
+  begin: "<!-- amp:agent-setup:codex:v1:start -->",
+  end: "<!-- amp:agent-setup:codex:v1:end -->",
+};
+
+/** @deprecated Use CLAUDE_CODE_MARKER.begin */
+export const AMP_AGENT_SETUP_MARKER_BEGIN = CLAUDE_CODE_MARKER.begin;
+/** @deprecated Use CLAUDE_CODE_MARKER.end */
+export const AMP_AGENT_SETUP_MARKER_END = CLAUDE_CODE_MARKER.end;
 
 export class MarkerBlockError extends Error {
   override readonly name = "MarkerBlockError";
@@ -36,23 +53,29 @@ function countOccurrences(content: string, needle: string): number {
 }
 
 /** True when exactly one begin/end pair is present. */
-export function hasCompleteMarkerBlock(content: string): boolean {
+export function hasCompleteMarkerBlockFor(
+  content: string,
+  markers: MarkerDelimiterPair
+): boolean {
   return (
-    countOccurrences(content, AMP_AGENT_SETUP_MARKER_BEGIN) === 1 &&
-    countOccurrences(content, AMP_AGENT_SETUP_MARKER_END) === 1
+    countOccurrences(content, markers.begin) === 1 &&
+    countOccurrences(content, markers.end) === 1
   );
 }
 
 /** True when a single marker appears without its pair or markers are reversed. */
-export function isMalformedMarkerBlock(content: string): boolean {
-  const beginCount = countOccurrences(content, AMP_AGENT_SETUP_MARKER_BEGIN);
-  const endCount = countOccurrences(content, AMP_AGENT_SETUP_MARKER_END);
+export function isMalformedMarkerBlockFor(
+  content: string,
+  markers: MarkerDelimiterPair
+): boolean {
+  const beginCount = countOccurrences(content, markers.begin);
+  const endCount = countOccurrences(content, markers.end);
   if (beginCount === 0 && endCount === 0) {
     return false;
   }
   if (beginCount === 1 && endCount === 1) {
-    const beginIndex = content.indexOf(AMP_AGENT_SETUP_MARKER_BEGIN);
-    const endIndex = content.indexOf(AMP_AGENT_SETUP_MARKER_END);
+    const beginIndex = content.indexOf(markers.begin);
+    const endIndex = content.indexOf(markers.end);
     if (endIndex < beginIndex) {
       return true;
     }
@@ -62,43 +85,49 @@ export function isMalformedMarkerBlock(content: string): boolean {
 }
 
 /** Build a full marker block wrapping inner lines. */
-export function buildMarkerBlock(innerLines: readonly string[]): string {
+export function buildMarkerBlockFor(
+  innerLines: readonly string[],
+  markers: MarkerDelimiterPair
+): string {
   const inner = innerLines.join("\n");
-  return [
-    AMP_AGENT_SETUP_MARKER_BEGIN,
-    inner,
-    AMP_AGENT_SETUP_MARKER_END,
-  ].join("\n");
+  return [markers.begin, inner, markers.end].join("\n");
 }
 
 /** Parse content into before/inner/after when a complete marker block exists. */
-export function parseMarkerBlock(content: string): MarkerBlockParts | undefined {
-  if (!hasCompleteMarkerBlock(content)) {
+export function parseMarkerBlockFor(
+  content: string,
+  markers: MarkerDelimiterPair
+): MarkerBlockParts | undefined {
+  if (!hasCompleteMarkerBlockFor(content, markers)) {
     return undefined;
   }
-  const beginIndex = content.indexOf(AMP_AGENT_SETUP_MARKER_BEGIN);
-  const endIndex = content.indexOf(AMP_AGENT_SETUP_MARKER_END);
+  const beginIndex = content.indexOf(markers.begin);
+  const endIndex = content.indexOf(markers.end);
   if (beginIndex === -1 || endIndex === -1 || endIndex < beginIndex) {
     return undefined;
   }
 
   const before = content.slice(0, beginIndex);
-  const innerStart = beginIndex + AMP_AGENT_SETUP_MARKER_BEGIN.length;
+  const innerStart = beginIndex + markers.begin.length;
   const inner = content.slice(innerStart, endIndex).replace(/^\n/, "").replace(/\n$/, "");
-  const after = content.slice(endIndex + AMP_AGENT_SETUP_MARKER_END.length);
+  const after = content.slice(endIndex + markers.end.length);
   return { before, inner, after };
 }
 
 /** Replace or append a marker block without touching surrounding user content. */
-export function upsertMarkerBlock(content: string, innerLines: readonly string[]): string {
-  if (isMalformedMarkerBlock(content)) {
+export function upsertMarkerBlockFor(
+  content: string,
+  innerLines: readonly string[],
+  markers: MarkerDelimiterPair
+): string {
+  if (isMalformedMarkerBlockFor(content, markers)) {
     throw new MarkerBlockError(
       "Malformed AMP marker block: expected exactly one begin/end pair."
     );
   }
 
-  const block = buildMarkerBlock(innerLines);
-  const parsed = parseMarkerBlock(content);
+  const block = buildMarkerBlockFor(innerLines, markers);
+  const parsed = parseMarkerBlockFor(content, markers);
   if (parsed) {
     const prefix = parsed.before.endsWith("\n") || parsed.before.length === 0 ? parsed.before : `${parsed.before}\n`;
     const suffix = parsed.after.startsWith("\n") || parsed.after.length === 0 ? parsed.after : `\n${parsed.after}`;
@@ -111,4 +140,24 @@ export function upsertMarkerBlock(content: string, innerLines: readonly string[]
 
   const separator = content.endsWith("\n\n") ? "" : content.endsWith("\n") ? "\n" : "\n\n";
   return `${content}${separator}${block}\n`;
+}
+
+export function hasCompleteMarkerBlock(content: string): boolean {
+  return hasCompleteMarkerBlockFor(content, CLAUDE_CODE_MARKER);
+}
+
+export function isMalformedMarkerBlock(content: string): boolean {
+  return isMalformedMarkerBlockFor(content, CLAUDE_CODE_MARKER);
+}
+
+export function buildMarkerBlock(innerLines: readonly string[]): string {
+  return buildMarkerBlockFor(innerLines, CLAUDE_CODE_MARKER);
+}
+
+export function parseMarkerBlock(content: string): MarkerBlockParts | undefined {
+  return parseMarkerBlockFor(content, CLAUDE_CODE_MARKER);
+}
+
+export function upsertMarkerBlock(content: string, innerLines: readonly string[]): string {
+  return upsertMarkerBlockFor(content, innerLines, CLAUDE_CODE_MARKER);
 }

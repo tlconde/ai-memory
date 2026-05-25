@@ -374,6 +374,14 @@ describe("runAmpDoctor", () => {
           f.message.includes("amp-projection.mdc")
       )
     );
+    assert.ok(
+      before.findings.some(
+        (f) =>
+          f.category === "agent-setup" &&
+          f.level === "warning" &&
+          f.message.includes("AGENTS.md")
+      )
+    );
   });
 
   it("reports ok agent setup findings after wiring", async () => {
@@ -387,12 +395,16 @@ describe("runAmpDoctor", () => {
     const { runAmpAgentSetup } = await import("./agent-setup.js");
     await runAmpAgentSetup({ projectRoot, target: "claude-code", apply: true });
     await runAmpAgentSetup({ projectRoot, target: "cursor", apply: true });
+    await runAmpAgentSetup({ projectRoot, target: "codex", apply: true });
 
     const result = runAmpDoctor({ projectRoot, ampRepoRoot: REPO_ROOT });
     const setupFindings = result.findings.filter((f) => f.category === "agent-setup");
     assert.ok(setupFindings.some((f) => f.level === "ok" && f.message.includes("CLAUDE.md")));
     assert.ok(
       setupFindings.some((f) => f.level === "ok" && f.message.includes("amp-projection.mdc"))
+    );
+    assert.ok(
+      setupFindings.some((f) => f.level === "ok" && f.message.includes("AGENTS.md"))
     );
     assert.ok(
       setupFindings.some((f) => f.level === "ok" && f.message.includes("projection files present"))

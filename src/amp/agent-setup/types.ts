@@ -2,7 +2,7 @@
  * Shared types for local agent-access setup (Wave 16).
  */
 
-export type AgentSetupTarget = "claude-code" | "cursor";
+export type AgentSetupTarget = "claude-code" | "cursor" | "codex";
 
 export type AgentSetupMode = "dry-run" | "apply";
 

@@ -1,8 +1,8 @@
 /**
  * Shared projection readiness checks for agent setup targets.
  *
- * Claude and Cursor use different strictness because Claude writes import paths
- * that can resolve after materialization, while Cursor flattening must read file
+ * Claude, Cursor, and Codex use different strictness because Claude writes import paths
+ * that can resolve after materialization, while Cursor/Codex flattening must read file
  * contents during apply.
  */
 

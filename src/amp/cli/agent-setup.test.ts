@@ -90,7 +90,22 @@ describe("runAmpAgentSetup", () => {
   it("validates setup targets", () => {
     assert.equal(isAmpAgentSetupTarget("claude-code"), true);
     assert.equal(isAmpAgentSetupTarget("cursor"), true);
+    assert.equal(isAmpAgentSetupTarget("codex"), true);
     assert.equal(isAmpAgentSetupTarget("unknown"), false);
+  });
+
+  it("apply for Codex writes AGENTS.md marker block", async () => {
+    const projectRoot = await seedProject("codex-apply");
+
+    const result = await runAmpAgentSetup({
+      projectRoot,
+      target: "codex",
+      apply: true,
+    });
+    assert.equal(result.ok, true);
+    const content = await readFile(join(projectRoot, "AGENTS.md"), "utf8");
+    assert.match(content, /## AMP Project Projection/);
+    assert.match(content, /## AMP Project Runtime/);
   });
 
   it("formats dry-run and error reports", () => {

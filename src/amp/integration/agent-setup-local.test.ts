@@ -2,8 +2,8 @@
  * Local agent setup E2E — projection materialization plus harness wiring.
  *
  * Falsifiable claim: after init and local projection apply, agent setup writes
- * only CLAUDE.md marker imports and flattened Cursor from-amp mdc while keeping
- * git status clean for AMP-managed project-local paths.
+ * only CLAUDE.md marker imports, flattened Cursor from-amp mdc, and inlined Codex
+ * AGENTS.md marker content while keeping git status clean for AMP-managed paths.
  */
 
 import { describe, it, before, after } from "node:test";
@@ -128,6 +128,26 @@ describe("Local agent setup E2E", () => {
     assert.match(cursorRule, /Queued runtime note for agent setup\./);
     assert.doesNotMatch(cursorRule, /@\.amp\/local\//);
 
+    const codexDryRun = await runAmpAgentSetup({
+      projectRoot,
+      target: "codex",
+    });
+    assert.equal(codexDryRun.ok, true);
+    assert.equal(existsSync(join(projectRoot, "AGENTS.md")), false);
+
+    const codexApply = await runAmpAgentSetup({
+      projectRoot,
+      target: "codex",
+      apply: true,
+    });
+    assert.equal(codexApply.ok, true);
+    const agentsMd = await readFile(join(projectRoot, "AGENTS.md"), "utf8");
+    assert.match(agentsMd, /## AMP Project Projection/);
+    assert.match(agentsMd, /Prefer explicit return types on exported AMP functions\./);
+    assert.match(agentsMd, /## AMP Project Runtime/);
+    assert.match(agentsMd, /Queued runtime note for agent setup\./);
+    assert.doesNotMatch(agentsMd, /@\.amp\/local\//);
+
     assertCleanAmpGitStatus(projectRoot, "after agent setup");
 
     const doctor = runAmpDoctor({ projectRoot, env, homedir: () => fakeHome });
@@ -137,6 +157,9 @@ describe("Local agent setup E2E", () => {
     );
     assert.ok(
       setupFindings.some((f) => f.level === "ok" && f.message.includes("amp-projection.mdc"))
+    );
+    assert.ok(
+      setupFindings.some((f) => f.level === "ok" && f.message.includes("AGENTS.md"))
     );
     assert.ok(
       setupFindings.some((f) => f.level === "ok" && f.message.includes("projection files present"))

@@ -253,7 +253,7 @@ export function registerAmpCommands(program: Command): Command {
   agent
     .command("setup")
     .description("Plan or apply Claude Code / Cursor projection wiring")
-    .requiredOption("--target <kind>", "Setup target: claude-code or cursor")
+    .requiredOption("--target <kind>", "Setup target: claude-code, cursor, or codex")
     .option("--project-root <path>", "Project root (default: current directory)")
     .option("--dry-run", "Plan setup without touching disk (default when --apply omitted)")
     .option("--apply", "Apply setup writes")
@@ -266,7 +266,7 @@ export function registerAmpCommands(program: Command): Command {
       }) => {
         if (!isAmpAgentSetupTarget(opts.target)) {
           process.stderr.write(
-            `Invalid agent setup target "${opts.target}" — expected claude-code or cursor.\n`
+            `Invalid agent setup target "${opts.target}" — expected claude-code, cursor, or codex.\n`
           );
           process.exitCode = 1;
           return;
@@ -292,7 +292,7 @@ export function registerAmpCommands(program: Command): Command {
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local --dry-run or --apply when AMP_KNOWLEDGE_BACKEND=in-memory), agent setup (claude-code and cursor dry-run/apply).\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local --dry-run or --apply when AMP_KNOWLEDGE_BACKEND=in-memory), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
       );
     });
 
