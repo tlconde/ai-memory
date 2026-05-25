@@ -7,7 +7,6 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -130,15 +129,14 @@ function listUnsupportedCapabilities(coverage: CapabilityCoverage): string[] {
 
 function resolveHermesConfigPath(
   env: NodeJS.ProcessEnv,
-  homedirFn?: () => string
+  homedirFn: () => string
 ): string {
   const envOverride = env[HERMES_CONFIG_PATH_ENV]?.trim();
   if (envOverride) {
     return resolve(envOverride);
   }
 
-  const home = homedirFn ?? homedir;
-  return join(home(), HERMES_CONFIG_REL);
+  return join(homedirFn(), HERMES_CONFIG_REL);
 }
 
 function parseHermesExternalDirs(configPath: string): HermesExternalDirsResult {
@@ -196,7 +194,7 @@ function appendHermesDiscoveryFindings(
   findings: AmpDoctorFinding[],
   projectRoot: string,
   env: NodeJS.ProcessEnv,
-  homedirFn?: () => string
+  homedirFn: () => string
 ): void {
   const configPath = resolveHermesConfigPath(env, homedirFn);
   const projectSkillsDir = resolve(projectRoot, PROJECT_SKILLS_REL);
@@ -289,6 +287,7 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const env = options.env ?? process.env;
   const ampRepoRoot = resolveAmpRepoRoot(options.ampRepoRoot);
+  const resolveHome = options.homedir ?? (() => join(projectRoot, "home"));
   const findings: AmpDoctorFinding[] = [];
 
   const configPath = projectConfigPath(projectRoot, { env });
@@ -318,7 +317,7 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
           join(projectRoot, ".amp", "missing-user-config.yaml"),
       },
       platform: options.platform,
-      homedir: options.homedir ?? (() => join(projectRoot, "home")),
+      homedir: resolveHome,
     });
 
     findings.push(
@@ -443,7 +442,7 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
     );
   }
 
-  appendHermesDiscoveryFindings(findings, projectRoot, env, options.homedir);
+  appendHermesDiscoveryFindings(findings, projectRoot, env, resolveHome);
 
   if (hasCommandInPath("gbrain", env)) {
     findings.push(

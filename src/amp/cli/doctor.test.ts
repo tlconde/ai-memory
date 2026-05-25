@@ -92,6 +92,41 @@ describe("runAmpDoctor", () => {
     );
   });
 
+  it("uses projectRoot/home for Hermes when homedir is not injected", async () => {
+    const projectRoot = join(tempRoot, "hermes-default-home");
+    await mkdir(join(projectRoot, "skills", "from-amp"), { recursive: true });
+
+    const defaultHome = join(projectRoot, "home");
+    await mkdir(join(defaultHome, ".hermes"), { recursive: true });
+    await writeFile(
+      join(defaultHome, ".hermes", "config.yaml"),
+      yaml.dump({ skills: { external_dirs: [join(projectRoot, "skills")] } }),
+      "utf8"
+    );
+
+    const result = runAmpDoctor({
+      projectRoot,
+      ampRepoRoot: REPO_ROOT,
+    });
+
+    const expectedConfigPath = join(defaultHome, ".hermes", "config.yaml");
+    assert.ok(
+      result.findings.some(
+        (f) =>
+          f.category === "hermes-discovery" &&
+          f.message.includes(expectedConfigPath)
+      )
+    );
+    assert.ok(
+      result.findings.some(
+        (f) =>
+          f.category === "hermes-discovery" &&
+          f.level === "ok" &&
+          f.message.includes("listed in Hermes skills.external_dirs")
+      )
+    );
+  });
+
   it("warns when Hermes external_dirs omits project skills root", async () => {
     const projectRoot = join(tempRoot, "hermes-missing-ext");
     await mkdir(join(projectRoot, "skills", "from-amp"), { recursive: true });
