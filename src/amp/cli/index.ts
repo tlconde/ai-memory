@@ -206,9 +206,7 @@ export function registerAmpCommands(program: Command): Command {
 
   projection
     .command("render")
-    .description(
-      "Render projection artifacts (dry-run only until DB-backed materialization is wired)"
-    )
+    .description("Plan or apply projection artifacts on disk")
     .option("--project-root <path>", "Project root (default: current directory)")
     .option("--dry-run", "Plan writes without touching disk")
     .action(async (opts: { projectRoot?: string; dryRun?: boolean }) => {
@@ -230,7 +228,7 @@ export function registerAmpCommands(program: Command): Command {
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render --dry-run.\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (dry-run planning; apply blocked until DB-backed source).\n"
       );
     });
 

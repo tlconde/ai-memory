@@ -1,8 +1,8 @@
 /**
- * `amp projection render` — plan projection artifact writes via placeholder fixtures.
+ * `amp projection render` — plan projection artifact writes via materialization pipeline.
  *
- * Falsifiable claim: dry-run evaluates budgets and reports canonical paths without
- * DB materialization or disk writes.
+ * Falsifiable claim: config discovery plus materializeProjections reports canonical
+ * paths in dry-run without disk writes; apply fails safely when source refuses apply.
  */
 
 import { existsSync } from "node:fs";
@@ -11,16 +11,11 @@ import { join, resolve } from "node:path";
 import { discoverAmpConfig } from "../config/discovery.js";
 import { AMP_USER_CONFIG_PATH_ENV, projectConfigPath } from "../config/paths.js";
 import {
-  PROJECTION_FILE_KINDS,
-  createProjectionDocument,
-  evaluateProjectionBudget,
-  writeProjectionFiles,
+  materializeProjections,
+  PlaceholderProjectionSource,
   type EvaluateProjectionBudgetResult,
   type ProjectionWriteResult,
 } from "../projection/index.js";
-
-export const PROJECTION_MATERIALIZATION_BLOCKED_MESSAGE =
-  "projection materialization from DB is not wired until AMP-PROJ-14";
 
 export interface AmpProjectionRenderOptions {
   projectRoot?: string;
@@ -34,59 +29,27 @@ export interface AmpProjectionRenderResult {
   projectRoot: string;
   projectRef?: string;
   dryRun: boolean;
-  budget: EvaluateProjectionBudgetResult;
+  budget?: EvaluateProjectionBudgetResult;
   writes: ProjectionWriteResult[];
   ok: boolean;
   error?: string;
+  blocked?: boolean;
 }
 
-function emptyBudgetResult(): EvaluateProjectionBudgetResult {
-  return {
-    success: true,
-    files: [],
-    combined: {
-      combined_cap: 0,
-      combined_count: 0,
-      hard_cap: 0,
-      status: "ok",
-    },
-  };
-}
-
-function buildPlaceholderDocuments(projectRef: string | undefined) {
-  return PROJECTION_FILE_KINDS.map((kind) =>
-    createProjectionDocument({
-      kind,
-      ...(kind.startsWith("project_") ? { project_ref: projectRef ?? "project" } : {}),
-    })
-  );
-}
-
-/** Plan or render projection artifacts from placeholder fixtures. */
+/** Plan or render projection artifacts through the materialization pipeline. */
 export async function runAmpProjectionRender(
   options: AmpProjectionRenderOptions = {}
 ): Promise<AmpProjectionRenderResult> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const env = options.env ?? process.env;
   const dryRun = options.dryRun === true;
-
-  if (!dryRun) {
-    return {
-      projectRoot,
-      dryRun: false,
-      budget: emptyBudgetResult(),
-      writes: [],
-      ok: false,
-      error: PROJECTION_MATERIALIZATION_BLOCKED_MESSAGE,
-    };
-  }
+  const mode = dryRun ? "dry-run" : "apply";
 
   const configPath = projectConfigPath(projectRoot, { env });
   if (!existsSync(configPath)) {
     return {
       projectRoot,
-      dryRun: true,
-      budget: emptyBudgetResult(),
+      dryRun,
       writes: [],
       ok: false,
       error: `Project AMP config not found at ${configPath}. Run \`amp init\` first.`,
@@ -110,30 +73,30 @@ export async function runAmpProjectionRender(
     const message = cause instanceof Error ? cause.message : String(cause);
     return {
       projectRoot,
-      dryRun: true,
-      budget: emptyBudgetResult(),
+      dryRun,
       writes: [],
       ok: false,
       error: `AMP config discovery failed: ${message}`,
     };
   }
 
-  const documents = buildPlaceholderDocuments(projectRef);
-  const budget = evaluateProjectionBudget(documents);
-  const writes = await writeProjectionFiles(documents, {
+  const plan = await materializeProjections(new PlaceholderProjectionSource(), {
     projectRoot,
-    dryRun: true,
+    mode,
+    projectRef,
     env,
     homedir: options.homedir,
   });
 
   return {
-    projectRoot,
-    projectRef,
-    dryRun: true,
-    budget,
-    writes,
-    ok: budget.success,
+    projectRoot: plan.projectRoot,
+    projectRef: plan.projectRef,
+    dryRun: plan.dryRun,
+    ...(plan.budget !== undefined ? { budget: plan.budget } : {}),
+    writes: plan.writes,
+    ok: plan.ok,
+    ...(plan.error !== undefined ? { error: plan.error } : {}),
+    ...(plan.blocked !== undefined ? { blocked: plan.blocked } : {}),
   };
 }
 
@@ -145,11 +108,15 @@ export function formatAmpProjectionRenderReport(result: AmpProjectionRenderResul
   if (result.error) {
     lines.push(`  ERROR ${result.error}`);
     lines.push("");
-    lines.push(
-      result.dryRun
-        ? "ERROR Projection dry-run did not run."
-        : "ERROR Projection materialization is not available yet."
-    );
+    if (result.blocked) {
+      lines.push("ERROR Projection materialization is not available yet.");
+    } else {
+      lines.push(
+        result.dryRun
+          ? "ERROR Projection dry-run did not run."
+          : "ERROR Projection materialization failed."
+      );
+    }
     return lines;
   }
 
@@ -158,15 +125,17 @@ export function formatAmpProjectionRenderReport(result: AmpProjectionRenderResul
     lines.push("");
   }
 
-  lines.push("Budget:");
-  const { combined, files } = result.budget;
-  lines.push(
-    `  combined: ${combined.combined_count}/${combined.combined_cap} (${combined.status})`
-  );
-  for (const file of files) {
-    lines.push(`  ${file.kind}: ${file.token_count}/${file.token_target} (${file.status})`);
+  if (result.budget) {
+    lines.push("Budget:");
+    const { combined, files } = result.budget;
+    lines.push(
+      `  combined: ${combined.combined_count}/${combined.combined_cap} (${combined.status})`
+    );
+    for (const file of files) {
+      lines.push(`  ${file.kind}: ${file.token_count}/${file.token_target} (${file.status})`);
+    }
+    lines.push("");
   }
-  lines.push("");
 
   lines.push("Planned writes:");
   for (const write of result.writes) {
@@ -176,8 +145,12 @@ export function formatAmpProjectionRenderReport(result: AmpProjectionRenderResul
   lines.push("");
 
   if (result.ok) {
-    lines.push("OK Projection dry-run finished; no files were written.");
-  } else if (!result.budget.success) {
+    lines.push(
+      result.dryRun
+        ? "OK Projection dry-run finished; no files were written."
+        : "OK Projection materialization finished."
+    );
+  } else if (result.budget && !result.budget.success) {
     lines.push(`ERROR ${result.budget.error}`);
   }
 
