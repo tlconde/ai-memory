@@ -9,7 +9,7 @@ import {
   unsupportedSearchResult,
 } from "../../../adapter-contract/unsupported-capability.js";
 import { createFrame } from "../../../core/frame-schema.js";
-import { decodePageContentToFrame, extractAmpFrameFromPageResult, frameIdToSlug } from "./frame-codec.js";
+import { decodePageContentToFrame, decodePageResultToFrame, frameIdToSlug } from "./frame-codec.js";
 import { FakeGbrainMcpTransport } from "./fake-transport.js";
 import { GbrainKnowledgeAdapter } from "./adapter.js";
 import { GbrainServeStdioTransport, extractListedSlugs, extractSearchHitRefs } from "./transport.js";
@@ -164,7 +164,7 @@ describe("frame-codec", () => {
   });
 
   it("parses live get_page frontmatter payloads", () => {
-    const parsed = extractAmpFrameFromPageResult({
+    const parsed = decodePageResultToFrame({
       slug: frameIdToSlug("frame-001"),
       frontmatter: {
         amp_frame: SAMPLE_FRAME,

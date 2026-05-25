@@ -30,6 +30,7 @@ import {
   type Frame,
   type FrameParseResult,
 } from "../../../core/frame-schema.js";
+import { extractPageContent } from "./transport.js";
 
 export const AMP_FRAME_FRONTMATTER_KEY = "amp_frame";
 export const AMP_FRAME_SLUG_PREFIX = "amp/frames/";
@@ -76,8 +77,7 @@ export function decodePageContentToFrame(content: string): FrameParseResult {
   return parseFrame(ampFrame);
 }
 
-/** Parse live gbrain get_page payloads that expose amp_frame under frontmatter. */
-export function extractAmpFrameFromPageResult(toolResult: unknown): FrameParseResult | undefined {
+function extractAmpFrameFromPageResult(toolResult: unknown): FrameParseResult | undefined {
   if (typeof toolResult !== "object" || toolResult === null) {
     return undefined;
   }
@@ -98,4 +98,19 @@ export function extractAmpFrameFromPageResult(toolResult: unknown): FrameParseRe
   }
 
   return parseFrame(ampFrame);
+}
+
+/** Decode a gbrain get_page tool payload into a frame parse result, when shape matches. */
+export function decodePageResultToFrame(toolResult: unknown): FrameParseResult | undefined {
+  const fromFrontmatter = extractAmpFrameFromPageResult(toolResult);
+  if (fromFrontmatter !== undefined) {
+    return fromFrontmatter;
+  }
+
+  const content = extractPageContent(toolResult);
+  if (content === undefined) {
+    return undefined;
+  }
+
+  return decodePageContentToFrame(content);
 }

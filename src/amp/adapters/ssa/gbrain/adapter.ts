@@ -51,16 +51,14 @@ import {
 } from "../../../substrate/storage/knowledge-store.js";
 
 import {
-  decodePageContentToFrame,
+  decodePageResultToFrame,
   encodeFrameToPageContent,
-  extractAmpFrameFromPageResult,
   frameIdToSlug,
   isAmpFrameSlug,
 } from "./frame-codec.js";
 import { FakeGbrainMcpTransport } from "./fake-transport.js";
 import {
   extractListedSlugs,
-  extractPageContent,
   extractSearchHitRefs,
   GbrainServeStdioTransport,
   type GbrainMcpTransport,
@@ -307,20 +305,10 @@ function pageResultToFrame(
 ):
   | { success: true; frame: Frame | undefined }
   | { success: false; error: AmpError } {
-  const fromFrontmatter = extractAmpFrameFromPageResult(toolResult);
-  if (fromFrontmatter !== undefined) {
-    if (!fromFrontmatter.success) {
-      return { success: false, error: frameSchemaMismatch({ error: fromFrontmatter.error, slug }) };
-    }
-    return { success: true, frame: fromFrontmatter.frame };
-  }
-
-  const content = extractPageContent(toolResult);
-  if (content === undefined) {
+  const decoded = decodePageResultToFrame(toolResult);
+  if (decoded === undefined) {
     return { success: true, frame: undefined };
   }
-
-  const decoded = decodePageContentToFrame(content);
   if (!decoded.success) {
     return { success: false, error: frameSchemaMismatch({ error: decoded.error, slug }) };
   }
