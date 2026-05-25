@@ -3,7 +3,7 @@
 > **Base branch:** `ralph/amp-v1-v1-30` (Wave 2 complete)
 > **Target integration branch:** `ralph/amp-v1`  
 > **Role split:** Composer/Ralph implement; Codex evaluates and gates merges.  
-> **Status:** offline acceptance gate and V1-31 docs update complete.
+> **Status:** offline acceptance gate and V1-31 docs update complete; post-v1 live verification wave in progress (see reports dir).
 
 ## v1 Goal
 
@@ -41,6 +41,17 @@ What is verified today:
 - CLI init/doctor/capture/consolidate/retrieve/propagate with smoke checks in the acceptance gate.
 
 What remains outside v1 acceptance is tracked in `docs/plans/AMP_V1_ACCEPTANCE_REPORT.md`.
+
+## Post-v1 live verification wave
+
+Offline acceptance (`npm run amp:acceptance`) is complete at commit `82962bf`. **Live verification is a separate wave** — it does not modify the acceptance gate or its exit codes.
+
+Live spike reports are recorded under `tools/cursor-sdk-amp-orchestrator/reports/`:
+
+- `amp-gbrain-live.md` — live `gbrain serve` MCP transport
+- `amp-hermes-live.md` — live Hermes session/skill discovery
+
+Consult that directory if individual report files are not yet published. Canonical offline scope, PROVISIONAL/UNKNOWN exclusions, and residual risks remain in `docs/plans/AMP_V1_ACCEPTANCE_REPORT.md`.
 
 ## v1 Scope
 

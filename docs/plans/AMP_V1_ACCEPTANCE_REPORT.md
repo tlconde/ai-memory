@@ -20,6 +20,8 @@ npm run amp:acceptance
 
 Exit code `0` means acceptance pass; `1` means fail.
 
+**Live verification is separate.** Post-v1 live checks (real `gbrain serve` MCP, live harness session discovery) are recorded under `tools/cursor-sdk-amp-orchestrator/reports/` — expected files: `amp-gbrain-live.md`, `amp-hermes-live.md`. Those reports do not change gate policy or exit codes; see the post-v1 live verification wave section below.
+
 ---
 
 ## Gate steps
@@ -127,6 +129,21 @@ DEFERRED INV-3: Deferred in vertical slice — cloud surfaces out of scope
 Overall: PASS
 === AMP v1 ACCEPTANCE: PASS ===
 ```
+
+---
+
+## Post-v1 live verification wave
+
+Offline acceptance (this document, `npm run amp:acceptance`) proves deterministic behavior without live gbrain, live Hermes/Cursor sessions, or network access.
+
+Post-v1 **live verification** is a separate wave that exercises real transports and harness session load. Spike reports belong in `tools/cursor-sdk-amp-orchestrator/reports/`:
+
+| Report | Scope |
+|---|---|
+| `amp-gbrain-live.md` | Live `gbrain serve` MCP stdio transport |
+| `amp-hermes-live.md` | Live Hermes skill discovery (`hermes -s` and related session checks) |
+
+If those files are not yet published, see the reports directory for the latest live-verification record. Live results may upgrade individual PROVISIONAL/UNKNOWN items above; they do not replace or extend the offline acceptance gate.
 
 ---
 
