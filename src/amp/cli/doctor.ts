@@ -11,6 +11,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { CapabilityCoverage } from "../adapter-contract/capability-coverage.js";
+import { appendGitignoreProtectionFindings } from "./checks/gitignore-protection.js";
 import {
   appendHermesDiscoveryFindings,
   HERMES_CONFIG_PATH_ENV,
@@ -299,6 +300,7 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
   }
 
   appendHermesDiscoveryFindings(findings, projectRoot, env, resolveHome);
+  appendGitignoreProtectionFindings(findings, projectRoot);
 
   if (hasCommandInPath("gbrain", env)) {
     findings.push(

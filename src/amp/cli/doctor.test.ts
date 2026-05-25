@@ -1,5 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -7,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 
 import { AMP_USER_CONFIG_PATH_ENV, PROJECT_CONFIG_REL } from "../config/paths.js";
+import { ensureAmpGitignoreEntries } from "../gitignore/ensure.js";
+import { AMP_LOCAL_DIR_REL } from "../gitignore/paths.js";
 import {
   formatAmpDoctorReport,
   HERMES_CONFIG_PATH_ENV,
@@ -18,6 +21,17 @@ import { runAmpInit } from "./init.js";
 const REPO_ROOT = resolveAmpRepoRoot(
   join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
 );
+
+function runGit(projectRoot: string, args: string[]): void {
+  const result = spawnSync("git", args, { cwd: projectRoot, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr?.toString() ?? `git ${args.join(" ")} failed`);
+}
+
+function initGitRepo(projectRoot: string): void {
+  runGit(projectRoot, ["init"]);
+  runGit(projectRoot, ["config", "user.email", "amp@test.local"]);
+  runGit(projectRoot, ["config", "user.name", "AMP Test"]);
+}
 
 describe("runAmpDoctor", () => {
   let tempRoot = "";
@@ -268,5 +282,78 @@ describe("runAmpDoctor", () => {
     assert.match(lines[0], /AMP doctor/);
     assert.ok(lines.some((line) => line.includes("[project-config]")));
     assert.ok(lines.some((line) => /Doctor finished|blocking errors/.test(line)));
+  });
+
+  it("reports info for gitignore-protection outside a git repository", () => {
+    const projectRoot = join(tempRoot, "gitignore-not-git");
+    const result = runAmpDoctor({ projectRoot, ampRepoRoot: REPO_ROOT });
+
+    const finding = result.findings.find((f) => f.category === "gitignore-protection");
+    assert.ok(finding);
+    assert.equal(finding.level, "info");
+    assert.match(finding.message, /not inside a git work tree/i);
+    assert.equal(result.ok, true);
+  });
+
+  it("reports ok for gitignore-protection when AMP paths are ignored", async () => {
+    const projectRoot = join(tempRoot, "gitignore-protected");
+    await mkdir(projectRoot, { recursive: true });
+    initGitRepo(projectRoot);
+    await ensureAmpGitignoreEntries(projectRoot);
+
+    const result = runAmpDoctor({ projectRoot, ampRepoRoot: REPO_ROOT });
+
+    const finding = result.findings.find((f) => f.category === "gitignore-protection");
+    assert.ok(finding);
+    assert.equal(finding.level, "ok");
+    assert.match(finding.message, /git-ignored/i);
+    assert.equal(result.ok, true);
+  });
+
+  it("warns for gitignore-protection when gitignore entries are missing", async () => {
+    const projectRoot = join(tempRoot, "gitignore-missing");
+    await mkdir(projectRoot, { recursive: true });
+    initGitRepo(projectRoot);
+
+    const result = runAmpDoctor({ projectRoot, ampRepoRoot: REPO_ROOT });
+
+    const finding = result.findings.find((f) => f.category === "gitignore-protection");
+    assert.ok(finding);
+    assert.equal(finding.level, "warning");
+    assert.match(finding.message, /missing AMP entries/i);
+    assert.equal(result.ok, true);
+  });
+
+  it("errors for gitignore-protection when AMP artifacts are tracked", async () => {
+    const projectRoot = join(tempRoot, "gitignore-tracked");
+    await mkdir(projectRoot, { recursive: true });
+    initGitRepo(projectRoot);
+    await ensureAmpGitignoreEntries(projectRoot);
+
+    const artifactPath = join(projectRoot, ".amp", "local", "probe.txt");
+    await mkdir(join(projectRoot, ".amp", "local"), { recursive: true });
+    await writeFile(artifactPath, "probe", "utf8");
+    runGit(projectRoot, ["add", "-f", ".amp/local/probe.txt"]);
+    runGit(projectRoot, ["commit", "-m", "track amp artifact"]);
+
+    const result = runAmpDoctor({ projectRoot, ampRepoRoot: REPO_ROOT });
+
+    const finding = result.findings.find((f) => f.category === "gitignore-protection");
+    assert.ok(finding);
+    assert.equal(finding.level, "error");
+    assert.match(finding.message, /\.amp\/local\/probe\.txt/);
+    assert.equal(result.ok, false);
+  });
+
+  it("formatAmpDoctorReport includes gitignore-protection category", async () => {
+    const projectRoot = join(tempRoot, "gitignore-format");
+    await mkdir(projectRoot, { recursive: true });
+    initGitRepo(projectRoot);
+    await writeFile(join(projectRoot, ".gitignore"), `${AMP_LOCAL_DIR_REL}\n`, "utf8");
+
+    const result = runAmpDoctor({ projectRoot, ampRepoRoot: REPO_ROOT });
+    const lines = formatAmpDoctorReport(result);
+
+    assert.ok(lines.some((line) => line.includes("[gitignore-protection]")));
   });
 });
