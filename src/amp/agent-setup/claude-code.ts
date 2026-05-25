@@ -19,9 +19,8 @@ import {
   isMalformedMarkerBlock,
   parseMarkerBlock,
   upsertMarkerBlock,
-  type AgentSetupMode,
-  type AgentSetupResult,
-} from "./index.js";
+} from "./markers.js";
+import type { AgentSetupMode, AgentSetupResult } from "./types.js";
 
 export const CLAUDE_PROJECT_FILENAME = "CLAUDE.md";
 
