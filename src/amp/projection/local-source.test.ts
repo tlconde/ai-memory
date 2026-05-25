@@ -139,6 +139,71 @@ describe("LocalProjectionSource", () => {
     }
   });
 
+  it("routes universal scope frames and runtime items to global sections", () => {
+    knowledge.write([
+      createFrame({
+        id: "universal-pref",
+        kind: "semantic",
+        content: "Universal durable preference.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "universal" },
+        curation_mode: "personal",
+      }),
+    ]);
+    capturePreference(runtime, {
+      content: "Universal runtime note.",
+      scope: "universal",
+    });
+
+    const source = new LocalProjectionSource({
+      knowledge,
+      runtime,
+      projectRef: "demo-app",
+      generatedAt: "2026-05-25T12:00:00.000Z",
+    });
+    const documents = source.loadProjectionDocuments({ projectRef: "demo-app" });
+
+    const globalProjection = documents.find((doc) => doc.metadata.kind === "global_projection");
+    const globalRuntime = documents.find((doc) => doc.metadata.kind === "global_runtime");
+
+    assert.match(globalProjection?.body ?? "", /Universal durable preference\./);
+    assert.match(globalRuntime?.body ?? "", /Universal runtime note\./);
+  });
+
+  it("excludes mismatched project scope from project sections", () => {
+    knowledge.write([
+      createFrame({
+        id: "wrong-project-frame",
+        kind: "semantic",
+        content: "Wrong project frame.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "project", project_ref: "other-app" },
+        curation_mode: "personal",
+      }),
+    ]);
+    capturePreference(runtime, {
+      content: "Wrong project runtime.",
+      scope: "project",
+      projectRef: "other-app",
+    });
+
+    const source = new LocalProjectionSource({
+      knowledge,
+      runtime,
+      projectRef: "demo-app",
+      generatedAt: "2026-05-25T12:00:00.000Z",
+    });
+    const documents = source.loadProjectionDocuments({ projectRef: "demo-app" });
+
+    const projectProjection = documents.find((doc) => doc.metadata.kind === "project_projection");
+    const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
+
+    assert.doesNotMatch(projectProjection?.body ?? "", /Wrong project frame\./);
+    assert.doesNotMatch(projectRuntime?.body ?? "", /Wrong project runtime\./);
+  });
+
   it("does not write to the filesystem", () => {
     const source = new LocalProjectionSource({ knowledge, runtime, projectRef: "demo-app" });
     const documents = source.loadProjectionDocuments({ projectRef: "demo-app" });

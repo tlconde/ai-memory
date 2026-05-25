@@ -5,7 +5,7 @@
  * into four projection documents without live gbrain or filesystem writes.
  */
 
-import type { Frame } from "../core/frame-schema.js";
+import type { Frame, ScopeKind } from "../core/frame-schema.js";
 import type { KnowledgeStore } from "../substrate/storage/knowledge-store.js";
 import type { RuntimeQueueItem } from "../substrate/storage/episodic-signal.js";
 import { RuntimeStore } from "../substrate/storage/runtime-store.js";
@@ -48,17 +48,33 @@ function isDurableProjectionFrame(frame: Frame): boolean {
   return frame.kind === "semantic" || frame.kind === "crystal";
 }
 
-function frameSectionKey(frame: Frame, projectRef: string): ProjectionContentSectionKey | undefined {
-  if (frame.scope.kind === "project") {
-    if (frame.scope.project_ref !== projectRef) {
+export type ProjectionStoreKind = "projection" | "runtime";
+
+function resolveProjectionSectionKey(
+  scopeKind: ScopeKind,
+  projectRef: string,
+  scopeProjectRef: string | undefined,
+  storeKind: ProjectionStoreKind
+): ProjectionContentSectionKey | undefined {
+  if (scopeKind === "project") {
+    if (scopeProjectRef !== projectRef) {
       return undefined;
     }
-    return "projectProjection";
+    return storeKind === "projection" ? "projectProjection" : "projectRuntime";
   }
-  if (frame.scope.kind === "user" || frame.scope.kind === "universal") {
-    return "globalProjection";
+  if (scopeKind === "user" || scopeKind === "universal") {
+    return storeKind === "projection" ? "globalProjection" : "globalRuntime";
   }
   return undefined;
+}
+
+function frameSectionKey(frame: Frame, projectRef: string): ProjectionContentSectionKey | undefined {
+  return resolveProjectionSectionKey(
+    frame.scope.kind,
+    projectRef,
+    frame.scope.project_ref,
+    "projection"
+  );
 }
 
 function runtimeSectionKey(
@@ -66,16 +82,7 @@ function runtimeSectionKey(
   projectRef: string
 ): ProjectionContentSectionKey | undefined {
   const signal = item.payload;
-  if (signal.scope === "project") {
-    if (signal.projectRef !== projectRef) {
-      return undefined;
-    }
-    return "projectRuntime";
-  }
-  if (signal.scope === "user" || signal.scope === "universal") {
-    return "globalRuntime";
-  }
-  return undefined;
+  return resolveProjectionSectionKey(signal.scope, projectRef, signal.projectRef, "runtime");
 }
 
 function frameToBlock(frame: Frame, priority: number): ProjectionTextBlock {
