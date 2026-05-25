@@ -92,3 +92,16 @@ export {
   writeProjectionFileAtomic,
   writeProjectionFilesAtomic,
 } from "./atomic-write.js";
+
+export {
+  BUDGET_HARD_FAIL_BLOCKS_APPLY,
+  DB_BACKED_MATERIALIZATION_NOT_WIRED,
+} from "./messages.js";
+
+export {
+  materializeProjections,
+  planProjectionMaterialization,
+  type ProjectionMaterializationMode,
+  type ProjectionMaterializationOptions,
+  type ProjectionMaterializationPlan,
+} from "./materialize.js";
