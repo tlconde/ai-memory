@@ -73,3 +73,17 @@ export {
   type ProjectionWriteResult,
   type WriteProjectionOptions,
 } from "./write.js";
+
+export {
+  PlaceholderProjectionSource,
+  placeholderProjectionSource,
+  type ProjectionSource,
+  type ProjectionSourceLoadOptions,
+  type PlaceholderProjectionSourceOptions,
+} from "./source.js";
+
+export {
+  ProjectionMetadataReconcileError,
+  reconcileProjectionMetadata,
+  type ReconcileProjectionMetadataOptions,
+} from "./reconcile.js";
