@@ -28,3 +28,13 @@ export {
   runClaudeCodeProjectSetup,
   type ClaudeCodeSetupOptions,
 } from "./claude-code.js";
+
+export {
+  CURSOR_PROJECTION_FILES_MISSING,
+  CURSOR_PROJECTION_RULE_DESCRIPTION,
+  CURSOR_PROJECTION_RULE_FILENAME,
+  buildCursorProjectionMdc,
+  resolveCursorSetupWritePath,
+  runCursorProjectSetup,
+  type CursorSetupOptions,
+} from "./cursor.js";
