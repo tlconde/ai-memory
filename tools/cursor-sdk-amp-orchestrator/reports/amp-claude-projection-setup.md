@@ -1,8 +1,8 @@
 # AMP Claude Code Projection Import Setup — Design (AMP-PROJ-04)
 
-> **Date:** 2026-05-25  
-> **Task:** AMP-PROJ-04 — design how AMP wires Claude Code `CLAUDE.md` imports without overwriting user-authored content  
-> **Base:** `ralph/amp-v1-v1-31` @ `43595df`  
+> **Date:** 2026-05-25
+> **Task:** AMP-PROJ-04 — design how AMP wires Claude Code `CLAUDE.md` imports without overwriting user-authored content
+> **Base:** `ralph/amp-v1-v1-31` @ `43595df`
 > **Scope:** Report-only design. No projection materialization, no live harness automation, no acceptance-gate changes.
 
 ---

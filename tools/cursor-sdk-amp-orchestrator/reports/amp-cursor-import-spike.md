@@ -1,7 +1,7 @@
 # AMP Cursor Projection Import Spike (AMP-PROJ-01)
 
-> **Date:** 2026-05-25  
-> **Environment:** macOS, repo `/Users/dev/Dev/Github/ai-memory`, worktree at commit `43595df513b08568022f1864f2f4412c2966d941`  
+> **Date:** 2026-05-25
+> **Environment:** macOS, repo `/Users/dev/Dev/Github/ai-memory`, worktree at commit `43595df513b08568022f1864f2f4412c2966d941`
 > **Scope:** Verify Cursor MDC `@filename` import semantics for AMP v1.5 filesystem projection loading. No projection materialization, no `.cursor/` edits, no acceptance-gate changes.
 
 ## Decision

@@ -1,9 +1,9 @@
 # AMP Projection Schema — AMP-PROJ-03
 
-**Task:** AMP-PROJ-03  
-**Branch:** `ralph/amp-proj-03-projection-schema`  
-**Base:** `ralph/amp-v1-v1-31` @ `43595df513b08568022f1864f2f4412c2966d941`  
-**Date:** 2026-05-25  
+**Task:** AMP-PROJ-03
+**Branch:** `ralph/amp-proj-03-projection-schema`
+**Base:** `ralph/amp-v1-v1-31` @ `43595df513b08568022f1864f2f4412c2966d941`
+**Date:** 2026-05-25
 
 ## Summary
 

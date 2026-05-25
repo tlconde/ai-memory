@@ -1,9 +1,9 @@
 # AMP Invariant 6 — `.amp/local` Gitignore Protection Plan
 
-**Task:** AMP-PROJ-02  
-**Branch:** `ralph/amp-proj-02-invariant-six-plan`  
-**Base:** `ralph/amp-v1-v1-31` @ `43595df513b08568022f1864f2f4412c2966d941`  
-**Date:** 2026-05-25  
+**Task:** AMP-PROJ-02
+**Branch:** `ralph/amp-proj-02-invariant-six-plan`
+**Base:** `ralph/amp-v1-v1-31` @ `43595df513b08568022f1864f2f4412c2966d941`
+**Date:** 2026-05-25
 **Scope:** Planning only — no implementation in this task. No projection materialization.
 
 ---
