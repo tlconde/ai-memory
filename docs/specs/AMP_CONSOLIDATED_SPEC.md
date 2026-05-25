@@ -858,6 +858,8 @@ Implementation requirements:
 - `amp doctor` must detect stale projections by comparing projection metadata to source-store revision or last-consolidation markers.
 - Projection edits are overwritten on regeneration; durable edits go through explicit AMP write paths.
 
+**Implementation status (Wave 15, offline local path):** Materialization is exposed via `amp projection render` with `--source placeholder` (fixture dry-run only; apply blocked) or `--source local` (runtime store + offline knowledge; apply requires explicit `--apply`). `amp init` prepares gitignore and directories but does not materialize projection files until render is invoked. Live gbrain is not used as a projection source in Wave 15. Token budget metadata and hard-cap refusal are implemented; priority-ordered truncation (§4.2.3) remains provisional.
+
 Verification spikes before implementation:
 
 | Spike | Question | Status |
