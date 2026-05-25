@@ -1,14 +1,16 @@
 /**
  * `amp retrieve` — read consolidated preferences from the knowledge backend.
  *
- * Falsifiable claim: in-memory mode uses retrievePreferences; gbrain/fake-gbrain
- * list frames via GbrainKnowledgeAdapter.listFrames.
+ * Falsifiable claim: retrieve delegates storage-specific preference semantics to
+ * substrate retrieval functions.
  */
 
-import { isListSuccess } from "../adapter-contract/operation-results.js";
-import type { Frame, ScopeKind } from "../core/frame-schema.js";
+import type { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
+import type { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
+import type { ScopeKind } from "../core/frame-schema.js";
 import {
   retrievePreferences,
+  retrievePreferencesFromGbrain,
   type RetrievedPreference,
 } from "../substrate/retrieve-preference.js";
 import { resolveCliProjectContext } from "./cli-context.js";
@@ -29,8 +31,8 @@ export interface AmpRetrieveOptions {
   platform?: NodeJS.Platform;
   homedir?: () => string;
   ampRepoRoot?: string;
-  inMemoryStore?: import("../adapters/ssa/in-memory-knowledge-store.js").InMemoryKnowledgeStore;
-  gbrainAdapter?: import("../adapters/ssa/gbrain/adapter.js").GbrainKnowledgeAdapter;
+  inMemoryStore?: InMemoryKnowledgeStore;
+  gbrainAdapter?: GbrainKnowledgeAdapter;
 }
 
 export interface AmpRetrieveResult {
@@ -41,34 +43,6 @@ export interface AmpRetrieveResult {
   projectRef?: string;
   query?: string;
   preferences: RetrievedPreference[];
-}
-
-function filterFramesByQuery(frames: Frame[], query?: string): Frame[] {
-  if (!query) return frames;
-
-  const needle = query.toLowerCase();
-  return frames.filter((frame) =>
-    typeof frame.content === "string"
-      ? frame.content.toLowerCase().includes(needle)
-      : JSON.stringify(frame.content).toLowerCase().includes(needle)
-  );
-}
-
-async function retrieveFromGbrain(
-  adapter: import("../adapters/ssa/gbrain/adapter.js").GbrainKnowledgeAdapter,
-  input: { scope: ScopeKind; projectRef?: string; query?: string }
-): Promise<RetrievedPreference[]> {
-  const listResult = await adapter.listFrames({
-    scopeKind: input.scope,
-    projectRef: input.projectRef,
-    curationMode: "personal",
-  });
-
-  if (!isListSuccess(listResult)) {
-    throw listResult.error;
-  }
-
-  return filterFramesByQuery(listResult.items, input.query).map((frame) => ({ frame }));
 }
 
 /** Retrieve consolidated preferences from knowledge storage. */
@@ -108,7 +82,7 @@ export async function runAmpRetrieve(
       query: options.query,
     });
   } else {
-    preferences = await retrieveFromGbrain(handle.gbrain!, {
+    preferences = await retrievePreferencesFromGbrain(handle.gbrain!, {
       scope,
       projectRef,
       query: options.query,

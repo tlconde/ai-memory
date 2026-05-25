@@ -88,11 +88,11 @@ export function registerAmpCommands(program: Command): Command {
     .option("--project-root <path>", "Project root (default: current directory)")
     .option(
       "--knowledge <backend>",
-      "Knowledge backend: in-memory, gbrain, or fake-gbrain (default: gbrain with fake transport)"
+      "Knowledge backend: gbrain (live), fake-gbrain (test-only), or in-memory (default: gbrain)"
     )
     .option(
       "--live-gbrain",
-      "Use live gbrain serve transport (PROVISIONAL — not conformance-tested in CI)"
+      "Deprecated compatibility flag; gbrain backend is live by default"
     )
     .action(async (opts: { projectRoot?: string; knowledge?: string; liveGbrain?: boolean }) => {
       const result = await runAmpConsolidate({
@@ -114,11 +114,11 @@ export function registerAmpCommands(program: Command): Command {
     .option("--project-root <path>", "Project root (default: current directory)")
     .option(
       "--knowledge <backend>",
-      "Knowledge backend: in-memory, gbrain, or fake-gbrain (default: gbrain with fake transport)"
+      "Knowledge backend: gbrain (live), fake-gbrain (test-only), or in-memory (default: gbrain)"
     )
     .option(
       "--live-gbrain",
-      "Use live gbrain serve transport (PROVISIONAL — not conformance-tested in CI)"
+      "Deprecated compatibility flag; gbrain backend is live by default"
     )
     .action(
       async (opts: {

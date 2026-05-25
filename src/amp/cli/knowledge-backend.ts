@@ -94,13 +94,12 @@ export function createKnowledgeBackend(
     };
   }
 
-  const useLiveGbrain = options.useLiveGbrain === true;
   return {
     backend: "gbrain",
     gbrain: new GbrainKnowledgeAdapter({
       ssaSpecPath,
-      useLiveTransport: useLiveGbrain,
+      useLiveTransport: true,
     }),
-    liveGbrain: useLiveGbrain,
+    liveGbrain: true,
   };
 }

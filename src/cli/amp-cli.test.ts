@@ -27,6 +27,6 @@ describe("ai-memory amp CLI shell", () => {
   it("runs amp status shell subcommand", () => {
     const out = runCli(["amp", "status"]);
     assert.match(out, /AMP CLI shell v/);
-    assert.match(out, /not wired/i);
+    assert.match(out, /capture, consolidate, retrieve, propagate/);
   });
 });

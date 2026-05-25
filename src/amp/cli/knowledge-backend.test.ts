@@ -41,9 +41,15 @@ describe("createKnowledgeBackend", () => {
     assert.ok(handle.inMemory);
   });
 
-  it("marks live gbrain as provisional", () => {
-    const handle = createKnowledgeBackend({ backend: "gbrain", useLiveGbrain: true });
+  it("uses live gbrain for the gbrain backend", () => {
+    const handle = createKnowledgeBackend({ backend: "gbrain" });
     assert.equal(handle.liveGbrain, true);
+    assert.ok(handle.gbrain);
+  });
+
+  it("keeps fake-gbrain explicitly test-only and non-live", () => {
+    const handle = createKnowledgeBackend({ backend: "fake-gbrain" });
+    assert.equal(handle.liveGbrain, false);
     assert.ok(handle.gbrain);
   });
 });
