@@ -55,3 +55,10 @@ export {
   parseProjectionMarkdown,
   renderProjectionMarkdown,
 } from "./render.js";
+
+export {
+  writeProjectionFile,
+  writeProjectionFiles,
+  type ProjectionWriteResult,
+  type WriteProjectionOptions,
+} from "./write.js";
