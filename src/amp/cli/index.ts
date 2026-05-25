@@ -16,6 +16,10 @@ import {
 } from "./gbrain-preflight.js";
 import { formatAmpInitMessages, runAmpInit } from "./init.js";
 import { formatAmpPropagateReport, runAmpPropagate } from "./propagate.js";
+import {
+  formatAmpProjectionRenderReport,
+  runAmpProjectionRender,
+} from "./projection.js";
 import { formatAmpRetrieveMessages, runAmpRetrieve } from "./retrieve.js";
 import { confirmLiveGbrainWriteFromCliOptions } from "./live-gbrain-safety.js";
 
@@ -26,7 +30,7 @@ export function registerAmpCommands(program: Command): Command {
   const amp = program
     .command("amp")
     .description(
-      "Agent Memory Protocol (AMP) substrate — init, doctor, capture, consolidate, retrieve, propagate"
+      "Agent Memory Protocol (AMP) substrate — init, doctor, capture, consolidate, retrieve, propagate, projection"
     );
 
   amp
@@ -196,13 +200,35 @@ export function registerAmpCommands(program: Command): Command {
       }
     });
 
+  const projection = amp
+    .command("projection")
+    .description("Filesystem projection artifact planning and materialization");
+
+  projection
+    .command("render")
+    .description("Render projection artifacts (placeholder fixtures until AMP-PROJ-13)")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--dry-run", "Plan writes without touching disk")
+    .action(async (opts: { projectRoot?: string; dryRun?: boolean }) => {
+      const result = await runAmpProjectionRender({
+        projectRoot: opts.projectRoot,
+        dryRun: opts.dryRun ?? false,
+      });
+      for (const line of formatAmpProjectionRenderReport(result)) {
+        process.stdout.write(`${line}\n`);
+      }
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+    });
+
   amp
     .command("status")
     .description("Show AMP CLI shell status")
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate.\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render --dry-run.\n"
       );
     });
 
