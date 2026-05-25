@@ -116,14 +116,24 @@ export function registerAmpCommands(program: Command): Command {
       "Knowledge backend: gbrain (live), fake-gbrain (test-only), or in-memory (default: gbrain)"
     )
     .option(
-      "--live-gbrain",
-      "Deprecated compatibility flag; gbrain backend is live by default"
+      "--confirm-live-gbrain-write",
+      "Required for live gbrain writes when --knowledge gbrain (or set AMP_CONFIRM_LIVE_GBRAIN_WRITE=1)"
     )
-    .action(async (opts: { projectRoot?: string; knowledge?: string; liveGbrain?: boolean }) => {
+    .option(
+      "--live-gbrain",
+      "Deprecated alias for --confirm-live-gbrain-write"
+    )
+    .action(async (opts: {
+      projectRoot?: string;
+      knowledge?: string;
+      liveGbrain?: boolean;
+      confirmLiveGbrainWrite?: boolean;
+    }) => {
       const result = await runAmpConsolidate({
         projectRoot: opts.projectRoot,
         knowledge: opts.knowledge,
         useLiveGbrain: opts.liveGbrain ?? false,
+        confirmLiveGbrainWrite: opts.confirmLiveGbrainWrite ?? false,
       });
       for (const line of formatAmpConsolidateMessages(result)) {
         process.stdout.write(`${line}\n`);

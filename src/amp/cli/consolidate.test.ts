@@ -107,6 +107,31 @@ describe("runAmpConsolidate", () => {
     assert.equal(retrieved.preferences[0]?.frame.content, "Label external claims honestly.");
   });
 
+  it("blocks live gbrain consolidate without explicit confirmation", async () => {
+    const projectRoot = join(tempRoot, "live-guard");
+    await runAmpInit({ projectRoot });
+    const env = {
+      [AMP_USER_CONFIG_PATH_ENV]: join(projectRoot, "missing-user-config.yaml"),
+    };
+
+    runAmpCapture({
+      projectRoot,
+      content: "Should not reach live gbrain.",
+      scope: "project",
+      env,
+    });
+
+    await assert.rejects(
+      () =>
+        runAmpConsolidate({
+          projectRoot,
+          knowledge: "gbrain",
+          env,
+        }),
+      /Live gbrain writes are disabled/
+    );
+  });
+
   it("returns zero processed when runtime queue is empty", async () => {
     const projectRoot = join(tempRoot, "empty-queue");
     await runAmpInit({ projectRoot });
