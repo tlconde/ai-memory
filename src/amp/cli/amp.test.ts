@@ -34,6 +34,12 @@ describe("registerAmpCommands", () => {
     const propagate = amp.commands.find((cmd) => cmd.name() === "propagate");
     assert.ok(propagate, "expected amp propagate subcommand");
 
+    const projection = amp.commands.find((cmd) => cmd.name() === "projection");
+    assert.ok(projection, "expected amp projection command group");
+
+    const projectionRender = projection.commands.find((cmd) => cmd.name() === "render");
+    assert.ok(projectionRender, "expected amp projection render subcommand");
+
     const status = amp.commands.find((cmd) => cmd.name() === "status");
     assert.ok(status, "expected amp status shell subcommand");
   });
