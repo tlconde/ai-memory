@@ -1,13 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { FakeGbrainMcpTransport } from "../adapters/ssa/gbrain/fake-transport.js";
-import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import { AMP_CONFIRM_LIVE_GBRAIN_WRITE_ENV } from "../gbrain/live-policy.js";
 import {
-  GBRAIN_PROJECTION_IN_MEMORY_BACKEND,
   LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
 } from "../projection/messages.js";
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
@@ -17,12 +12,8 @@ import {
   createReadKnowledgeBackend,
   createWriteKnowledgeBackend,
   resolveKnowledgeBackend,
-  resolveProjectionGbrainAdapter,
   resolveProjectionKnowledgeStore,
 } from "./knowledge-backend.js";
-
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const GBRAIN_SPEC = join(REPO_ROOT, "ssa-files/gbrain.yaml");
 
 describe("resolveKnowledgeBackend", () => {
   it("defaults to gbrain when unset", () => {
@@ -126,51 +117,5 @@ describe("resolveProjectionKnowledgeStore", () => {
     if (!result.ok) {
       assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
     }
-  });
-});
-
-describe("resolveProjectionGbrainAdapter", () => {
-  it("returns injected adapter without live transport", () => {
-    const fake = new FakeGbrainMcpTransport();
-    const adapter = new GbrainKnowledgeAdapter({ transport: fake, ssaSpecPath: GBRAIN_SPEC });
-    const result = resolveProjectionGbrainAdapter({ gbrainAdapter: adapter });
-
-    assert.equal(result.ok, true);
-    if (result.ok) {
-      assert.equal(result.adapter, adapter);
-      assert.equal(result.liveGbrain, false);
-    }
-  });
-
-  it("creates fake-gbrain adapter when env requests fake-gbrain", () => {
-    const result = resolveProjectionGbrainAdapter({
-      env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "fake-gbrain" },
-      ampRepoRoot: REPO_ROOT,
-    });
-
-    assert.equal(result.ok, true);
-    if (result.ok) {
-      assert.equal(result.liveGbrain, false);
-    }
-  });
-
-  it("rejects in-memory backend for gbrain projection source", () => {
-    const result = resolveProjectionGbrainAdapter({
-      env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "in-memory" },
-    });
-
-    assert.equal(result.ok, false);
-    if (!result.ok) {
-      assert.equal(result.error, GBRAIN_PROJECTION_IN_MEMORY_BACKEND);
-    }
-  });
-
-  it("does not require live gbrain write confirmation for read-only projection", () => {
-    const result = resolveProjectionGbrainAdapter({
-      env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "fake-gbrain" },
-      ampRepoRoot: REPO_ROOT,
-    });
-
-    assert.equal(result.ok, true);
   });
 });

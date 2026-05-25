@@ -2,10 +2,16 @@
  * Projection source factory for CLI materialization.
  *
  * Falsifiable claim: local, gbrain, and placeholder sources are created with explicit
- * runtime cleanup; test deps stay off public render options.
+ * runtime cleanup; gbrain uses readonly transport + optional preflight.
  */
 
-import type { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
+import { spawnSync } from "node:child_process";
+import { join } from "node:path";
+
+import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
+import { FakeGbrainMcpTransport } from "../adapters/ssa/gbrain/fake-transport.js";
+import { ReadonlyGbrainMcpTransport } from "../adapters/ssa/gbrain/readonly-transport.js";
+import { GbrainServeStdioTransport } from "../adapters/ssa/gbrain/transport.js";
 import type { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
 import {
   GbrainProjectionSource,
@@ -17,12 +23,13 @@ import {
   type ProjectionSource,
 } from "../projection/index.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
+import {
+  collectGbrainPreflightChecks,
+  type GbrainPreflightSpawnFn,
+} from "./checks/gbrain-preflight.js";
 import { openRuntimeStore } from "./cli-context.js";
 import { resolveAmpRepoRoot } from "./doctor.js";
-import {
-  resolveProjectionGbrainAdapter,
-  resolveProjectionKnowledgeStore,
-} from "./knowledge-backend.js";
+import { resolveKnowledgeBackend, resolveProjectionKnowledgeStore } from "./knowledge-backend.js";
 
 export type AmpProjectionSourceKind = "placeholder" | "local" | "gbrain";
 
@@ -43,15 +50,96 @@ export interface CreateProjectionRenderSourceOptions {
   gbrainAdapter?: GbrainKnowledgeAdapter;
   env?: NodeJS.ProcessEnv;
   ampRepoRoot?: string;
+  /** When false, skip collectGbrainPreflightChecks (tests / opt-in live harness). */
+  strictGbrainPreflight?: boolean;
+  spawnFn?: GbrainPreflightSpawnFn;
   deps?: ProjectionSourceFactoryDeps;
+}
+
+type ResolveGbrainProjectionAdapterResult =
+  | { ok: true; adapter: GbrainKnowledgeAdapter }
+  | { ok: false; error: string };
+
+function formatPreflightErrors(
+  findings: ReturnType<typeof collectGbrainPreflightChecks>["findings"]
+): string {
+  return findings
+    .filter((item) => item.level === "error")
+    .map((item) => item.message)
+    .join(" ");
+}
+
+function resolveGbrainProjectionAdapter(
+  options: CreateProjectionRenderSourceOptions
+): ResolveGbrainProjectionAdapterResult {
+  if (options.gbrainAdapter) {
+    return { ok: true, adapter: options.gbrainAdapter };
+  }
+
+  const env = options.env ?? process.env;
+  let backend;
+  try {
+    backend = resolveKnowledgeBackend({ env });
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    return { ok: false, error: message };
+  }
+
+  const skipPreflight =
+    options.strictGbrainPreflight === false || backend === "fake-gbrain";
+
+  if (!skipPreflight) {
+    const checks = collectGbrainPreflightChecks({
+      env,
+      spawnFn: options.spawnFn ?? spawnSync,
+    });
+    if (!checks.ok) {
+      return {
+        ok: false,
+        error: formatPreflightErrors(checks.findings) || "Gbrain preflight failed.",
+      };
+    }
+  }
+
+  const ampRepoRoot = options.ampRepoRoot ?? resolveAmpRepoRoot();
+  const ssaSpecPath = join(ampRepoRoot, "ssa-files", "gbrain.yaml");
+
+  try {
+    const inner =
+      backend === "fake-gbrain"
+        ? new FakeGbrainMcpTransport()
+        : new GbrainServeStdioTransport();
+    const adapter = new GbrainKnowledgeAdapter({
+      transport: new ReadonlyGbrainMcpTransport(inner),
+      ssaSpecPath,
+    });
+    return { ok: true, adapter };
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    return { ok: false, error: message };
+  }
+}
+
+function createRuntimeBackedProjectionSource<T extends ProjectionSource>(
+  runtimeDbPath: string,
+  openStore: (dbPath: string) => RuntimeStore,
+  createSource: (runtime: RuntimeStore) => T
+): { source: T; cleanup: () => void } {
+  const runtime = openStore(runtimeDbPath);
+  return {
+    source: createSource(runtime),
+    cleanup: () => {
+      runtime.close();
+    },
+  };
 }
 
 /** Create a projection source and runtime cleanup callback for materialization. */
 export function createProjectionRenderSource(
   options: CreateProjectionRenderSourceOptions
 ): ResolvedProjectionRenderSource {
-  const { sourceKind, projectRef, runtimeDbPath, knowledgeStore, gbrainAdapter, env, deps } =
-    options;
+  const { sourceKind, projectRef, runtimeDbPath, knowledgeStore, env, deps } = options;
+  const openStore = deps?.openRuntimeStore ?? openRuntimeStore;
 
   if (sourceKind === "placeholder") {
     return {
@@ -60,30 +148,22 @@ export function createProjectionRenderSource(
     };
   }
 
-  const openStore = deps?.openRuntimeStore ?? openRuntimeStore;
-
   if (sourceKind === "gbrain") {
-    const gbrainResult = resolveProjectionGbrainAdapter({
-      env,
-      gbrainAdapter,
-      ampRepoRoot: options.ampRepoRoot ?? resolveAmpRepoRoot(),
-    });
-
+    const gbrainResult = resolveGbrainProjectionAdapter(options);
     if (!gbrainResult.ok) {
       return { error: gbrainResult.error };
     }
 
-    const runtime = openStore(runtimeDbPath);
-    return {
-      source: new GbrainProjectionSource({
-        adapter: gbrainResult.adapter,
-        runtime,
-        projectRef,
-      }),
-      cleanup: () => {
-        runtime.close();
-      },
-    };
+    return createRuntimeBackedProjectionSource(
+      runtimeDbPath,
+      openStore,
+      (runtime) =>
+        new GbrainProjectionSource({
+          adapter: gbrainResult.adapter,
+          runtime,
+          projectRef,
+        })
+    );
   }
 
   const knowledgeResult = resolveProjectionKnowledgeStore({
@@ -95,17 +175,16 @@ export function createProjectionRenderSource(
     return { error: knowledgeResult.error };
   }
 
-  const runtime = openStore(runtimeDbPath);
-  return {
-    source: new LocalProjectionSource({
-      knowledge: knowledgeResult.store,
-      runtime,
-      projectRef,
-    }),
-    cleanup: () => {
-      runtime.close();
-    },
-  };
+  return createRuntimeBackedProjectionSource(
+    runtimeDbPath,
+    openStore,
+    (runtime) =>
+      new LocalProjectionSource({
+        knowledge: knowledgeResult.store,
+        runtime,
+        projectRef,
+      })
+  );
 }
 
 /** Run materialization with guaranteed source cleanup (success or throw). */

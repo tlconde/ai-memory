@@ -34,6 +34,8 @@ export interface AmpProjectionRenderOptions {
   knowledgeStore?: InMemoryKnowledgeStore;
   /** Inject gbrain adapter for tests — bypasses live gbrain transport. */
   gbrainAdapter?: GbrainKnowledgeAdapter;
+  /** When false, skip gbrain preflight in the projection source factory (tests only). */
+  strictGbrainPreflight?: boolean;
 }
 
 export interface AmpProjectionRenderResult {
@@ -109,6 +111,7 @@ export async function runAmpProjectionRender(
     runtimeDbPath,
     knowledgeStore: options.knowledgeStore,
     gbrainAdapter: options.gbrainAdapter,
+    strictGbrainPreflight: options.strictGbrainPreflight,
     env,
   });
 

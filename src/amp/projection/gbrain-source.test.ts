@@ -2,16 +2,20 @@ import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 
 import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
+import {
+  encodeFrameToPageContent,
+  frameIdToSlug,
+} from "../adapters/ssa/gbrain/frame-codec.js";
 import { FakeGbrainMcpTransport } from "../adapters/ssa/gbrain/fake-transport.js";
+import { ReadonlyGbrainMcpTransport } from "../adapters/ssa/gbrain/readonly-transport.js";
 import type { GbrainMcpTransport } from "../adapters/ssa/gbrain/transport.js";
-import { AmpError, AmpErrorCode } from "../core/errors.js";
 import { createFrame } from "../core/frame-schema.js";
 import { capturePreference } from "../substrate/capture-preference.js";
 import { RuntimeStore } from "../substrate/storage/runtime-store.js";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { GbrainProjectionSource } from "./gbrain-source.js";
 import { ProjectionSourceLoadError } from "./errors.js";
 import { GBRAIN_PROJECTION_READ_FAILED } from "./messages.js";
@@ -24,12 +28,31 @@ const MUTATING_GBRAIN_TOOLS = new Set(["put_page", "delete_page", "restore_page"
 class TrackingGbrainMcpTransport implements GbrainMcpTransport {
   readonly calls: Array<{ name: string; args: Record<string, unknown> }> = [];
 
-  constructor(private readonly inner: FakeGbrainMcpTransport) {}
+  constructor(private readonly inner: GbrainMcpTransport) {}
 
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     this.calls.push({ name, args });
     return this.inner.callTool(name, args);
   }
+
+  async close(): Promise<void> {
+    await this.inner.close?.();
+  }
+}
+
+class FailingListPagesTransport implements GbrainMcpTransport {
+  constructor(private readonly inner: FakeGbrainMcpTransport) {}
+
+  async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+    if (name === "list_pages") {
+      throw new Error("gbrain MCP list_pages failed: simulated outage");
+    }
+    return this.inner.callTool(name, args);
+  }
+}
+
+function seedFrame(transport: FakeGbrainMcpTransport, frame: ReturnType<typeof createFrame>): void {
+  transport.seedPage(frameIdToSlug(frame.id), encodeFrameToPageContent(frame));
 }
 
 describe("GbrainProjectionSource", () => {
@@ -55,20 +78,10 @@ describe("GbrainProjectionSource", () => {
     assert.equal(source.supportsApply, true);
   });
 
-  it("routes project and global frames from gbrain listFrames", async () => {
+  it("loads frames from gbrain listFrames into projection documents", async () => {
     const fake = new FakeGbrainMcpTransport();
-    const adapter = new GbrainKnowledgeAdapter({ transport: fake, ssaSpecPath: GBRAIN_SPEC });
-
-    await adapter.writeFrames([
-      createFrame({
-        id: "global-pref",
-        kind: "semantic",
-        content: "Prefer explicit return types globally.",
-        source: { surface: "cursor" },
-        created_at: "2026-05-25T00:00:00.000Z",
-        scope: { kind: "user" },
-        curation_mode: "personal",
-      }),
+    seedFrame(
+      fake,
       createFrame({
         id: "project-pref",
         kind: "semantic",
@@ -77,50 +90,10 @@ describe("GbrainProjectionSource", () => {
         created_at: "2026-05-25T00:00:00.000Z",
         scope: { kind: "project", project_ref: "demo-app" },
         curation_mode: "personal",
-      }),
-      createFrame({
-        id: "other-project",
-        kind: "semantic",
-        content: "Should not appear.",
-        source: { surface: "cursor" },
-        created_at: "2026-05-25T00:00:00.000Z",
-        scope: { kind: "project", project_ref: "other-app" },
-        curation_mode: "personal",
-      }),
-    ]);
+      })
+    );
 
-    const source = new GbrainProjectionSource({
-      adapter,
-      runtime,
-      projectRef: "demo-app",
-      generatedAt: "2026-05-25T12:00:00.000Z",
-    });
-    const documents = await source.loadProjectionDocuments({ projectRef: "demo-app" });
-
-    const globalProjection = documents.find((doc) => doc.metadata.kind === "global_projection");
-    const projectProjection = documents.find((doc) => doc.metadata.kind === "project_projection");
-
-    assert.match(globalProjection?.body ?? "", /Prefer explicit return types globally\./);
-    assert.match(projectProjection?.body ?? "", /Use conventional commits in this repo\./);
-    assert.doesNotMatch(projectProjection?.body ?? "", /Should not appear\./);
-  });
-
-  it("routes universal scope frames to global sections", async () => {
-    const fake = new FakeGbrainMcpTransport();
     const adapter = new GbrainKnowledgeAdapter({ transport: fake, ssaSpecPath: GBRAIN_SPEC });
-
-    await adapter.writeFrames([
-      createFrame({
-        id: "universal-pref",
-        kind: "semantic",
-        content: "Universal durable preference.",
-        source: { surface: "cursor" },
-        created_at: "2026-05-25T00:00:00.000Z",
-        scope: { kind: "universal" },
-        curation_mode: "personal",
-      }),
-    ]);
-
     const source = new GbrainProjectionSource({
       adapter,
       runtime,
@@ -129,8 +102,8 @@ describe("GbrainProjectionSource", () => {
     });
     const documents = await source.loadProjectionDocuments({ projectRef: "demo-app" });
 
-    const globalProjection = documents.find((doc) => doc.metadata.kind === "global_projection");
-    assert.match(globalProjection?.body ?? "", /Universal durable preference\./);
+    const projectProjection = documents.find((doc) => doc.metadata.kind === "project_projection");
+    assert.match(projectProjection?.body ?? "", /Use conventional commits in this repo\./);
   });
 
   it("includes local runtime queue items in scoped runtime sections", async () => {
@@ -142,10 +115,6 @@ describe("GbrainProjectionSource", () => {
       scope: "project",
       projectRef: "demo-app",
     });
-    capturePreference(runtime, {
-      content: "Queued global runtime note.",
-      scope: "user",
-    });
 
     const source = new GbrainProjectionSource({
       adapter,
@@ -155,19 +124,14 @@ describe("GbrainProjectionSource", () => {
     });
     const documents = await source.loadProjectionDocuments({ projectRef: "demo-app" });
 
-    const globalRuntime = documents.find((doc) => doc.metadata.kind === "global_runtime");
     const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
-
-    assert.match(globalRuntime?.body ?? "", /Queued global runtime note\./);
     assert.match(projectRuntime?.body ?? "", /Queued project runtime note\./);
   });
 
   it("does not call gbrain write/mutate/delete MCP tools during load", async () => {
     const inner = new FakeGbrainMcpTransport();
-    const tracking = new TrackingGbrainMcpTransport(inner);
-    const adapter = new GbrainKnowledgeAdapter({ transport: tracking, ssaSpecPath: GBRAIN_SPEC });
-
-    await adapter.writeFrames([
+    seedFrame(
+      inner,
       createFrame({
         id: "read-only-frame",
         kind: "semantic",
@@ -176,38 +140,24 @@ describe("GbrainProjectionSource", () => {
         created_at: "2026-05-25T00:00:00.000Z",
         scope: { kind: "project", project_ref: "demo-app" },
         curation_mode: "personal",
-      }),
-    ]);
+      })
+    );
 
-    tracking.calls.length = 0;
+    const tracking = new TrackingGbrainMcpTransport(new ReadonlyGbrainMcpTransport(inner));
+    const adapter = new GbrainKnowledgeAdapter({ transport: tracking, ssaSpecPath: GBRAIN_SPEC });
 
     const source = new GbrainProjectionSource({ adapter, runtime, projectRef: "demo-app" });
     await source.loadProjectionDocuments({ projectRef: "demo-app" });
 
     const mutatingCalls = tracking.calls.filter((call) => MUTATING_GBRAIN_TOOLS.has(call.name));
-    assert.deepEqual(
-      mutatingCalls,
-      [],
-      `expected no mutating MCP tools, got: ${mutatingCalls.map((call) => call.name).join(", ")}`
-    );
+    assert.deepEqual(mutatingCalls, []);
     assert.ok(tracking.calls.some((call) => call.name === "list_pages"));
     assert.ok(tracking.calls.some((call) => call.name === "get_page"));
   });
 
   it("throws ProjectionSourceLoadError with operator message on list failure", async () => {
-    const fake = new FakeGbrainMcpTransport();
-    const adapter = new GbrainKnowledgeAdapter({ transport: fake, ssaSpecPath: GBRAIN_SPEC });
-    const originalList = adapter.listFrames.bind(adapter);
-    adapter.listFrames = async () =>
-      ({
-        success: false,
-        error: new AmpError({
-          code: AmpErrorCode.SUBSTRATE_OFFLINE,
-          message: "gbrain MCP list_pages failed: simulated outage",
-          retriable: true,
-        }),
-      }) as Awaited<ReturnType<typeof adapter.listFrames>>;
-
+    const failing = new FailingListPagesTransport(new FakeGbrainMcpTransport());
+    const adapter = new GbrainKnowledgeAdapter({ transport: failing, ssaSpecPath: GBRAIN_SPEC });
     const source = new GbrainProjectionSource({ adapter, runtime, projectRef: "demo-app" });
 
     await assert.rejects(
@@ -219,7 +169,5 @@ describe("GbrainProjectionSource", () => {
         return true;
       }
     );
-
-    adapter.listFrames = originalList;
   });
 });

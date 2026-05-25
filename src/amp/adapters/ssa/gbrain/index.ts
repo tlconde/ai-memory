@@ -11,6 +11,11 @@ export {
 } from "./adapter.js";
 export { FakeGbrainMcpTransport } from "./fake-transport.js";
 export {
+  GBRAIN_MUTATING_MCP_TOOLS,
+  ReadonlyGbrainMcpTransport,
+  type GbrainMutatingMcpTool,
+} from "./readonly-transport.js";
+export {
   AMP_FRAME_FRONTMATTER_KEY,
   AMP_FRAME_SLUG_PREFIX,
   decodePageContentToFrame,

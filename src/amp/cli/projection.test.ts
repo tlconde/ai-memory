@@ -13,7 +13,6 @@ import { createFrame } from "../core/frame-schema.js";
 import { PROJECTION_FILE_KINDS } from "../projection/constants.js";
 import {
   DB_BACKED_MATERIALIZATION_NOT_WIRED,
-  GBRAIN_PROJECTION_IN_MEMORY_BACKEND,
   LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
 } from "../projection/messages.js";
 import { capturePreference } from "../substrate/capture-preference.js";
@@ -477,21 +476,38 @@ describe("runAmpProjectionRender", () => {
     assert.equal(result.writes.length, 4);
   });
 
-  it("fails gbrain source when AMP_KNOWLEDGE_BACKEND=in-memory", async () => {
-    const projectRoot = join(tempRoot, "gbrain-in-memory-backend");
-    await runAmpInit({ projectRoot });
+  it("gbrain source uses injected adapter while consolidate backend is in-memory", async () => {
+    const projectRoot = join(tempRoot, "gbrain-in-memory-injected");
+    const fakeHome = join(tempRoot, "home-gbrain-in-memory-injected");
+    const env = { HOME: fakeHome, AMP_KNOWLEDGE_BACKEND: "in-memory" };
+    await runAmpInit({ projectRoot, env });
+
+    const fake = new FakeGbrainMcpTransport();
+    const adapter = new GbrainKnowledgeAdapter({ transport: fake, ssaSpecPath: GBRAIN_SPEC });
+    await adapter.writeFrames([
+      createFrame({
+        id: "gbrain-in-memory-pref",
+        kind: "semantic",
+        content: "Gbrain with in-memory consolidate backend.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "project", project_ref: "gbrain-in-memory-injected" },
+        curation_mode: "personal",
+      }),
+    ]);
 
     const result = await runAmpProjectionRender({
       projectRoot,
       source: "gbrain",
       dryRun: true,
-      env: { AMP_KNOWLEDGE_BACKEND: "in-memory" },
+      homedir: () => fakeHome,
+      env,
+      gbrainAdapter: adapter,
     });
 
-    assert.equal(result.ok, false);
+    assert.equal(result.ok, true);
     assert.equal(result.source, "gbrain");
-    assert.equal(result.error, GBRAIN_PROJECTION_IN_MEMORY_BACKEND);
-    assert.equal(result.writes.length, 0);
+    assert.equal(result.writes.length, 4);
   });
 });
 
