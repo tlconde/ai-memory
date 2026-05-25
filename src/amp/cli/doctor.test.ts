@@ -181,6 +181,36 @@ describe("runAmpDoctor", () => {
     );
   });
 
+  it("treats trailing slashes in external_dirs as equivalent to project skills root", async () => {
+    const projectRoot = join(tempRoot, "hermes-trailing-slash");
+    await mkdir(join(projectRoot, "skills", "from-amp"), { recursive: true });
+
+    const fakeHome = join(tempRoot, "hermes-home-trailing");
+    await mkdir(join(fakeHome, ".hermes"), { recursive: true });
+    await writeFile(
+      join(fakeHome, ".hermes", "config.yaml"),
+      yaml.dump({
+        skills: { external_dirs: [`${join(projectRoot, "skills")}/`] },
+      }),
+      "utf8"
+    );
+
+    const result = runAmpDoctor({
+      projectRoot,
+      ampRepoRoot: REPO_ROOT,
+      homedir: () => fakeHome,
+    });
+
+    assert.ok(
+      result.findings.some(
+        (f) =>
+          f.category === "hermes-discovery" &&
+          f.level === "ok" &&
+          f.message.includes("listed in Hermes skills.external_dirs")
+      )
+    );
+  });
+
   it("reads Hermes config via HERMES_CONFIG_PATH env override", async () => {
     const projectRoot = join(tempRoot, "hermes-env-config");
     await mkdir(join(projectRoot, "skills", "from-amp"), { recursive: true });
