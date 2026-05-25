@@ -6,9 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { PROJECTION_FILE_KINDS } from "../projection/constants.js";
+import { DB_BACKED_MATERIALIZATION_NOT_WIRED } from "../projection/messages.js";
 import { runAmpInit } from "./init.js";
 import {
-  PROJECTION_MATERIALIZATION_BLOCKED_MESSAGE,
   formatAmpProjectionRenderReport,
   runAmpProjectionRender,
 } from "./projection.js";
@@ -59,11 +59,12 @@ describe("runAmpProjectionRender", () => {
       assert.equal(existsSync(write.path), false);
     }
 
+    assert.ok(result.budget);
     assert.equal(result.budget.success, true);
     assert.equal(result.budget.combined.status, "ok");
   });
 
-  it("refuses non-dry-run materialization until AMP-PROJ-14", async () => {
+  it("refuses non-dry-run apply when placeholder source does not support apply", async () => {
     const projectRoot = join(tempRoot, "no-dry-run");
     await runAmpInit({ projectRoot });
 
@@ -71,7 +72,9 @@ describe("runAmpProjectionRender", () => {
 
     assert.equal(result.ok, false);
     assert.equal(result.dryRun, false);
-    assert.equal(result.error, PROJECTION_MATERIALIZATION_BLOCKED_MESSAGE);
+    assert.equal(result.blocked, true);
+    assert.equal(result.error, DB_BACKED_MATERIALIZATION_NOT_WIRED);
+    assert.equal(result.budget, undefined);
     assert.equal(result.writes.length, 0);
   });
 
@@ -85,6 +88,7 @@ describe("runAmpProjectionRender", () => {
 
     assert.equal(result.ok, false);
     assert.match(result.error ?? "", /Project AMP config not found/);
+    assert.equal(result.budget, undefined);
     assert.equal(result.writes.length, 0);
   });
 
@@ -126,26 +130,19 @@ describe("runAmpProjectionRender", () => {
 });
 
 describe("formatAmpProjectionRenderReport", () => {
-  it("formats materialization refusal", () => {
+  it("formats blocked apply refusal without task IDs", () => {
     const lines = formatAmpProjectionRenderReport({
       projectRoot: "/tmp/demo",
       dryRun: false,
-      budget: {
-        success: true,
-        files: [],
-        combined: {
-          combined_cap: 2000,
-          combined_count: 0,
-          hard_cap: 4000,
-          status: "ok",
-        },
-      },
       writes: [],
       ok: false,
-      error: PROJECTION_MATERIALIZATION_BLOCKED_MESSAGE,
+      blocked: true,
+      error: DB_BACKED_MATERIALIZATION_NOT_WIRED,
     });
 
-    assert.match(lines.join("\n"), /AMP-PROJ-14/);
-    assert.match(lines.join("\n"), /materialization is not available yet/);
+    const text = lines.join("\n");
+    assert.match(text, /not wired yet/);
+    assert.match(text, /materialization is not available yet/);
+    assert.equal(text.includes("AMP-PROJ"), false);
   });
 });
