@@ -66,7 +66,8 @@ Try: gbrain init --migrate-only
 
 ## Residual risks
 
-- **Soft-delete cleanup only:** test cleanup uses `delete_page`; pages remain recoverable for ~72h. Residual slugs under `amp/frames/h.*` possible if cleanup fails or operator skips live test finally block.
+- **Soft-delete cleanup only:** test cleanup uses `delete_page`; pages remain recoverable for ~72h. Residual slugs under `amp/frames/h.*` possible if cleanup fails or operator skips live test finally block. Failure output now includes slug, frame id, and operator grep guidance (`formatResidualPageWarning` in `gbrain-live-safety.ts`).
+- **AMP-owned slugs only:** live test asserts `live-v1-*` frame ids map to `amp/frames/h.{hex}` before write; legacy base64url slugs are not migrated.
 - **Migration warning noise:** environments with schema drift may block operator trust in doctor without blocking MCP writes (observed here).
 - **Hybrid/vector search:** live test exercises keyword `search` only; hybrid `query` remains PROVISIONAL (fake transport covered in unit tests).
 - **Slug scheme version bump (V1-LIVE-01-FIX-A):** new writes use locked `amp/frames/h.{hex}` encoding (UTF-8 frame id → lowercase hex, `h.` prefix). Legacy base64url final segments are abandoned because live gbrain resolves them as decoded slug lookups. **No migration** in this wave — old base64url pages remain at their original slugs; regression tests in `frame-codec.test.ts` lock the new contract.
