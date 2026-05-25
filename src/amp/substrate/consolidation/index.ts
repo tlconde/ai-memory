@@ -5,4 +5,5 @@
  */
 
 export { episodicSignalToSemanticFrame } from "./signal-to-frame.js";
-export { consolidateToGbrain, type ConsolidationResult } from "./gbrain-consolidation.js";
+export type { ConsolidationResult } from "./types.js";
+export { consolidateToGbrain } from "./gbrain-consolidation.js";

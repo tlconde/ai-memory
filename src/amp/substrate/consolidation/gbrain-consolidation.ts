@@ -6,12 +6,16 @@
  *
  * Live gbrain consolidation behavior is PROVISIONAL unless tested against
  * local `gbrain serve` — unit tests use {@link FakeGbrainMcpTransport}.
+ *
+ * v1 atomicity note: gbrain writes are not transactional. If `writeFrames`
+ * fails after writing an earlier page, AMP retains the runtime queue and relies
+ * on idempotent re-consolidation to overwrite the orphaned page on retry.
  */
 
 import type { GbrainKnowledgeAdapter } from "../../adapters/ssa/gbrain/adapter.js";
 import { isWriteSuccess } from "../../adapter-contract/operation-results.js";
 import type { RuntimeStore } from "../storage/runtime-store.js";
-import type { ConsolidationResult } from "../storage/consolidation-minimal.js";
+import type { ConsolidationResult } from "./types.js";
 import { episodicSignalToSemanticFrame } from "./signal-to-frame.js";
 
 export type { ConsolidationResult };

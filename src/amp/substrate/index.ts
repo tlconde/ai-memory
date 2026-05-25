@@ -15,12 +15,14 @@ export {
   type RetrievePreferenceInput,
   type RetrievedPreference,
 } from "./retrieve-preference.js";
-export { consolidateNow, type ConsolidationResult } from "./storage/consolidation-minimal.js";
-export { consolidateToGbrain, episodicSignalToSemanticFrame } from "./consolidation/index.js";
+export { consolidateNow } from "./storage/consolidation-minimal.js";
+export { consolidateToGbrain, episodicSignalToSemanticFrame, type ConsolidationResult } from "./consolidation/index.js";
 export type { KnowledgeStore, KnowledgeListFilter } from "./storage/knowledge-store.js";
 export {
   propagateProcedures,
   VERIFIED_HARNESS_TARGETS,
+  type HarnessWriter,
+  type HarnessWriterRegistry,
   type PropagateProceduresInput,
   type PropagationHarnessRoots,
   type PropagationResult,

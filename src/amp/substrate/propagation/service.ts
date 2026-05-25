@@ -1,19 +1,16 @@
 /**
  * Procedure propagation service — compile registry artifacts to verified harness roots.
  *
- * Falsifiable claim: canonical procedures compile through existing adapters into
- * from-amp/ only, lastSyncedAt updates on success, and unsupported targets are reported.
+ * Falsifiable claim: canonical procedures propagate through injected harness
+ * writers only, lastSyncedAt updates on success, and unsupported targets are reported.
  */
 
-import { join } from "node:path";
-
-import { ClaudeCodeAdapter } from "../../adapters/sas/claude-code/adapter.js";
-import { CursorAdapter } from "../../adapters/sas/cursor/adapter.js";
-import { HermesAdapter } from "../../adapters/sas/hermes/adapter.js";
+import type { CanonicalProcedure } from "../../procedural/schema.js";
 import type { InjectionPath } from "../../procedural/schema.js";
 import type { ProcedureRegistry } from "../../procedural/registry.js";
 import {
   VERIFIED_HARNESS_TARGETS,
+  type HarnessWriterRegistry,
   type PropagateProceduresInput,
   type PropagationResult,
   type PropagationUnsupportedTarget,
@@ -22,10 +19,6 @@ import {
 } from "./types.js";
 
 const VERIFIED_HARNESS_SET = new Set<string>(VERIFIED_HARNESS_TARGETS);
-
-function defaultClaudeCodeBasePath(projectRoot: string): string {
-  return join(projectRoot, ".claude", "skills");
-}
 
 function supportsFilesystemPropagation(injectionPath: InjectionPath): boolean {
   return injectionPath === "filesystem-native" || injectionPath === "either";
@@ -64,43 +57,12 @@ function collectUnsupportedDeclaredTargets(
   return conflicts;
 }
 
-interface HarnessWriters {
-  cursor: CursorAdapter;
-  "claude-code": ClaudeCodeAdapter;
-  hermes: HermesAdapter;
-}
-
-function createHarnessWriters(roots: PropagateProceduresInput["roots"]): HarnessWriters {
-  const claudeCodeBasePath = roots.claudeCodeBasePath ?? defaultClaudeCodeBasePath(roots.projectRoot);
-  return {
-    cursor: new CursorAdapter({ projectRoot: roots.projectRoot }),
-    "claude-code": new ClaudeCodeAdapter({ basePath: claudeCodeBasePath }),
-    hermes: new HermesAdapter({ projectRoot: roots.projectRoot }),
-  };
-}
-
-async function writeToHarness(
-  writers: HarnessWriters,
-  harness: VerifiedHarnessTarget,
-  procedure: import("../../procedural/schema.js").CanonicalProcedure
-): Promise<string> {
-  switch (harness) {
-    case "cursor":
-      return writers.cursor.writeCompiledRule(procedure);
-    case "claude-code":
-      return writers["claude-code"].writeCompiledProcedure(procedure);
-    case "hermes":
-      return writers.hermes.writeCompiledProcedure(procedure);
-  }
-}
-
 /** Compile and write registry procedures to verified harness from-amp roots. */
 export async function propagateProcedures(
   input: PropagateProceduresInput
 ): Promise<PropagationResult> {
   const targets = input.targets ?? VERIFIED_HARNESS_TARGETS;
   const syncedAt = input.syncedAt ?? new Date().toISOString();
-  const writers = createHarnessWriters(input.roots);
 
   const writes: PropagationWriteRecord[] = [];
   const unsupportedTargets: PropagationUnsupportedTarget[] = [];
@@ -115,7 +77,9 @@ export async function propagateProcedures(
     );
 
     const supportedSet = new Set(supportedHarnesses);
-    const canWriteFilesystem = supportsFilesystemPropagation(injectionPath);
+    if (!supportsFilesystemPropagation(injectionPath)) {
+      continue;
+    }
 
     for (const harness of targets) {
       if (!supportedSet.has(harness)) {
@@ -128,18 +92,19 @@ export async function propagateProcedures(
         continue;
       }
 
-      if (!canWriteFilesystem) {
+      const writer = input.writers[harness];
+      if (!writer) {
         writes.push({
           procedureName,
           harness,
           status: "failed",
-          message: `Cannot propagate with injection_path "${injectionPath}".`,
+          message: `No writer configured for harness "${harness}".`,
         });
         continue;
       }
 
       try {
-        const outputPath = await writeToHarness(writers, harness, entry.procedure);
+        const outputPath = await writer.writeProcedure(entry.procedure);
         input.registry.setLastSyncedAt(procedureName, harness, syncedAt);
         writes.push({
           procedureName,

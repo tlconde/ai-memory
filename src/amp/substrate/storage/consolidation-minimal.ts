@@ -8,11 +8,7 @@
 import type { KnowledgeStore } from "./knowledge-store.js";
 import { RuntimeStore } from "./runtime-store.js";
 import { episodicSignalToSemanticFrame } from "../consolidation/signal-to-frame.js";
-
-export interface ConsolidationResult {
-  processed: number;
-  frameIds: string[];
-}
+import type { ConsolidationResult } from "../consolidation/types.js";
 
 /** Drain runtime episodic queue into the knowledge store (C5). */
 export function consolidateNow(runtime: RuntimeStore, knowledge: KnowledgeStore): ConsolidationResult {

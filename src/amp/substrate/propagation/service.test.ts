@@ -4,9 +4,25 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { ClaudeCodeAdapter } from "../../adapters/sas/claude-code/adapter.js";
+import { CursorAdapter } from "../../adapters/sas/cursor/adapter.js";
+import { HermesAdapter } from "../../adapters/sas/hermes/adapter.js";
 import { createCanonicalProcedure } from "../../procedural/schema.js";
 import { ProcedureRegistry } from "../../procedural/registry.js";
 import { propagateProcedures } from "./service.js";
+import type { HarnessWriterRegistry } from "./types.js";
+
+function createTestWriters(projectRoot: string): HarnessWriterRegistry {
+  const cursor = new CursorAdapter({ projectRoot });
+  const claudeCode = new ClaudeCodeAdapter({ basePath: join(projectRoot, ".claude", "skills") });
+  const hermes = new HermesAdapter({ projectRoot });
+
+  return {
+    cursor: { writeProcedure: (procedure) => cursor.writeCompiledRule(procedure) },
+    "claude-code": { writeProcedure: (procedure) => claudeCode.writeCompiledProcedure(procedure) },
+    hermes: { writeProcedure: (procedure) => hermes.writeCompiledProcedure(procedure) },
+  };
+}
 
 describe("propagateProcedures", () => {
   let projectRoot = "";
@@ -36,7 +52,7 @@ describe("propagateProcedures", () => {
 
     const result = await propagateProcedures({
       registry,
-      roots: { projectRoot },
+      writers: createTestWriters(projectRoot),
       targets: ["cursor"],
       syncedAt,
     });
@@ -69,10 +85,7 @@ describe("propagateProcedures", () => {
 
     const result = await propagateProcedures({
       registry,
-      roots: {
-        projectRoot,
-        claudeCodeBasePath: join(projectRoot, ".claude", "skills"),
-      },
+      writers: createTestWriters(projectRoot),
       syncedAt,
     });
 
@@ -119,7 +132,7 @@ describe("propagateProcedures", () => {
 
     const result = await propagateProcedures({
       registry,
-      roots: { projectRoot },
+      writers: createTestWriters(projectRoot),
       syncedAt,
     });
 
@@ -142,7 +155,7 @@ describe("propagateProcedures", () => {
 
     const result = await propagateProcedures({
       registry,
-      roots: { projectRoot },
+      writers: createTestWriters(projectRoot),
       targets: ["cursor"],
       syncedAt,
     });
@@ -167,14 +180,14 @@ describe("propagateProcedures", () => {
 
     const result = await propagateProcedures({
       registry,
-      roots: { projectRoot },
+      writers: createTestWriters(projectRoot),
       targets: ["cursor"],
       syncedAt,
     });
 
     assert.equal(result.unsupportedTargets.length, 1);
     assert.match(result.unsupportedTargets[0]?.reason ?? "", /filesystem propagation requires/);
-    assert.equal(result.writes[0]?.status, "failed");
+    assert.equal(result.writes.length, 0);
     assert.equal(registry.get("mcp-only")?.lastSyncedAt.cursor, undefined);
   });
 });
