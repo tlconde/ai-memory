@@ -8,7 +8,10 @@ import {
   createReadKnowledgeBackend,
   createWriteKnowledgeBackend,
   resolveKnowledgeBackend,
+  resolveProjectionKnowledgeStore,
 } from "./knowledge-backend.js";
+import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
+import { LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE } from "../projection/messages.js";
 
 describe("resolveKnowledgeBackend", () => {
   it("defaults to gbrain when unset", () => {
@@ -70,5 +73,47 @@ describe("createKnowledgeBackend", () => {
     const handle = createKnowledgeBackend({ backend: "fake-gbrain" });
     assert.equal(handle.liveGbrain, false);
     assert.ok(handle.gbrain);
+  });
+});
+
+describe("resolveProjectionKnowledgeStore", () => {
+  it("returns injected store without reading env backend", () => {
+    const injected = new InMemoryKnowledgeStore();
+    const result = resolveProjectionKnowledgeStore({
+      knowledgeStore: injected,
+      env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "gbrain" },
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.store, injected);
+  });
+
+  it("creates in-memory store when env backend is in-memory", () => {
+    const result = resolveProjectionKnowledgeStore({
+      env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "in-memory" },
+    });
+
+    assert.equal(result.ok, true);
+    assert.ok(result.store instanceof InMemoryKnowledgeStore);
+  });
+
+  it("rejects gbrain backend without constructing live gbrain", () => {
+    const result = resolveProjectionKnowledgeStore({ env: {} });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
+    }
+  });
+
+  it("rejects fake-gbrain backend for projection source", () => {
+    const result = resolveProjectionKnowledgeStore({
+      env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "fake-gbrain" },
+    });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
+    }
   });
 });

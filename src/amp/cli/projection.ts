@@ -12,8 +12,7 @@ import type { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge
 import { projectConfigPath } from "../config/paths.js";
 import {
   AMP_KNOWLEDGE_BACKEND_ENV,
-  createReadKnowledgeBackend,
-  resolveKnowledgeBackend,
+  resolveProjectionKnowledgeStore,
 } from "./knowledge-backend.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
@@ -21,7 +20,6 @@ import {
   LocalProjectionSource,
   materializeProjections,
   PlaceholderProjectionSource,
-  LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
   type EvaluateProjectionBudgetResult,
   type ProjectionSource,
   type ProjectionWriteResult,
@@ -84,28 +82,20 @@ function resolveProjectionSource(
     };
   }
 
-  const knowledge =
-    options.knowledgeStore ??
-    (() => {
-      const backend = resolveKnowledgeBackend({ env: options.env });
-      if (backend !== "in-memory") {
-        return undefined;
-      }
-      return createReadKnowledgeBackend({
-        backend: "in-memory",
-        env: options.env,
-      }).inMemory;
-    })();
+  const knowledgeResult = resolveProjectionKnowledgeStore({
+    env: options.env,
+    knowledgeStore: options.knowledgeStore,
+  });
 
-  if (!knowledge) {
-    return { error: LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE };
+  if (!knowledgeResult.ok) {
+    return { error: knowledgeResult.error };
   }
 
   const openStore = options.openRuntimeStoreForProjection ?? openRuntimeStore;
   const runtime = openStore(runtimeDbPath);
   return {
     source: new LocalProjectionSource({
-      knowledge,
+      knowledge: knowledgeResult.store,
       runtime,
       projectRef,
     }),

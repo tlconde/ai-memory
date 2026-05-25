@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import { FakeGbrainMcpTransport } from "../adapters/ssa/gbrain/fake-transport.js";
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
+import { LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE } from "../projection/messages.js";
 import {
   assertLiveGbrainWriteConfirmed,
   type KnowledgeBackendAccess,
@@ -130,4 +131,38 @@ export function createWriteKnowledgeBackend(
   options: Omit<CreateKnowledgeBackendOptions, "access">
 ): KnowledgeBackendHandle {
   return createKnowledgeBackend({ ...options, access: "write" });
+}
+
+export interface ResolveProjectionKnowledgeStoreOptions {
+  env?: NodeJS.ProcessEnv;
+  knowledgeStore?: InMemoryKnowledgeStore;
+}
+
+export type ResolveProjectionKnowledgeStoreResult =
+  | { ok: true; store: InMemoryKnowledgeStore }
+  | { ok: false; error: string };
+
+/** Resolve offline knowledge for local projection source — never live gbrain. */
+export function resolveProjectionKnowledgeStore(
+  options: ResolveProjectionKnowledgeStoreOptions = {}
+): ResolveProjectionKnowledgeStoreResult {
+  if (options.knowledgeStore) {
+    return { ok: true, store: options.knowledgeStore };
+  }
+
+  const backend = resolveKnowledgeBackend({ env: options.env });
+  if (backend !== "in-memory") {
+    return { ok: false, error: LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE };
+  }
+
+  const handle = createReadKnowledgeBackend({
+    backend: "in-memory",
+    env: options.env,
+  });
+
+  if (!handle.inMemory) {
+    return { ok: false, error: LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE };
+  }
+
+  return { ok: true, store: handle.inMemory };
 }
