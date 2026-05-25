@@ -8,3 +8,4 @@ export const AMP_CONFORMANCE_VERSION = "0.0.0";
 
 export * from "./invariant-registry.js";
 export * from "./conformance-runner.js";
+export * from "./acceptance-gate.js";
