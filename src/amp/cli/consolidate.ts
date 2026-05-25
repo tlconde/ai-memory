@@ -9,6 +9,7 @@ import { consolidateToGbrain } from "../substrate/consolidation/gbrain-consolida
 import { consolidateNow } from "../substrate/storage/consolidation-minimal.js";
 import type { ConsolidationResult } from "../substrate/consolidation/types.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
+import { assertLiveGbrainWriteConfirmed } from "./live-gbrain-safety.js";
 import {
   createKnowledgeBackend,
   resolveKnowledgeBackend,
@@ -19,6 +20,7 @@ export interface AmpConsolidateOptions {
   projectRoot?: string;
   knowledge?: string;
   useLiveGbrain?: boolean;
+  confirmLiveGbrainWrite?: boolean;
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   homedir?: () => string;
@@ -50,6 +52,16 @@ export async function runAmpConsolidate(
     explicit: options.knowledge,
     env: options.env,
   });
+
+  const liveWriteConfirmed =
+    options.confirmLiveGbrainWrite === true || options.useLiveGbrain === true;
+
+  if (knowledgeBackend === "gbrain" && !options.gbrainAdapter) {
+    assertLiveGbrainWriteConfirmed({
+      confirmLiveGbrainWrite: liveWriteConfirmed,
+      env: options.env,
+    });
+  }
 
   const handle = createKnowledgeBackend({
     backend: knowledgeBackend,
