@@ -15,6 +15,7 @@ import {
   DB_BACKED_MATERIALIZATION_NOT_WIRED,
   BUDGET_HARD_FAIL_BLOCKS_APPLY,
 } from "./messages.js";
+import { ProjectionSourceLoadError } from "./errors.js";
 import {
   materializeProjections,
   planProjectionMaterialization,
@@ -277,5 +278,25 @@ describe("materializeProjections", () => {
     assert.equal(blocked.ok, false);
     assert.ok(planned.budget?.success);
     assert.equal(planned.ok, true);
+  });
+
+  it("returns structured failure when source throws ProjectionSourceLoadError", async () => {
+    const source: ProjectionSource = {
+      sourceKind: "test",
+      supportsApply: true,
+      loadProjectionDocuments: async () => {
+        throw new ProjectionSourceLoadError("Gbrain projection read failed: simulated outage");
+      },
+    };
+
+    const result = await materializeProjections(source, {
+      projectRoot: "/tmp/unused",
+      mode: "dry-run",
+    });
+
+    assert.equal(result.ok, false);
+    assert.match(result.error ?? "", /simulated outage/);
+    assert.deepEqual(result.writes, []);
+    assert.equal(result.documents.length, 0);
   });
 });

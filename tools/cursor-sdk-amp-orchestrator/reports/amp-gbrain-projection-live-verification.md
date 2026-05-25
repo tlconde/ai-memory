@@ -59,10 +59,10 @@ Run from the ai-memory repo root after offline gate is green.
 ```bash
 npm run amp:acceptance
 npm run typecheck
-npm test -- src/amp/projection/
-npm test -- src/amp/cli/projection.test.ts
-npm test -- src/amp/adapters/ssa/gbrain/
-npm test -- src/amp/integration/gbrain-projection-live.test.ts
+node --import tsx --test src/amp/projection/*.test.ts
+node --import tsx --test src/amp/cli/projection.test.ts src/amp/cli/projection-source.test.ts
+node --import tsx --test src/amp/adapters/ssa/gbrain/*.test.ts
+node --import tsx --test src/amp/integration/gbrain-projection-live.test.ts
 ```
 
 Confirm live projection test is **skipped** in default output.
@@ -82,7 +82,7 @@ cd "$TMP_PROJECT" && git init
 
 ```bash
 cd /path/to/ai-memory
-AMP_LIVE_GBRAIN=1 npm test -- src/amp/integration/gbrain-projection-live.test.ts
+AMP_LIVE_GBRAIN=1 node --import tsx --test src/amp/integration/gbrain-projection-live.test.ts
 ```
 
 **Expected:** read-only dry-run passes against live `gbrain serve`. Empty brain yields zero-byte projection bodies gracefully.
@@ -129,10 +129,10 @@ Does **not** require `AMP_KNOWLEDGE_BACKEND=gbrain`.
 | Command | Result |
 |---------|--------|
 | `npm run typecheck` | (see commit) |
-| `npm test -- src/amp/projection/` | (see commit) |
-| `npm test -- src/amp/cli/projection.test.ts` | (see commit) |
-| `npm test -- src/amp/adapters/ssa/gbrain/` | (see commit) |
-| `npm test -- src/amp/integration/gbrain-projection-live.test.ts` | skipped ( `AMP_LIVE_GBRAIN=1` not run ) |
+| `node --import tsx --test src/amp/projection/*.test.ts` | (see commit) |
+| `node --import tsx --test src/amp/cli/projection.test.ts src/amp/cli/projection-source.test.ts` | (see commit) |
+| `node --import tsx --test src/amp/adapters/ssa/gbrain/*.test.ts` | (see commit) |
+| `node --import tsx --test src/amp/integration/gbrain-projection-live.test.ts` | skipped (`AMP_LIVE_GBRAIN=1` not run) |
 | `npm run amp:acceptance` | (see commit) |
 | `git diff --check` | (see commit) |
 
