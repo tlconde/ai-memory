@@ -6,26 +6,20 @@
  */
 
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 
 import type { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
 import { projectConfigPath } from "../config/paths.js";
+import { AMP_KNOWLEDGE_BACKEND_ENV } from "./knowledge-backend.js";
+import { resolveCliProjectContext } from "./cli-context.js";
 import {
-  AMP_KNOWLEDGE_BACKEND_ENV,
-  resolveProjectionKnowledgeStore,
-} from "./knowledge-backend.js";
-import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
-import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
-import {
-  LocalProjectionSource,
-  materializeProjections,
-  PlaceholderProjectionSource,
-  type EvaluateProjectionBudgetResult,
-  type ProjectionSource,
-  type ProjectionWriteResult,
-} from "../projection/index.js";
+  createProjectionRenderSource,
+  materializeProjectionRenderSource,
+  type AmpProjectionSourceKind,
+} from "./projection-source.js";
+import type { EvaluateProjectionBudgetResult, ProjectionWriteResult } from "../projection/index.js";
 
-export type AmpProjectionSourceKind = "placeholder" | "local";
+export type { AmpProjectionSourceKind };
 
 export interface AmpProjectionRenderOptions {
   projectRoot?: string;
@@ -37,15 +31,7 @@ export interface AmpProjectionRenderOptions {
   homedir?: () => string;
   /** Inject in-memory knowledge for tests (consolidate + render in one process). */
   knowledgeStore?: InMemoryKnowledgeStore;
-  /** Test hook: override runtime store opener for local projection lifecycle checks. */
-  openRuntimeStoreForProjection?: (dbPath: string) => RuntimeStore;
-  /** Test hook: substitute materialization to verify source cleanup on failure. */
-  materializeProjectionsOverride?: typeof materializeProjections;
 }
-
-type ResolvedProjectionSource =
-  | { error: string }
-  | { source: ProjectionSource; cleanup: () => void };
 
 export interface AmpProjectionRenderResult {
   projectRoot: string;
@@ -67,42 +53,6 @@ function resolveMaterializationMode(options: AmpProjectionRenderOptions): "dry-r
     return "dry-run";
   }
   return "apply";
-}
-
-function resolveProjectionSource(
-  sourceKind: AmpProjectionSourceKind,
-  projectRef: string | undefined,
-  runtimeDbPath: string,
-  options: AmpProjectionRenderOptions
-): ResolvedProjectionSource {
-  if (sourceKind === "placeholder") {
-    return {
-      source: new PlaceholderProjectionSource({ projectRef }),
-      cleanup: () => {},
-    };
-  }
-
-  const knowledgeResult = resolveProjectionKnowledgeStore({
-    env: options.env,
-    knowledgeStore: options.knowledgeStore,
-  });
-
-  if (!knowledgeResult.ok) {
-    return { error: knowledgeResult.error };
-  }
-
-  const openStore = options.openRuntimeStoreForProjection ?? openRuntimeStore;
-  const runtime = openStore(runtimeDbPath);
-  return {
-    source: new LocalProjectionSource({
-      knowledge: knowledgeResult.store,
-      runtime,
-      projectRef,
-    }),
-    cleanup: () => {
-      runtime.close();
-    },
-  };
 }
 
 /** Plan or render projection artifacts through the materialization pipeline. */
@@ -150,7 +100,14 @@ export async function runAmpProjectionRender(
     };
   }
 
-  const resolvedSource = resolveProjectionSource(source, projectRef, runtimeDbPath, options);
+  const resolvedSource = createProjectionRenderSource({
+    sourceKind: source,
+    projectRef,
+    runtimeDbPath,
+    knowledgeStore: options.knowledgeStore,
+    env,
+  });
+
   if ("error" in resolvedSource) {
     return {
       projectRoot,
@@ -163,19 +120,13 @@ export async function runAmpProjectionRender(
     };
   }
 
-  let plan;
-  try {
-    const materialize = options.materializeProjectionsOverride ?? materializeProjections;
-    plan = await materialize(resolvedSource.source, {
-      projectRoot,
-      mode,
-      projectRef,
-      env,
-      homedir: options.homedir,
-    });
-  } finally {
-    resolvedSource.cleanup();
-  }
+  const plan = await materializeProjectionRenderSource(resolvedSource, {
+    projectRoot,
+    mode,
+    projectRef,
+    env,
+    homedir: options.homedir,
+  });
 
   return {
     projectRoot: plan.projectRoot,
