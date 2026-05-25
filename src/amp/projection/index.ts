@@ -105,3 +105,17 @@ export {
   type ProjectionMaterializationOptions,
   type ProjectionMaterializationPlan,
 } from "./materialize.js";
+
+export {
+  createEmptyProjectionContentModel,
+  estimateProjectionTextTokens,
+  renderProjectionContentModel,
+  renderProjectionContentSection,
+  sortProjectionTextBlocks,
+  sumSectionTokenEstimate,
+  type ProjectionContentModel,
+  type ProjectionContentSection,
+  type ProjectionContentSectionKey,
+  type ProjectionTextBlock,
+  type RenderProjectionSectionOptions,
+} from "./content.js";
