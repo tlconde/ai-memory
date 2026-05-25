@@ -50,3 +50,8 @@ export {
   type ProjectionScope,
   type ProjectionSourceStore,
 } from "./schema.js";
+
+export {
+  parseProjectionMarkdown,
+  renderProjectionMarkdown,
+} from "./render.js";
