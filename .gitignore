@@ -27,6 +27,7 @@ docs/specs/*
 !docs/guides/
 docs/guides/*
 !docs/guides/CURSOR_IMPLEMENTATION_GUIDE.md
+!docs/guides/AMP_LOCAL_TESTING.md
 !docs/architecture/
 docs/architecture/*
 !docs/architecture/AMP_ARCHITECTURE.html
