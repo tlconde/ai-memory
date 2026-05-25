@@ -119,3 +119,8 @@ export {
   type ProjectionTextBlock,
   type RenderProjectionSectionOptions,
 } from "./content.js";
+
+export {
+  LocalProjectionSource,
+  type LocalProjectionSourceOptions,
+} from "./local-source.js";
