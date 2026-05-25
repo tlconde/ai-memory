@@ -142,6 +142,21 @@ AMP writes only to `from-amp/` subdirectories within each harness's skill/rule d
 
 Every behavior claim has a concrete test that would falsify it.
 
+### Invariant 6: AMP-managed filesystem artifacts are local-only and never tracked in git
+
+AMP-managed filesystem artifacts are projections, runtime files, queues, or generated harness artifacts. They are operational outputs, not source files.
+
+Rules:
+- Global AMP files live outside repos under `~/.amp/`.
+- Project-local AMP files live under `<project>/.amp/local/`.
+- `amp init` MUST add `.amp/local/` to the project `.gitignore`.
+- `amp doctor` MUST verify AMP-managed paths are git-ignored, using `git check-ignore` when the project is inside a git worktree.
+- AMP-managed files MUST NOT appear in `git status` after any AMP operation.
+
+Exception: `amp publish <artifact> --to <path>` creates a frozen export at a user-owned path. From that point forward, the export is no longer AMP-managed and may be tracked if the user chooses.
+
+Falsifiable test: initialize AMP in a git repo, run every AMP operation that materializes filesystem artifacts, then run `git status --short`. No AMP-managed file may appear unless it was explicitly published to a user-owned path.
+
 ---
 
 ## 4. The four-layer architecture (detailed)
@@ -161,8 +176,79 @@ The agent runtime that brings model and substrate together. Loads skills, manage
 **Transport down to substrate (four locked modes):**
 - **Local MCP stdio** — harness and substrate on same machine, MCP over stdio. Real-time, in-session. Used by Claude Desktop, Cursor, Claude Code, Codex CLI for local AMP.
 - **Remote MCP** — harness in cloud, substrate exposes public OAuth-protected MCP endpoint. Used by claude.ai web, Cowork.
-- **Filesystem-native** — harness writes files (CLAUDE.md, `.cursor/rules/*.mdc`, `skills/*/SKILL.md`); substrate fs-watches. Reverse direction same way: substrate writes to `from-amp/` subdirectories; harness reads on next session.
-- **Briefing paste** — degraded mode for surfaces with no programmatic write path. Substrate generates structured briefing; user pastes into harness session.
+- **Filesystem-native** — harnesses read or write files (`CLAUDE.md`, `.cursor/rules/*.mdc`, `skills/*/SKILL.md`, AMP projection files). AMP writes only AMP-managed paths: `.amp/local/`, `~/.amp/`, or `from-amp/` roots.
+- **Briefing paste** — degraded mode for surfaces with no programmatic write path. Substrate generates structured handoff text; user pastes into harness session.
+
+### 4.2.1 Filesystem projection model for agent context (v1.5 design)
+
+AMP exposes state to local agent harnesses through **filesystem projections**. Projections are markdown files derived from the runtime and knowledge stores. They are not canonical state. The database is authoritative.
+
+The model has four AMP-managed projection files:
+
+| File | Scope | Source | Cadence | Path |
+|---|---|---|---|---|
+| Global projection | Cross-project | Knowledge store (durable) | On consolidation | `~/.amp/projection/global.md` |
+| Global runtime | Cross-project | Runtime store (working memory) | Session start + runtime change | `~/.amp/runtime/global.md` |
+| Project projection | One project | Knowledge store, project-scoped | On consolidation | `<project>/.amp/local/projection.md` |
+| Project runtime | One project | Runtime store, project-scoped | Session start + runtime change | `<project>/.amp/local/runtime.md` |
+
+Suggested default budget: all four files together SHOULD fit within 2,000 tokens.
+
+Default contents:
+
+| File | Contents | Target size |
+|---|---|---|
+| Global projection | Identity, communication style, cross-project confirmed facts, long-standing preferences | ~500 tokens |
+| Global runtime | Cross-tool active intent, cross-project current focus, recent global corrections | ~300 tokens |
+| Project projection | Locked decisions, tech stack, project conventions, confirmed project facts | ~700 tokens |
+| Project runtime | Project-specific active intent, in-flight work, recent project corrections | ~500 tokens |
+
+Projection lifecycle:
+- DB state changes -> AMP regenerates affected projection files.
+- User edits a projection file -> AMP does not treat the edit as canonical and may overwrite it on the next regeneration.
+- User wants durable changes -> use `amp edit <slot>` or future MCP write tools.
+- AMP does not fs-watch projection files for implicit re-import.
+
+### 4.2.2 Resolver pattern for local harnesses
+
+For Claude Code, AMP uses Claude Code's native `CLAUDE.md` import behavior. Anthropic's Claude Code memory documentation states that `CLAUDE.md` files can import files using `@path/to/import`, that relative and absolute paths are allowed, and that imported files can recursively import additional files up to a maximum depth of 5 hops.
+
+Global user memory setup:
+
+```markdown
+@~/.amp/projection/global.md
+@~/.amp/runtime/global.md
+```
+
+Project setup:
+
+```markdown
+@.amp/local/projection.md
+@.amp/local/runtime.md
+```
+
+AMP rides the harness's native memory hierarchy instead of inventing a new precedence system. Project files override or specialize global files according to harness-specific rules.
+
+Cursor parity is **not locked**. Cursor `@filename` / MDC import behavior requires a verification spike before AMP claims recursive projection loading there.
+
+### 4.2.3 Context budget enforcement
+
+Default cap: 2,000 tokens across all four projection files. Configurable via:
+
+```bash
+amp config set context-budget <tokens>
+```
+
+Truncation priority, dropping last first:
+1. Pending proposals
+2. Recent corrections
+3. Project context details
+4. Active intent (always preserved)
+5. Identity (always preserved)
+
+Soft warning at 1x cap: generated files include a truncation marker and `amp doctor` reports a warning.
+
+Hard failure at 2x cap: AMP refuses to materialize projections and surfaces the failure through `amp doctor`.
 
 ### 4.3 Layer 2 — Substrate (this is what AMP defines)
 
@@ -677,10 +763,12 @@ Specs are data. The contract is code. Dual-role tools (OpenClaw, Hermes) get bot
 
 - No daemon, no fs-watcher, no MCP server
 - AMP runs as CLI library
-- User triggers briefing generation on demand
+- User triggers frozen handoff/briefing generation on demand
 - **No consolidation, no health monitoring, no active intent registry, no inference training, no propagation**
 - Use case: users not running a daemon, or only using cloud surfaces
 - Spec is honest about reduced functionality
+
+Briefing in Shape C is not the local agent-access mechanism. Local agent access is handled by filesystem projections (§4.2.1). Briefings remain useful for cloud surfaces and cross-session handoff where no reliable filesystem or MCP integration exists.
 
 ### 11.4 Architectural commitments
 
@@ -690,7 +778,7 @@ Specs are data. The contract is code. Dual-role tools (OpenClaw, Hermes) get bot
 
 ---
 
-## 12. The five gaps addressed in v2 spec update
+## 12. Gaps and implementation details addressed in this spec
 
 ### 12.1 Error model
 
@@ -746,6 +834,57 @@ Operational rules:
 - Frames default to `personal`. Promoting to `shared` requires explicit user action.
 - Once promoted, a frame is queryable from both contexts.
 - Demoting from `shared` requires explicit user action; the substrate doesn't auto-demote.
+
+### 12.6 Projection files and local agent access (v1.5 design)
+
+The projection model in §4.2.1 replaces the earlier vague local "briefing" mechanism for Claude Code-style local harnesses.
+
+CLI additions:
+
+| Command | Purpose |
+|---|---|
+| `amp init` | Adds `.amp/local/` to project `.gitignore`, creates project AMP scope, emits initial projection files |
+| `amp doctor` | Verifies gitignore protection, projection freshness, context budget, and harness import wiring where supported |
+| `amp edit <slot>` | Opens a specific profile/projection slot for intentional durable edits; changes become proposals or frames, not raw projection edits |
+| `amp scope add <path>` | Adds a project to AMP's tracked project list |
+| `amp scope status` | Lists tracked projects and last-sync/projection times |
+| `amp scope discover` | Scans for projects with importable harness memory files that are not in AMP's tracked set; user opts in |
+| `amp publish <artifact> --to <path>` | Creates a frozen user-owned export outside AMP management |
+
+Implementation requirements:
+- Projection files are regenerated from DB state.
+- Projection files are AMP-managed local artifacts and therefore covered by Invariant 6.
+- `amp doctor` must fail or warn when projection files are git-trackable.
+- `amp doctor` must detect stale projections by comparing projection metadata to source-store revision or last-consolidation markers.
+- Projection edits are overwritten on regeneration; durable edits go through explicit AMP write paths.
+
+Verification spikes before implementation:
+
+| Spike | Question | Status |
+|---|---|---|
+| Claude Code `CLAUDE.md` imports | Does `@path` import local files recursively and how deep? | **VERIFIED** via Anthropic docs: imports support relative/absolute paths and recurse up to 5 hops (`https://docs.anthropic.com/en/docs/claude-code/memory`) |
+| Cursor import semantics | Does Cursor MDC `@filename` recursively expand markdown imports or only reference/inject file content? | **Required before Cursor projection support** |
+| Claude Code auto-memory format | What is the exact format under `~/.claude/projects/<hash>/memory/*` and can it be safely subsumed? | **Required before subsume/import tooling** |
+| Cursor transcript storage | Where are Cursor transcripts stored and can filesystem ingestion be stable? | **Required before transcript scraping** |
+| MCP config syntax | Exact config paths and schema for Claude Code and Cursor MCP servers | **Required before Tier 2 MCP setup** |
+| Hermes session/skill paths | Live load behavior of emitted `skills/from-amp/<skill>/SKILL.md` | **Still PROVISIONAL in v1** |
+
+### 12.7 v1.5 implementation phasing
+
+Projection work should land incrementally:
+
+| Phase | Scope |
+|---|---|
+| v1.5a | Transcript scraping (Tier 3), Invariant 6 enforcement, `amp scope` commands |
+| v1.5b | Two-file projection model, Claude Code `CLAUDE.md` import setup, context budget enforcement |
+| v1.5c | Proposal queue in projections, post-consolidation diff capture, `amp edit`, CLI review |
+| v1.5d | MCP server (Tier 2), only if v1.5a-c prove insufficient |
+
+Deferred from v1.5:
+- Hooks for capture. Agent access does not require them, and capture should not depend on hooks.
+- Compression-as-consolidation for local models such as LM Studio adapters.
+- Multi-device sync.
+- Auto-promotion confidence thresholds; these require observed data first.
 
 ---
 
