@@ -2,7 +2,7 @@
 
 > **Audience:** Cursor (the IDE agent) working on the AMP codebase
 > **Purpose:** Onboard Cursor to the AMP architecture and provide a concrete starting point for implementation work
-> **Companion document:** AMP-CONSOLIDATED-SPEC.md (the protocol spec — read this first)
+> **Companion document:** `docs/specs/AMP_CONSOLIDATED_SPEC.md` (the protocol spec — read this first)
 
 ---
 
@@ -49,7 +49,7 @@ Layer 3 — STORAGE     (gbrain, Mem0, etc. — we plug into these)
 **Storage sub-layer** owns:
 - Runtime store implementation (SQLite; configurable path; platform user-data default)
 - Knowledge store interface (calls out to storage backend via SSA)
-- Transaction primitives
+- Transaction contract types (backend-specific; gbrain v1 declares transactions unsupported)
 
 **Inference sub-layer** owns:
 - Kind classifier (default rule-based; later: learned from corrections)
@@ -73,41 +73,52 @@ Layer 3 — STORAGE     (gbrain, Mem0, etc. — we plug into these)
 
 ---
 
-## Implementation order (suggested)
+## Implementation status (Phases 0–2)
 
-**Don't implement everything at once.** This is the suggested phasing.
+Phases 0–2 are **status**, not a future roadmap. Later phases (3–7) remain planned work.
 
-### Phase 0 — Vertical-slice foundation (build first)
+| Phase | Goal | Status | Evidence |
+|---|---|---|---|
+| **0** | Vertical-slice foundation | **Done** | Frame schema, scope gate, runtime store, in-memory knowledge, Cursor/Claude Code adapter skeletons, preference E2E |
+| **1** | Storage sub-layer (single backend) | **Done** (with gap) | SSA loader, gbrain adapter (`FakeGbrainMcpTransport` in CI), six core ops, runtime queue; **transactions unsupported** on gbrain (see capability gap below) |
+| **2** | Harness adapters (verified filesystem) | **Done** (offline) | Cursor, Claude Code, Hermes SAS adapters — path guards, emit, propagation E2E; live session load is PROVISIONAL |
+| **3** | Substrate sub-layers (cron) | **Partial** | Minimal consolidation, gbrain consolidation, propagation service, rule-based inference override table; no daemon cron schedule |
+| **4** | Profile schema | **Not started** | gbrain SSA declares `profile_slots: unsupported` |
+| **5** | RL feedback loop | **Not started** | Correction frame schema exists; training cron deferred |
+| **6** | Shape B (remote MCP) | **Not started** | — |
+| **7** | Briefing format | **Not started** | — |
 
-Goal: prove one falsifiable end-to-end claim before broadening the architecture.
+### Capability gap: transactions on gbrain
 
-**Claim:** A scoped preference created from one local harness can be captured as a frame, consolidated into the knowledge store, retrieved by another local harness, and protected by the scope and `from-amp` invariants.
+Do **not** implement "transaction primitive against gbrain" as a build task. gbrain v1 declares `transactions: unsupported` in `ssa-files/gbrain.yaml`; the adapter returns honest unsupported errors. Multi-page writes can leave orphan pages on partial failure. Consolidation and propagation must be **idempotent** and safe to retry. See spec §6.3.
 
-1. Project scaffolding in the existing TypeScript repo
-2. Frame schema validation (Zod or similar) with conformance IDs for every invariant
-3. Configurable runtime store path and isolated test path
-4. Minimal knowledge store adapter sufficient for the vertical slice
-5. Capability coverage block parser
-6. JSON-RPC 2.0 error response infrastructure
-7. Cursor + Claude Code filesystem adapter skeletons with path-safety guards
-8. One end-to-end test: Cursor-style scoped preference -> runtime queue -> consolidation -> Claude Code retrieval
+---
 
-### Phase 1 — Storage sub-layer (single backend)
+## v1 acceptance gate
 
-1. Runtime store (SQLite; env/config override; user-data default)
-2. SSA loader (read SSA YAML files, validate)
-3. gbrain SSA implementation (talks to gbrain via MCP stdio)
-4. The six core operations against gbrain (write, read, search, mutate, list, capabilities)
-5. Transaction primitive against gbrain
-6. Runtime queue primitive
+**Command:** `npm run amp:acceptance` (gate commit `82962bf`).
 
-### Phase 2 — Harness adapters (start with two verified adapters)
+Full gate steps, invariant policy, PROVISIONAL/UNKNOWN exclusions, and residual risks live in `docs/plans/AMP_V1_ACCEPTANCE_REPORT.md`. Executable policy lives in `src/amp/conformance/acceptance-gate.ts`.
 
-1. Claude Code SAS + adapter (filesystem-native; read `CLAUDE.md` and `~/.claude/skills/`; write to `from-amp/` subdirectory)
-2. Cursor SAS + adapter (filesystem-native; read `.cursor/rules/*.mdc`; write to `.cursor/rules/from-amp/*.mdc`)
-3. Local MCP server endpoint for Claude Desktop integration
+---
 
-Do not implement Codex, Gemini, Windsurf, or other harness adapters in v1 unless their placement and load behavior are directly verified in the implementation environment.
+## CLI knowledge backend defaults
+
+Consolidate/retrieve commands select the knowledge backend via `--knowledge-backend` or `AMP_KNOWLEDGE_BACKEND`:
+
+| Backend | Use | Acceptance |
+|---|---|---|
+| `gbrain` (default) | Live `gbrain serve` MCP stdio transport | **PROVISIONAL** — not exercised by acceptance gate |
+| `fake-gbrain` | In-memory MCP transport (`FakeGbrainMcpTransport`) | **VERIFIED** — use in tests and offline workflows |
+| `in-memory` | `InMemoryKnowledgeStore` | **VERIFIED** — vertical slice and unit tests |
+
+Default CLI backend is `gbrain` (live). CI and acceptance use fake/in-memory paths only.
+
+---
+
+## Planned work (Phases 3–7)
+
+Reference for remaining spec scope — not current status.
 
 ### Phase 3 — Substrate sub-layers
 
@@ -145,126 +156,51 @@ Do not implement Codex, Gemini, Windsurf, or other harness adapters in v1 unless
 
 ---
 
-## File / directory structure (proposed)
+## File / directory structure (ai-memory repo)
 
 ```
-amp/
-├── README.md
-├── AMP-CONSOLIDATED-SPEC.md       (the protocol)
-├── package.json
-├── bun.lock
+ai-memory/
+├── docs/
+│   ├── specs/AMP_CONSOLIDATED_SPEC.md
+│   ├── guides/CURSOR_IMPLEMENTATION_GUIDE.md
+│   ├── plans/AMP_V1_ACCEPTANCE_REPORT.md
+│   └── architecture/AMP_ARCHITECTURE.html
+├── package.json                    (npm scripts including amp:acceptance)
 ├── tsconfig.json
-│
-├── src/
-│   ├── core/                       (Layer A: wire protocol + schema)
-│   │   ├── frame-schema.ts
-│   │   ├── operations.ts
-│   │   ├── errors.ts
-│   │   └── transactions.ts
-│   │
-│   ├── adapter-contract/           (Layer B: unified contract)
-│   │   ├── contract.ts
-│   │   ├── capability-coverage.ts
-│   │   └── role.ts
-│   │
-│   ├── ssa/                        (Layer C: SSA loading)
-│   │   ├── ssa-loader.ts
-│   │   ├── ssa-validator.ts
-│   │   └── ssa-schema.yaml
-│   │
-│   ├── sas/                        (Layer C: SAS loading)
-│   │   ├── sas-loader.ts
-│   │   ├── sas-validator.ts
-│   │   └── sas-schema.yaml
-│   │
-│   ├── adapters/                   (Layer D: actual adapters)
-│   │   ├── ssa/
-│   │   │   ├── gbrain/
-│   │   │   ├── mem0/                (v2)
-│   │   │   └── raw-fs/
-│   │   └── sas/
-│   │       ├── claude-code/
-│   │       ├── cursor/
-│   │       ├── hermes/
-│   │       ├── openclaw/
-│   │       └── codex/
-│   │
-│   ├── substrate/                  (Layer 2 sub-layers)
-│   │   ├── storage/
-│   │   │   ├── runtime-store.ts
-│   │   │   └── knowledge-store.ts
-│   │   ├── inference/
-│   │   │   ├── kind-classifier.ts
-│   │   │   ├── curation-mode-classifier.ts
-│   │   │   ├── entity-extractor.ts
-│   │   │   ├── slot-router.ts
-│   │   │   └── edge-type-inferrer.ts
-│   │   ├── consolidation/
-│   │   │   ├── consolidation-cron.ts
-│   │   │   └── pipeline.ts
-│   │   └── propagation/
-│   │       ├── registry.ts
-│   │       ├── propagation-cron.ts
-│   │       └── conflict-detector.ts
-│   │
-│   ├── profile/                    (saved queries over primitives)
-│   │   ├── slot-registry.ts
-│   │   ├── query-engine.ts
-│   │   └── slots/
-│   │       ├── reading-list.ts
-│   │       ├── active-intent.ts
-│   │       ├── relationships.ts
-│   │       ├── strategic-goals.ts
-│   │       └── identity.ts
-│   │
-│   ├── procedural/                 (skills handling)
-│   │   ├── registry.ts
-│   │   ├── propagator.ts
-│   │   └── cursor-mdc-converter.ts
-│   │
-│   ├── transport/
-│   │   ├── local-mcp/
-│   │   ├── remote-mcp/
-│   │   ├── fs-watch/
-│   │   └── briefing/
-│   │
-│   └── cli/
-│       ├── amp.ts                   (main entry)
-│       ├── consolidate.ts
-│       ├── brief.ts
-│       ├── migrate.ts
-│       └── doctor.ts
-│
-├── ssa-files/                       (declarative SSA specs)
+├── ssa-files/                      (declarative SSA specs)
 │   ├── gbrain.yaml
-│   ├── mem0.yaml
 │   └── raw-fs.yaml
-│
-├── sas-files/                       (declarative SAS specs)
+├── sas-files/                      (declarative SAS specs)
 │   ├── claude-code.yaml
 │   ├── cursor.yaml
-│   ├── hermes.yaml
-│   ├── openclaw.yaml
-│   └── codex.yaml
-│
-├── conformance/                     (conformance test suite)
-│   ├── runner.ts
-│   ├── frame-roundtrip.test.ts
-│   ├── curation-mode-roundtrip.test.ts
-│   ├── mutation-semantics.test.ts
-│   └── capability-coverage.test.ts
-│
-├── test/
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-│
-└── docs/
-    ├── ARCHITECTURE.md
-    ├── SSA-AUTHORING.md
-    ├── SAS-AUTHORING.md
-    └── SKILL-AUTHORING.md
+│   └── hermes.yaml
+└── src/
+    ├── cli/index.ts                (registers `amp` command group)
+    └── amp/
+        ├── core/                   (frame schema, errors, scope gate)
+        ├── adapter-contract/       (capability coverage, transaction contract)
+        ├── ssa/                    (SSA loader + schema)
+        ├── sas/                    (SAS loader + schema)
+        ├── adapters/
+        │   ├── ssa/gbrain/         (gbrain knowledge adapter + fake transport)
+        │   └── sas/
+        │       ├── cursor/
+        │       ├── claude-code/
+        │       └── hermes/
+        ├── substrate/
+        │   ├── storage/            (runtime store, knowledge store interface)
+        │   ├── consolidation/
+        │   ├── propagation/
+        │   └── inference/
+        ├── procedural/             (registry, compilers)
+        ├── config/                 (paths, discovery, schema)
+        ├── path-safety/
+        ├── conformance/            (runner, acceptance gate)
+        ├── integration/            (E2E tests)
+        └── cli/                    (init, doctor, capture, consolidate, …)
 ```
+
+Codex, Gemini, Windsurf SAS files are intentionally absent until placement is verified.
 
 ---
 
@@ -272,33 +208,32 @@ amp/
 
 ### Reading order on first session
 
-1. `AMP-CONSOLIDATED-SPEC.md` — the protocol (lengthy but load-bearing)
-2. `src/core/frame-schema.ts` — the shape of everything
-3. `src/adapter-contract/contract.ts` — what every adapter implements
+1. `docs/specs/AMP_CONSOLIDATED_SPEC.md` — the protocol (lengthy but load-bearing)
+2. `src/amp/core/frame-schema.ts` — the shape of everything
+3. `src/amp/adapter-contract/capability-coverage.ts` — what every adapter declares
 4. `ssa-files/gbrain.yaml` — what an SSA looks like
 5. `sas-files/cursor.yaml` — what your own SAS looks like (Cursor reading itself)
 
 ### What goes where (the resolver)
 
 Before creating any new file, ask:
-- Is this **wire protocol** (frames, schema, errors)? → `src/core/`
-- Is this **contract** (interface every adapter implements)? → `src/adapter-contract/`
+- Is this **wire protocol** (frames, schema, errors)? → `src/amp/core/`
+- Is this **contract** (interface every adapter implements)? → `src/amp/adapter-contract/`
 - Is this an **SSA or SAS spec file** (declarative YAML)? → `ssa-files/` or `sas-files/`
-- Is this an **adapter** (code implementing the contract for a specific tool)? → `src/adapters/`
-- Is this **substrate logic** (the four sub-layers)? → `src/substrate/<sublayer>/`
-- Is this **profile** (saved queries)? → `src/profile/`
-- Is this **procedural** (skills handling)? → `src/procedural/`
-- Is this **transport** (MCP, fs-watch, briefing)? → `src/transport/`
+- Is this an **adapter** (code implementing the contract for a specific tool)? → `src/amp/adapters/`
+- Is this **substrate logic** (the four sub-layers)? → `src/amp/substrate/<sublayer>/`
+- Is this **procedural** (skills handling)? → `src/amp/procedural/`
+- Is this **conformance or acceptance**? → `src/amp/conformance/`
+- Is this **CLI**? → `src/amp/cli/` (registered from `src/cli/index.ts`)
 
 ### Conventions
 
-- TypeScript strict mode
-- Bun as runtime (per gbrain's choice)
+- TypeScript strict mode; Node.js runtime via npm (repo uses `npm run test`, `npm run typecheck`, `npm run build`)
 - Zod for runtime schema validation
 - No `any` — use `unknown` or define types
 - Every public function has a JSDoc comment with the falsifiable behavior it implements
-- Tests: unit + integration + e2e (per gbrain's pattern)
-- Conformance suite is separate from regular tests
+- Tests: colocated `*.test.ts` under `src/amp/`; integration E2E under `src/amp/integration/`
+- Conformance suite is separate from regular tests; acceptance gate wraps both
 
 ### Pre-existing patterns to follow
 
@@ -378,11 +313,11 @@ The project has these discipline skills you should follow:
 
 ## When you're ready to start
 
-1. Confirm you've read AMP-CONSOLIDATED-SPEC.md
+1. Confirm you've read `docs/specs/AMP_CONSOLIDATED_SPEC.md`
 2. Confirm you understand the four-layer architecture
 3. Confirm you understand the four substrate sub-layers
 4. Confirm you understand the from-amp invariant
-5. Start with Phase 0 (vertical-slice foundation) — don't skip ahead
+5. Run `npm run amp:acceptance` before claiming v1 slice work is complete
 6. Write tests as you go, not after
 7. Surface any architectural uncertainty rather than absorbing it silently
 

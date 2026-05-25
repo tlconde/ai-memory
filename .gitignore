@@ -40,6 +40,7 @@ docs/plans/*
 !docs/plans/AMP_V1_ORCHESTRATION.md
 !docs/plans/AMP_V1_COMPOSER_PROMPT.md
 !docs/plans/AMP_V1_LAUNCH_BOARD.md
+!docs/plans/AMP_V1_ACCEPTANCE_REPORT.md
 
 # Tool orchestrator scratch artifacts
 tools/cursor-sdk-amp-orchestrator/direct-composer-*-prompt.md

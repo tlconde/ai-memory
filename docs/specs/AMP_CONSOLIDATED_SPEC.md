@@ -24,6 +24,16 @@ This document is the **decision log**, not the implementation. It captures what 
 - RL feedback loop is first-class (inference layer is a substrate sub-layer)
 - Three substrate sub-layers above storage: inference, consolidation, propagation
 
+### 0.1 v1 implementation status (May 2026)
+
+The reference implementation lives in `src/amp/` in the ai-memory repo. The canonical v1 gate is `npm run amp:acceptance` at commit `82962bf`.
+
+| Artifact | Purpose | Source of truth |
+|---|---|---|
+| Acceptance report | Human-readable gate steps, invariant policy, PROVISIONAL/UNKNOWN exclusions, residual risks | `docs/plans/AMP_V1_ACCEPTANCE_REPORT.md` |
+| Acceptance implementation | Executable gate policy | `src/amp/conformance/acceptance-gate.ts` |
+| Implementation guide | Current build layout and remaining planned phases | `docs/guides/CURSOR_IMPLEMENTATION_GUIDE.md` |
+
 ---
 
 ## 1. Architectural commitments (read these first)
@@ -330,8 +340,10 @@ Plus runtime store operations (smaller surface):
 - `runtime.set(key, value)` / `runtime.get(key)` / `runtime.delete(key)`
 - `runtime.queue.push(item)` / `runtime.queue.pop()` / `runtime.queue.peek()`
 
-Plus transaction primitive (required for multi-primitive writes):
+Plus transaction primitive (required for multi-primitive writes when the backend declares support):
 - `transaction.begin()` / `transaction.commit()` / `transaction.rollback()`
+
+**v1 gbrain status:** the reference SSA declares `transactions: unsupported` in `ssa-files/gbrain.yaml`. The gbrain adapter returns honest unsupported errors for all three transaction methods. Multi-page writes therefore have **no atomic commit** — a partial failure can leave orphan pages (e.g. frame written but companion metadata page not). Callers must treat consolidation and propagation writes as **idempotent** and safe to retry; operators should use `amp doctor` and gbrain list/search to detect and reconcile orphans. Transaction contract types exist in `src/amp/adapter-contract/transaction-contract.ts` for backends that later declare `transactions: native | wrapped`.
 
 ### 6.4 Default-with-override for kind classification
 
@@ -550,7 +562,18 @@ For maximum portability, skills should be written against universal primitives. 
 
 ### 9.8 Verified-only adapter scope
 
-v1 implements only adapters whose placement and load semantics have been directly tested. Initial scope is Cursor and Claude Code filesystem adapters plus the storage backend needed for the vertical slice. Codex, Gemini, Windsurf, and other harness adapters are deferred unless their local placement and load behavior are verified in the implementation environment.
+v1 verified scope (offline, acceptance-gated via `npm run amp:acceptance`):
+
+| Role | Adapter | Verified scope |
+|---|---|---|
+| SAS (surface) | Cursor | Filesystem emit to `.cursor/rules/from-amp/`; path guards; `.mdc` compiler |
+| SAS (surface) | Claude Code | Filesystem emit to `<base>/from-amp/SKILL.md`; path guards |
+| SAS (surface) | Hermes | Filesystem emit to `skills/from-amp/<skill>/SKILL.md`; path guards |
+| SSA (substrate) | gbrain | MCP page-tool mapping with fake/in-memory transport in CI; live `gbrain serve` is PROVISIONAL |
+
+**Out of v1 verified scope:** Codex, Gemini, Windsurf, OpenClaw, and other harness adapters — placement and load behavior not verified in the implementation environment. SAS YAML stubs may exist; they are not acceptance-gated until verified.
+
+Acceptance exclusions and residual risks are documented in `docs/plans/AMP_V1_ACCEPTANCE_REPORT.md` and enforced by `src/amp/conformance/acceptance-gate.ts`.
 
 ---
 
@@ -632,7 +655,7 @@ Specs are data. The contract is code. Dual-role tools (OpenClaw, Hermes) get bot
 ### 11.1 Shape A — local-only
 
 - Substrate: local with consolidation daemon
-- Target surfaces over time: local harnesses such as Cursor, Claude Code, Codex, Hermes, OpenClaw, and Claude Desktop via local MCP. v1 starts with verified Cursor and Claude Code filesystem adapters.
+- Target surfaces over time: local harnesses such as Cursor, Claude Code, Codex, Hermes, OpenClaw, and Claude Desktop via local MCP. v1 verified offline: Cursor, Claude Code, and Hermes filesystem adapters (see §9.8).
 - Coverage gap: claude.ai web, Cowork, ChatGPT cloud → briefing-only
 - Network requirement: none
 - Daemon required: yes (for consolidation, propagation, health, decay, inference training)

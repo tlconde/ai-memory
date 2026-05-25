@@ -1,5 +1,7 @@
 # AMP Vertical Slice Decisions
 
+> **Superseded:** This is historical pre-implementation context for the first vertical slice. For current AMP v1 verified behavior, use `docs/plans/AMP_V1_ACCEPTANCE_REPORT.md`, `docs/plans/AMP_V1_PLAN.md`, and `src/amp/conformance/acceptance-gate.ts`. Claims below about deferred gbrain or harness work are historical, not current status.
+
 > **Status:** locked for Task 01 on `ralph/amp-vertical-slice`  
 > **Source:** Composer report at `tools/cursor-sdk-amp-orchestrator/reports/direct-composer-vertical-slice.md`  
 > **Rule:** these decisions are binding for the first vertical slice unless a failing test proves one wrong.

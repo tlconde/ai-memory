@@ -1003,7 +1003,7 @@ footer code { background: var(--ink-soft); color: var(--paper); }
   <div class="container">
     <span class="section-num">§ 08 · Procedures — adopt, don't invent</span>
     <h2>AMP doesn't define a skills format. <em>The standard exists already.</em></h2>
-    <p>AMP uses a compiler model for procedures. The canonical AMP artifact is the durable source; Cursor <code>.mdc</code>, Claude Code <code>SKILL.md</code>, and future harness-specific files are emitted artifacts. Claude Code and Codex support Agent Skills directly; Cursor is rules-based; Gemini skill placement remains provisional until tested.</p>
+    <p>AMP uses a compiler model for procedures. The canonical AMP artifact is the durable source; Cursor <code>.mdc</code>, Claude Code <code>SKILL.md</code>, and future harness-specific files are emitted artifacts. v1 verifies Cursor, Claude Code, and Hermes at the filesystem level; Codex, Gemini, Windsurf, and other harness placements remain out of v1 verified scope until tested.</p>
 
     <h3>What AMP adds</h3>
     <p>Beyond the standard <code>name</code> and <code>description</code> fields, AMP adds:</p>
@@ -1023,7 +1023,7 @@ footer code { background: var(--ink-soft); color: var(--paper); }
       <tbody>
         <tr><td>Claude Code</td><td><code>~/.claude/skills/from-amp/&lt;name&gt;/SKILL.md</code></td></tr>
         <tr><td>Cursor</td><td><code>.cursor/rules/from-amp/&lt;name&gt;.mdc</code></td></tr>
-        <tr><td>Hermes / OpenClaw / gbrain</td><td><code>skills/from-amp/&lt;name&gt;/SKILL.md</code></td></tr>
+        <tr><td>Hermes</td><td><code>skills/from-amp/&lt;name&gt;/SKILL.md</code></td></tr>
         <tr><td>Codex CLI</td><td><code>from-amp/&lt;name&gt;/SKILL.md</code> after local placement verification</td></tr>
         <tr><td>Gemini CLI</td><td>extension-bundled skills supported; AMP placement provisional</td></tr>
       </tbody>
@@ -1055,7 +1055,7 @@ footer code { background: var(--ink-soft); color: var(--paper); }
     <div class="frame-grid">
       <div class="frame" style="border-top-color: var(--episodic);">
         <div class="frame-name" style="color: var(--episodic);">Shape A · Local-only</div>
-        <p style="font-size: 14px;">Substrate runs locally with consolidation daemon. v1 starts with verified Cursor and Claude Code filesystem adapters; other local harnesses come after placement and load behavior are tested. Cloud surfaces get briefing-only mode.</p>
+        <p style="font-size: 14px;">Substrate runs locally with consolidation daemon. v1 verified offline: Cursor, Claude Code, and Hermes filesystem adapters (path guards, emit, propagation E2E). Live harness session load and other local harnesses remain PROVISIONAL until placement and load behavior are tested. Cloud surfaces get briefing-only mode.</p>
         <p style="font-size: 13px; color: var(--mute); margin-top: 12px;"><strong>Network:</strong> none required</p>
       </div>
       <div class="frame" style="border-top-color: var(--semantic);">
