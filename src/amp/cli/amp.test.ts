@@ -19,6 +19,9 @@ describe("registerAmpCommands", () => {
     const doctor = amp.commands.find((cmd) => cmd.name() === "doctor");
     assert.ok(doctor, "expected amp doctor subcommand");
 
+    const gbrainPreflight = amp.commands.find((cmd) => cmd.name() === "gbrain-preflight");
+    assert.ok(gbrainPreflight, "expected amp gbrain-preflight subcommand");
+
     const capture = amp.commands.find((cmd) => cmd.name() === "capture");
     assert.ok(capture, "expected amp capture subcommand");
 

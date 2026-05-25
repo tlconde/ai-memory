@@ -10,6 +10,10 @@ import type { Command } from "commander";
 import { formatAmpCaptureMessages, runAmpCapture } from "./capture.js";
 import { formatAmpConsolidateMessages, runAmpConsolidate } from "./consolidate.js";
 import { formatAmpDoctorReport, runAmpDoctor } from "./doctor.js";
+import {
+  formatAmpGbrainPreflightReport,
+  runAmpGbrainPreflight,
+} from "./gbrain-preflight.js";
 import { formatAmpInitMessages, runAmpInit } from "./init.js";
 import { formatAmpPropagateReport, runAmpPropagate } from "./propagate.js";
 import { formatAmpRetrieveMessages, runAmpRetrieve } from "./retrieve.js";
@@ -46,6 +50,27 @@ export function registerAmpCommands(program: Command): Command {
     .action(async (opts: { projectRoot?: string }) => {
       const result = runAmpDoctor({ projectRoot: opts.projectRoot });
       for (const line of formatAmpDoctorReport(result)) {
+        process.stdout.write(`${line}\n`);
+      }
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+    });
+
+  amp
+    .command("gbrain-preflight")
+    .description("Read-only checks before live gbrain operator testing")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option(
+      "--knowledge <backend>",
+      "Knowledge backend to evaluate: gbrain, fake-gbrain, or in-memory"
+    )
+    .action((opts: { projectRoot?: string; knowledge?: string }) => {
+      const result = runAmpGbrainPreflight({
+        projectRoot: opts.projectRoot,
+        knowledge: opts.knowledge,
+      });
+      for (const line of formatAmpGbrainPreflightReport(result)) {
         process.stdout.write(`${line}\n`);
       }
       if (!result.ok) {
@@ -169,7 +194,9 @@ export function registerAmpCommands(program: Command): Command {
     .description("Show AMP CLI shell status")
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
-      process.stdout.write("Wired: init, doctor, capture, consolidate, retrieve, propagate.\n");
+      process.stdout.write(
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate.\n"
+      );
     });
 
   return amp;
