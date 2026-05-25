@@ -3,6 +3,21 @@
  *
  * Pages store the canonical frame JSON in YAML frontmatter (`amp_frame`).
  * Live gbrain read semantics are PROVISIONAL - tests use fake transport only.
+ *
+ * ## Slug encoding (locked contract)
+ *
+ * Frame ids map to gbrain slugs as `amp/frames/h.{hex}` where `{hex}` is the
+ * UTF-8 frame id encoded as lowercase hex (see `frameIdToSlug`).
+ *
+ * This replaces an earlier base64url final-segment scheme. Live gbrain rejects
+ * `put_page` when the last path segment is valid base64 (it resolves the slug
+ * as decoded bytes instead of the literal segment), which caused `Page not found`
+ * on write/read round trips.
+ *
+ * **Version bump, no migration:** V1-LIVE-01 intentionally switches new writes to
+ * `h.{hex}`. Pages written under the legacy base64url slug scheme are not migrated
+ * in this wave; they remain addressable only by their old slugs. New `h.{hex}`
+ * slugs do not collide with legacy base64url slugs for the same frame id.
  */
 
 import { Buffer } from "node:buffer";
