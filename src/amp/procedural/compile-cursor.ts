@@ -23,6 +23,12 @@ export interface CompiledCursorMdc {
   content: string;
 }
 
+export interface CursorMdcFrontmatterOptions {
+  description: string;
+  globs?: readonly string[];
+  alwaysApply: boolean;
+}
+
 function yamlScalar(value: string): string {
   return JSON.stringify(value);
 }
@@ -36,16 +42,14 @@ function formatGlobs(globs: readonly string[]): string {
   return ["globs:", ...lines].join("\n");
 }
 
-function formatFrontmatter(
-  description: string,
-  globs: readonly string[],
-  alwaysApply: boolean
-): string {
+/** Format shared Cursor `.mdc` YAML frontmatter. */
+export function formatCursorMdcFrontmatter(options: CursorMdcFrontmatterOptions): string {
+  const globs = options.globs ?? [];
   return [
     "---",
-    `description: ${yamlScalar(description)}`,
+    `description: ${yamlScalar(options.description)}`,
     formatGlobs(globs),
-    `alwaysApply: ${alwaysApply}`,
+    `alwaysApply: ${options.alwaysApply}`,
     "---",
   ].join("\n");
 }
@@ -63,11 +67,11 @@ export function compileProcedureToCursorMdc(procedure: CanonicalProcedure): Comp
   };
 
   const filename = `${valid.frontmatter.name}.mdc`;
-  const frontmatter = formatFrontmatter(
-    valid.frontmatter.description,
-    overlay.globs,
-    overlay.alwaysApply
-  );
+  const frontmatter = formatCursorMdcFrontmatter({
+    description: valid.frontmatter.description,
+    globs: overlay.globs,
+    alwaysApply: overlay.alwaysApply,
+  });
   const content = `${frontmatter}\n${valid.body}`;
 
   return { filename, content };

@@ -11,6 +11,7 @@ import { join } from "node:path";
 
 import { CursorAdapter, CURSOR_FROM_AMP_REL } from "../adapters/sas/cursor/adapter.js";
 import { PathSafetyError } from "../path-safety/guard.js";
+import { formatCursorMdcFrontmatter } from "../procedural/compile-cursor.js";
 import { projectProjectionPath, projectRuntimePath } from "../projection/paths.js";
 import { checkProjectProjectionPreflight } from "./preflight.js";
 import type { AgentSetupMode, AgentSetupResult } from "./types.js";
@@ -34,13 +35,11 @@ export function buildCursorProjectionMdc(
   projectionBody: string,
   runtimeBody: string
 ): string {
-  const frontmatter = [
-    "---",
-    `description: ${JSON.stringify(CURSOR_PROJECTION_RULE_DESCRIPTION)}`,
-    "globs: []",
-    "alwaysApply: true",
-    "---",
-  ].join("\n");
+  const frontmatter = formatCursorMdcFrontmatter({
+    description: CURSOR_PROJECTION_RULE_DESCRIPTION,
+    globs: [],
+    alwaysApply: true,
+  });
 
   const body = [
     "## AMP Project Projection",
