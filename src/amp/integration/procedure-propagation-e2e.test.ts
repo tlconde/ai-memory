@@ -21,6 +21,7 @@ import { HermesAdapter } from "../adapters/sas/hermes/adapter.js";
 import { createCanonicalProcedure } from "../procedural/schema.js";
 import { ProcedureRegistry } from "../procedural/registry.js";
 import { propagateProcedures } from "../substrate/propagation/service.js";
+import type { HarnessWriterRegistry } from "../substrate/propagation/types.js";
 import {
   createV1FixtureProject,
   destroyV1FixtureProject,
@@ -51,6 +52,20 @@ function isUnderFromAmpRoot(filePath: string, fromAmpRoots: readonly string[]): 
   return fromAmpRoots.some(
     (root) => filePath === root || filePath.startsWith(`${root}/`)
   );
+}
+
+function createFixtureWriters(fixture: V1FixtureProject): HarnessWriterRegistry {
+  const cursor = new CursorAdapter({ projectRoot: fixture.root });
+  const claudeCode = new ClaudeCodeAdapter({
+    basePath: join(fixture.root, ".claude", "skills"),
+  });
+  const hermes = new HermesAdapter({ projectRoot: fixture.root });
+
+  return {
+    cursor: { writeProcedure: (procedure) => cursor.writeCompiledRule(procedure) },
+    "claude-code": { writeProcedure: (procedure) => claudeCode.writeCompiledProcedure(procedure) },
+    hermes: { writeProcedure: (procedure) => hermes.writeCompiledProcedure(procedure) },
+  };
 }
 
 describe("procedure propagation E2E", () => {
@@ -86,10 +101,7 @@ describe("procedure propagation E2E", () => {
 
     const result = await propagateProcedures({
       registry,
-      roots: {
-        projectRoot: fixture.root,
-        claudeCodeBasePath: join(fixture.root, ".claude", "skills"),
-      },
+      writers: createFixtureWriters(fixture),
       syncedAt: SYNCED_AT,
     });
 
