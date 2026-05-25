@@ -43,7 +43,7 @@ export function hasCompleteMarkerBlock(content: string): boolean {
   );
 }
 
-/** True when a single marker appears without its pair. */
+/** True when a single marker appears without its pair or markers are reversed. */
 export function isMalformedMarkerBlock(content: string): boolean {
   const beginCount = countOccurrences(content, AMP_AGENT_SETUP_MARKER_BEGIN);
   const endCount = countOccurrences(content, AMP_AGENT_SETUP_MARKER_END);
@@ -51,6 +51,11 @@ export function isMalformedMarkerBlock(content: string): boolean {
     return false;
   }
   if (beginCount === 1 && endCount === 1) {
+    const beginIndex = content.indexOf(AMP_AGENT_SETUP_MARKER_BEGIN);
+    const endIndex = content.indexOf(AMP_AGENT_SETUP_MARKER_END);
+    if (endIndex < beginIndex) {
+      return true;
+    }
     return false;
   }
   return true;

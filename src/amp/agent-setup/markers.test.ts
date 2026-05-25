@@ -51,6 +51,16 @@ describe("AMP agent setup marker blocks", () => {
     assert.throws(() => upsertMarkerBlock(malformed, INNER), MarkerBlockError);
   });
 
+  it("treats reversed begin/end markers as malformed", () => {
+    const reversed = [
+      AMP_AGENT_SETUP_MARKER_END,
+      "@.amp/local/projection.md",
+      AMP_AGENT_SETUP_MARKER_BEGIN,
+    ].join("\n");
+    assert.equal(isMalformedMarkerBlock(reversed), true);
+    assert.throws(() => upsertMarkerBlock(reversed, INNER), MarkerBlockError);
+  });
+
   it("parses inner content from a complete marker block", () => {
     const content = upsertMarkerBlock("", INNER);
     assert.equal(hasCompleteMarkerBlock(content), true);
