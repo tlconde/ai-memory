@@ -179,6 +179,18 @@ function parseSearchHitRef(entry: unknown): GbrainSearchHitRef | undefined {
 }
 
 export function extractListedSlugs(toolResult: unknown): string[] {
+  if (Array.isArray(toolResult)) {
+    return toolResult
+      .map((entry) => {
+        if (typeof entry === "string") return entry;
+        if (typeof entry === "object" && entry !== null && typeof (entry as { slug?: string }).slug === "string") {
+          return (entry as { slug: string }).slug;
+        }
+        return undefined;
+      })
+      .filter((slug): slug is string => typeof slug === "string");
+  }
+
   if (typeof toolResult !== "object" || toolResult === null) {
     return [];
   }

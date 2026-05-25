@@ -21,8 +21,9 @@ export const AMP_FRAME_SLUG_PREFIX = "amp/frames/";
 
 /** Map frame id to a collision-resistant gbrain slug. */
 export function frameIdToSlug(frameId: string): string {
-  const encoded = Buffer.from(frameId, "utf8").toString("base64url");
-  return `${AMP_FRAME_SLUG_PREFIX}${encoded}`;
+  // Hex + `h.` prefix avoids gbrain resolving bare base64 path segments as decoded slugs.
+  const encoded = Buffer.from(frameId, "utf8").toString("hex");
+  return `${AMP_FRAME_SLUG_PREFIX}h.${encoded}`;
 }
 
 export function isAmpFrameSlug(slug: string): boolean {
@@ -55,6 +56,30 @@ export function decodePageContentToFrame(content: string): FrameParseResult {
   const ampFrame = parsed.data[AMP_FRAME_FRONTMATTER_KEY];
   if (ampFrame === undefined || ampFrame === null) {
     return { success: false, error: "missing amp_frame frontmatter" };
+  }
+
+  return parseFrame(ampFrame);
+}
+
+/** Parse live gbrain get_page payloads that expose amp_frame under frontmatter. */
+export function extractAmpFrameFromPageResult(toolResult: unknown): FrameParseResult | undefined {
+  if (typeof toolResult !== "object" || toolResult === null) {
+    return undefined;
+  }
+
+  const record = toolResult as Record<string, unknown>;
+  if (record.error !== undefined) {
+    return undefined;
+  }
+
+  const frontmatter = record.frontmatter;
+  if (typeof frontmatter !== "object" || frontmatter === null) {
+    return undefined;
+  }
+
+  const ampFrame = (frontmatter as Record<string, unknown>)[AMP_FRAME_FRONTMATTER_KEY];
+  if (ampFrame === undefined || ampFrame === null) {
+    return undefined;
   }
 
   return parseFrame(ampFrame);

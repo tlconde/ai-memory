@@ -53,6 +53,7 @@ import {
 import {
   decodePageContentToFrame,
   encodeFrameToPageContent,
+  extractAmpFrameFromPageResult,
   frameIdToSlug,
   isAmpFrameSlug,
 } from "./frame-codec.js";
@@ -306,6 +307,14 @@ function pageResultToFrame(
 ):
   | { success: true; frame: Frame | undefined }
   | { success: false; error: AmpError } {
+  const fromFrontmatter = extractAmpFrameFromPageResult(toolResult);
+  if (fromFrontmatter !== undefined) {
+    if (!fromFrontmatter.success) {
+      return { success: false, error: frameSchemaMismatch({ error: fromFrontmatter.error, slug }) };
+    }
+    return { success: true, frame: fromFrontmatter.frame };
+  }
+
   const content = extractPageContent(toolResult);
   if (content === undefined) {
     return { success: true, frame: undefined };
