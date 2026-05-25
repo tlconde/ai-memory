@@ -9,7 +9,7 @@ import {
 } from "./invariant-registry.js";
 
 describe("invariant registry", () => {
-  it("registers INV-1 through INV-5", () => {
+  it("registers INV-1 through INV-6", () => {
     const ids = listInvariantCoverage().map((entry) => entry.invariantId);
     assert.deepEqual(ids, [
       INVARIANT_IDS.INV_1_SCOPE_NEVER_INFERRED,
@@ -17,6 +17,7 @@ describe("invariant registry", () => {
       INVARIANT_IDS.INV_3_CLOUD_BOUNDED,
       INVARIANT_IDS.INV_4_FROM_AMP_ISOLATED,
       INVARIANT_IDS.INV_5_FALSIFIABLE_CLAIMS,
+      INVARIANT_IDS.INV_6_LOCAL_GITIGNORE,
     ]);
   });
 
@@ -29,6 +30,12 @@ describe("invariant registry", () => {
   it("maps E2E slice test to INV-5", () => {
     assert.deepEqual(invariantIdsForTestFile("src/amp/integration/preference-vertical-slice.test.ts"), [
       INVARIANT_IDS.INV_5_FALSIFIABLE_CLAIMS,
+    ]);
+  });
+
+  it("maps git status integration test to INV-6", () => {
+    assert.deepEqual(invariantIdsForTestFile("src/amp/integration/invariant-6-git-status.test.ts"), [
+      INVARIANT_IDS.INV_6_LOCAL_GITIGNORE,
     ]);
   });
 
