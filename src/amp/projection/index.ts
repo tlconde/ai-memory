@@ -23,6 +23,8 @@ export {
   PROJECT_PROJECTION_FILENAME,
   PROJECT_RUNTIME_FILENAME,
   projectionFilePath,
+  projectProjectionPath,
+  projectRuntimePath,
   type PathContext as ProjectionPathContext,
 } from "./paths.js";
 

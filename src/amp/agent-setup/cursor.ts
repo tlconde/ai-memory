@@ -11,11 +11,7 @@ import { join } from "node:path";
 
 import { CursorAdapter, CURSOR_FROM_AMP_REL } from "../adapters/sas/cursor/adapter.js";
 import { PathSafetyError } from "../path-safety/guard.js";
-import {
-  PROJECT_LOCAL_DIR,
-  PROJECT_PROJECTION_FILENAME,
-  PROJECT_RUNTIME_FILENAME,
-} from "../projection/paths.js";
+import { projectProjectionPath, projectRuntimePath } from "../projection/paths.js";
 import type { AgentSetupMode, AgentSetupResult } from "./types.js";
 
 export const CURSOR_PROJECTION_RULE_FILENAME = "amp-projection.mdc";
@@ -28,14 +24,6 @@ export const CURSOR_PROJECTION_FILES_MISSING =
 export interface CursorSetupOptions {
   projectRoot: string;
   mode: AgentSetupMode;
-}
-
-function projectionPath(projectRoot: string): string {
-  return join(projectRoot, PROJECT_LOCAL_DIR, PROJECT_PROJECTION_FILENAME);
-}
-
-function runtimePath(projectRoot: string): string {
-  return join(projectRoot, PROJECT_LOCAL_DIR, PROJECT_RUNTIME_FILENAME);
 }
 
 function cursorRulePath(projectRoot: string): string {
@@ -74,8 +62,8 @@ export async function runCursorProjectSetup(
 ): Promise<AgentSetupResult> {
   const { projectRoot, mode } = options;
   const targetPath = cursorRulePath(projectRoot);
-  const projectionFile = projectionPath(projectRoot);
-  const runtimeFile = runtimePath(projectRoot);
+  const projectionFile = projectProjectionPath(projectRoot);
+  const runtimeFile = projectRuntimePath(projectRoot);
   const warnings: string[] = [];
   const errors: string[] = [];
 

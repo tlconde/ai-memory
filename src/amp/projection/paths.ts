@@ -62,3 +62,13 @@ export function projectionFilePath(
     }
   }
 }
+
+/** Canonical project-local projection file path. */
+export function projectProjectionPath(projectRoot: string): string {
+  return projectionFilePath("project_projection", { projectRoot });
+}
+
+/** Canonical project-local runtime projection file path. */
+export function projectRuntimePath(projectRoot: string): string {
+  return projectionFilePath("project_runtime", { projectRoot });
+}

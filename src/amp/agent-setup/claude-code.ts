@@ -11,8 +11,8 @@ import { join } from "node:path";
 
 import {
   PROJECT_LOCAL_DIR,
-  PROJECT_PROJECTION_FILENAME,
-  PROJECT_RUNTIME_FILENAME,
+  projectProjectionPath,
+  projectRuntimePath,
 } from "../projection/paths.js";
 import {
   hasCompleteMarkerBlock,
@@ -41,14 +41,6 @@ function projectLocalDir(projectRoot: string): string {
   return join(projectRoot, PROJECT_LOCAL_DIR);
 }
 
-function projectionPath(projectRoot: string): string {
-  return join(projectRoot, PROJECT_LOCAL_DIR, PROJECT_PROJECTION_FILENAME);
-}
-
-function runtimePath(projectRoot: string): string {
-  return join(projectRoot, PROJECT_LOCAL_DIR, PROJECT_RUNTIME_FILENAME);
-}
-
 function claudePath(projectRoot: string): string {
   return join(projectRoot, CLAUDE_PROJECT_FILENAME);
 }
@@ -62,8 +54,8 @@ export async function runClaudeCodeProjectSetup(
   const warnings: string[] = [];
   const errors: string[] = [];
   const localDir = projectLocalDir(projectRoot);
-  const projectionExists = existsSync(projectionPath(projectRoot));
-  const runtimeExists = existsSync(runtimePath(projectRoot));
+  const projectionExists = existsSync(projectProjectionPath(projectRoot));
+  const runtimeExists = existsSync(projectRuntimePath(projectRoot));
 
   if (!projectionExists || !runtimeExists) {
     warnings.push(

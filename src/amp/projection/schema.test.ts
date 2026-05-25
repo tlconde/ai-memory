@@ -12,6 +12,8 @@ import {
   createProjectionDocument,
   parseProjectionDocument,
   projectionFilePath,
+  projectProjectionPath,
+  projectRuntimePath,
   safeParseProjectionDocument,
 } from "./index.js";
 
@@ -60,6 +62,18 @@ describe("projectionFilePath", () => {
     assert.throws(
       () => projectionFilePath("project_projection"),
       /projectRoot is required/
+    );
+  });
+
+  it("exposes project path helpers", () => {
+    const projectRoot = "/repo/example";
+    assert.equal(
+      projectProjectionPath(projectRoot),
+      projectionFilePath("project_projection", { projectRoot })
+    );
+    assert.equal(
+      projectRuntimePath(projectRoot),
+      projectionFilePath("project_runtime", { projectRoot })
     );
   });
 });

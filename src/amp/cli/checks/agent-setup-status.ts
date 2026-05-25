@@ -14,8 +14,8 @@ import {
 import { CURSOR_FROM_AMP_REL } from "../../adapters/sas/cursor/adapter.js";
 import {
   PROJECT_LOCAL_DIR,
-  PROJECT_PROJECTION_FILENAME,
-  PROJECT_RUNTIME_FILENAME,
+  projectProjectionPath,
+  projectRuntimePath,
 } from "../../projection/paths.js";
 import type { AmpDoctorFinding } from "../doctor.js";
 
@@ -45,12 +45,8 @@ export function appendAgentSetupStatusFindings(
   findings: AmpDoctorFinding[],
   projectRoot: string
 ): void {
-  const projectionPath = join(
-    projectRoot,
-    PROJECT_LOCAL_DIR,
-    PROJECT_PROJECTION_FILENAME
-  );
-  const runtimePath = join(projectRoot, PROJECT_LOCAL_DIR, PROJECT_RUNTIME_FILENAME);
+  const projectionPath = projectProjectionPath(projectRoot);
+  const runtimePath = projectRuntimePath(projectRoot);
   const projectionExists = existsSync(projectionPath);
   const runtimeExists = existsSync(runtimePath);
 
