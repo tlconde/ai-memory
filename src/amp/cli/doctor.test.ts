@@ -356,4 +356,46 @@ describe("runAmpDoctor", () => {
 
     assert.ok(lines.some((line) => line.includes("[gitignore-protection]")));
   });
+
+  it("reports agent setup status for initialized projects", async () => {
+    const projectRoot = join(tempRoot, "agent-setup-status");
+    await runAmpInit({ projectRoot });
+
+    const before = runAmpDoctor({ projectRoot, ampRepoRoot: REPO_ROOT });
+    assert.ok(
+      before.findings.some(
+        (f) => f.category === "agent-setup" && f.level === "warning" && f.message.includes("CLAUDE.md")
+      )
+    );
+    assert.ok(
+      before.findings.some(
+        (f) =>
+          f.category === "agent-setup" &&
+          f.message.includes("amp-projection.mdc")
+      )
+    );
+  });
+
+  it("reports ok agent setup findings after wiring", async () => {
+    const projectRoot = join(tempRoot, "agent-setup-wired");
+    await runAmpInit({ projectRoot });
+    const localDir = join(projectRoot, ".amp", "local");
+    await mkdir(localDir, { recursive: true });
+    await writeFile(join(localDir, "projection.md"), "# Projection\n", "utf8");
+    await writeFile(join(localDir, "runtime.md"), "# Runtime\n", "utf8");
+
+    const { runAmpAgentSetup } = await import("./agent-setup.js");
+    await runAmpAgentSetup({ projectRoot, target: "claude-code", apply: true });
+    await runAmpAgentSetup({ projectRoot, target: "cursor", apply: true });
+
+    const result = runAmpDoctor({ projectRoot, ampRepoRoot: REPO_ROOT });
+    const setupFindings = result.findings.filter((f) => f.category === "agent-setup");
+    assert.ok(setupFindings.some((f) => f.level === "ok" && f.message.includes("CLAUDE.md")));
+    assert.ok(
+      setupFindings.some((f) => f.level === "ok" && f.message.includes("amp-projection.mdc"))
+    );
+    assert.ok(
+      setupFindings.some((f) => f.level === "ok" && f.message.includes("projection files present"))
+    );
+  });
 });
