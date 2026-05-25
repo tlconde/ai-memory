@@ -200,6 +200,7 @@ describe("runAmpProjectionRender", () => {
 
     assert.equal(result.ok, false);
     assert.match(result.error ?? "", /Project AMP config not found/);
+    assert.match(result.error ?? "", /ai-memory amp init/);
     assert.equal(result.budget, undefined);
     assert.equal(result.writes.length, 0);
   });
@@ -366,7 +367,7 @@ describe("runAmpProjectionRender", () => {
     assert.equal(result.ok, false);
     assert.equal(result.source, "local");
     assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
-    assert.match(result.error ?? "", /placeholder --dry-run/);
+    assert.match(result.error ?? "", /ai-memory amp projection render --source placeholder --dry-run/);
     assert.equal(result.writes.length, 0);
   });
 });

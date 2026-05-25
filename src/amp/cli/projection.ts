@@ -73,7 +73,7 @@ export async function runAmpProjectionRender(
       dryRun,
       writes: [],
       ok: false,
-      error: `Project AMP config not found at ${configPath}. Run \`amp init\` first.`,
+      error: `Project AMP config not found at ${configPath}. Run \`ai-memory amp init\` first.`,
     };
   }
 
