@@ -1,9 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
+import { AMP_CONFIRM_LIVE_GBRAIN_WRITE_ENV } from "../gbrain/live-policy.js";
 import {
   AMP_KNOWLEDGE_BACKEND_ENV,
   createKnowledgeBackend,
+  createReadKnowledgeBackend,
+  createWriteKnowledgeBackend,
   resolveKnowledgeBackend,
 } from "./knowledge-backend.js";
 
@@ -41,8 +44,24 @@ describe("createKnowledgeBackend", () => {
     assert.ok(handle.inMemory);
   });
 
-  it("uses live gbrain for the gbrain backend", () => {
-    const handle = createKnowledgeBackend({ backend: "gbrain" });
+  it("allows live gbrain reads without write confirmation", () => {
+    const handle = createReadKnowledgeBackend({ backend: "gbrain" });
+    assert.equal(handle.liveGbrain, true);
+    assert.ok(handle.gbrain);
+  });
+
+  it("blocks live gbrain writes without confirmation", () => {
+    assert.throws(
+      () => createWriteKnowledgeBackend({ backend: "gbrain", env: {} }),
+      /Live gbrain writes are disabled/
+    );
+  });
+
+  it("allows live gbrain writes when confirmation env is set", () => {
+    const handle = createWriteKnowledgeBackend({
+      backend: "gbrain",
+      env: { [AMP_CONFIRM_LIVE_GBRAIN_WRITE_ENV]: "1" },
+    });
     assert.equal(handle.liveGbrain, true);
     assert.ok(handle.gbrain);
   });

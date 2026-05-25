@@ -10,6 +10,10 @@ import { join } from "node:path";
 import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import { FakeGbrainMcpTransport } from "../adapters/ssa/gbrain/fake-transport.js";
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
+import {
+  assertLiveGbrainWriteConfirmed,
+  type KnowledgeBackendAccess,
+} from "../gbrain/live-policy.js";
 import { resolveAmpRepoRoot } from "./doctor.js";
 
 export const AMP_KNOWLEDGE_BACKEND_ENV = "AMP_KNOWLEDGE_BACKEND";
@@ -52,13 +56,15 @@ export interface KnowledgeBackendHandle {
 
 export interface CreateKnowledgeBackendOptions {
   backend: AmpKnowledgeBackend;
+  /** read: live gbrain allowed; write: requires live write confirmation unless adapter injected. */
+  access?: KnowledgeBackendAccess;
+  confirmLiveGbrainWrite?: boolean;
+  env?: NodeJS.ProcessEnv;
   ampRepoRoot?: string;
   /** Inject in-memory store for tests (consolidate + retrieve in one process). */
   inMemoryStore?: InMemoryKnowledgeStore;
-  /** Inject gbrain adapter for tests. */
+  /** Inject gbrain adapter for tests — bypasses live write confirmation. */
   gbrainAdapter?: GbrainKnowledgeAdapter;
-  /** Opt in to live `gbrain serve` when backend is gbrain (PROVISIONAL). */
-  useLiveGbrain?: boolean;
 }
 
 /** Create or inject a knowledge backend handle for consolidate/retrieve. */
@@ -94,6 +100,14 @@ export function createKnowledgeBackend(
     };
   }
 
+  const access = options.access ?? "read";
+  if (access === "write") {
+    assertLiveGbrainWriteConfirmed({
+      confirmLiveGbrainWrite: options.confirmLiveGbrainWrite,
+      env: options.env,
+    });
+  }
+
   return {
     backend: "gbrain",
     gbrain: new GbrainKnowledgeAdapter({
@@ -102,4 +116,18 @@ export function createKnowledgeBackend(
     }),
     liveGbrain: true,
   };
+}
+
+/** Create a read-only knowledge backend handle (live gbrain reads allowed). */
+export function createReadKnowledgeBackend(
+  options: Omit<CreateKnowledgeBackendOptions, "access">
+): KnowledgeBackendHandle {
+  return createKnowledgeBackend({ ...options, access: "read" });
+}
+
+/** Create a mutating knowledge backend handle (live gbrain writes require confirmation). */
+export function createWriteKnowledgeBackend(
+  options: Omit<CreateKnowledgeBackendOptions, "access">
+): KnowledgeBackendHandle {
+  return createKnowledgeBackend({ ...options, access: "write" });
 }

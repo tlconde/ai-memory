@@ -17,6 +17,7 @@ import {
 import { formatAmpInitMessages, runAmpInit } from "./init.js";
 import { formatAmpPropagateReport, runAmpPropagate } from "./propagate.js";
 import { formatAmpRetrieveMessages, runAmpRetrieve } from "./retrieve.js";
+import { confirmLiveGbrainWriteFromCliOptions } from "./live-gbrain-safety.js";
 
 export const AMP_CLI_SHELL_VERSION = "1.0.0";
 
@@ -132,8 +133,10 @@ export function registerAmpCommands(program: Command): Command {
       const result = await runAmpConsolidate({
         projectRoot: opts.projectRoot,
         knowledge: opts.knowledge,
-        useLiveGbrain: opts.liveGbrain ?? false,
-        confirmLiveGbrainWrite: opts.confirmLiveGbrainWrite ?? false,
+        confirmLiveGbrainWrite: confirmLiveGbrainWriteFromCliOptions({
+          confirmLiveGbrainWrite: opts.confirmLiveGbrainWrite,
+          deprecatedLiveGbrainAlias: opts.liveGbrain,
+        }),
       });
       for (const line of formatAmpConsolidateMessages(result)) {
         process.stdout.write(`${line}\n`);
@@ -151,10 +154,6 @@ export function registerAmpCommands(program: Command): Command {
       "--knowledge <backend>",
       "Knowledge backend: gbrain (live), fake-gbrain (test-only), or in-memory (default: gbrain)"
     )
-    .option(
-      "--live-gbrain",
-      "Deprecated compatibility flag; gbrain backend is live by default"
-    )
     .action(
       async (opts: {
         scope?: string;
@@ -162,7 +161,6 @@ export function registerAmpCommands(program: Command): Command {
         query?: string;
         projectRoot?: string;
         knowledge?: string;
-        liveGbrain?: boolean;
       }) => {
         const result = await runAmpRetrieve({
           scope: opts.scope as "project" | "user" | "universal" | undefined,
@@ -170,7 +168,6 @@ export function registerAmpCommands(program: Command): Command {
           query: opts.query,
           projectRoot: opts.projectRoot,
           knowledge: opts.knowledge,
-          useLiveGbrain: opts.liveGbrain ?? false,
         });
         for (const line of formatAmpRetrieveMessages(result)) {
           process.stdout.write(`${line}\n`);

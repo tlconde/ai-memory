@@ -14,11 +14,12 @@ import { fileURLToPath } from "node:url";
 import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import { frameIdToSlug } from "../adapters/ssa/gbrain/frame-codec.js";
 import { createFrame } from "../core/frame-schema.js";
+import { isLiveGbrainTestEnabled } from "../gbrain/live-policy.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../");
 const GBRAIN_SPEC = join(REPO_ROOT, "ssa-files/gbrain.yaml");
 
-const LIVE_ENABLED = process.env.AMP_LIVE_GBRAIN === "1";
+const LIVE_ENABLED = isLiveGbrainTestEnabled();
 
 function uniqueLiveFrameId(): string {
   return `live-v1-${Date.now()}-${randomBytes(4).toString("hex")}`;

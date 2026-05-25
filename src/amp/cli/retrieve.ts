@@ -8,6 +8,7 @@
 import type { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import type { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
 import type { ScopeKind } from "../core/frame-schema.js";
+import { LIVE_GBRAIN_READ_WARNING } from "../gbrain/live-policy.js";
 import {
   retrievePreferences,
   retrievePreferencesFromGbrain,
@@ -15,7 +16,7 @@ import {
 } from "../substrate/retrieve-preference.js";
 import { resolveCliProjectContext } from "./cli-context.js";
 import {
-  createKnowledgeBackend,
+  createReadKnowledgeBackend,
   resolveKnowledgeBackend,
   type AmpKnowledgeBackend,
 } from "./knowledge-backend.js";
@@ -26,7 +27,6 @@ export interface AmpRetrieveOptions {
   query?: string;
   projectRoot?: string;
   knowledge?: string;
-  useLiveGbrain?: boolean;
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   homedir?: () => string;
@@ -65,12 +65,12 @@ export async function runAmpRetrieve(
     env: options.env,
   });
 
-  const handle = createKnowledgeBackend({
+  const handle = createReadKnowledgeBackend({
     backend: knowledgeBackend,
     ampRepoRoot: options.ampRepoRoot,
     inMemoryStore: options.inMemoryStore,
     gbrainAdapter: options.gbrainAdapter,
-    useLiveGbrain: options.useLiveGbrain,
+    env: options.env,
   });
 
   let preferences: RetrievedPreference[];
@@ -108,7 +108,7 @@ export function formatAmpRetrieveMessages(result: AmpRetrieveResult): string[] {
   ];
 
   if (result.liveGbrain) {
-    lines.push("  PROVISIONAL: live gbrain transport — not conformance-tested in CI.");
+    lines.push(`  ${LIVE_GBRAIN_READ_WARNING}`);
   }
 
   if (result.preferences.length === 0) {

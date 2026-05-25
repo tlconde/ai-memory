@@ -5,14 +5,12 @@ import type { SpawnSyncReturns } from "node:child_process";
 import {
   AMP_CONFIRM_LIVE_GBRAIN_WRITE_ENV,
   AMP_LIVE_GBRAIN_TEST_ENV,
-} from "./live-gbrain-safety.js";
+} from "../gbrain/live-policy.js";
 import { AMP_KNOWLEDGE_BACKEND_ENV } from "./knowledge-backend.js";
 import {
   formatAmpGbrainPreflightReport,
   runAmpGbrainPreflight,
 } from "./gbrain-preflight.js";
-
-type SpawnArgs = [command: string, args: readonly string[], options: object];
 
 function fakeSpawn(
   scenarios: Record<string, SpawnSyncReturns<string>>
@@ -109,6 +107,17 @@ describe("runAmpGbrainPreflight", () => {
     );
     assert.ok(
       result.findings.some((f) => f.category === "live-mutation" && /confirmation is ON/.test(f.message))
+    );
+  });
+
+  it("documents live reads separately from write confirmation", () => {
+    const spawnFn = fakeSpawn({ "which gbrain": { status: 1, stdout: "", stderr: "" } });
+    const result = runAmpGbrainPreflight({ knowledge: "gbrain", env: {}, spawnFn });
+    assert.ok(result.findings.some((f) => f.category === "live-read" && /retrieve/.test(f.message)));
+    assert.ok(
+      result.findings.some(
+        (f) => f.category === "operator-summary" && /Live writes require confirmation/.test(f.message)
+      )
     );
   });
 

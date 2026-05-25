@@ -60,10 +60,12 @@ describe("runAmpRetrieve", () => {
     const empty = formatAmpRetrieveMessages({
       projectRoot: "/tmp/project",
       knowledgeBackend: "gbrain",
+      liveGbrain: true,
       scope: "user",
       preferences: [],
     });
 
     assert.match(empty.join("\n"), /no matches/i);
+    assert.match(empty.join("\n"), /live gbrain read/i);
   });
 });
