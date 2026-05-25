@@ -87,3 +87,8 @@ export {
   reconcileProjectionMetadata,
   type ReconcileProjectionMetadataOptions,
 } from "./reconcile.js";
+
+export {
+  writeProjectionFileAtomic,
+  writeProjectionFilesAtomic,
+} from "./atomic-write.js";
