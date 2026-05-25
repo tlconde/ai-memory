@@ -12,14 +12,14 @@ import { join } from "node:path";
 import { CursorAdapter, CURSOR_FROM_AMP_REL } from "../adapters/sas/cursor/adapter.js";
 import { PathSafetyError } from "../path-safety/guard.js";
 import { projectProjectionPath, projectRuntimePath } from "../projection/paths.js";
+import { checkProjectProjectionPreflight } from "./preflight.js";
 import type { AgentSetupMode, AgentSetupResult } from "./types.js";
 
 export const CURSOR_PROJECTION_RULE_FILENAME = "amp-projection.mdc";
 export const CURSOR_PROJECTION_RULE_DESCRIPTION =
   "AMP project projection and runtime context";
 
-export const CURSOR_PROJECTION_FILES_MISSING =
-  "Project projection files are missing. Run `ai-memory amp projection render --source local --apply` first.";
+export { PROJECTION_MATERIALIZATION_REQUIRED as CURSOR_PROJECTION_FILES_MISSING } from "./preflight.js";
 
 export interface CursorSetupOptions {
   projectRoot: string;
@@ -62,37 +62,38 @@ export async function runCursorProjectSetup(
 ): Promise<AgentSetupResult> {
   const { projectRoot, mode } = options;
   const targetPath = cursorRulePath(projectRoot);
-  const projectionFile = projectProjectionPath(projectRoot);
-  const runtimeFile = projectRuntimePath(projectRoot);
-  const warnings: string[] = [];
-  const errors: string[] = [];
+  const preflight = checkProjectProjectionPreflight({
+    projectRoot,
+    mode,
+    requireFiles: true,
+  });
 
-  if (!existsSync(projectionFile) || !existsSync(runtimeFile)) {
-    if (mode === "apply") {
-      return {
-        target: "cursor",
-        mode,
-        plannedPaths: [targetPath],
-        changed: false,
-        ok: false,
-        warnings,
-        errors: [CURSOR_PROJECTION_FILES_MISSING],
-      };
-    }
-    warnings.push(CURSOR_PROJECTION_FILES_MISSING);
+  if (!preflight.ok) {
+    return {
+      target: "cursor",
+      mode,
+      plannedPaths: [targetPath],
+      changed: false,
+      ok: false,
+      warnings: preflight.warnings,
+      errors: preflight.errors,
+    };
+  }
+
+  if (!preflight.projectionExists || !preflight.runtimeExists) {
     return {
       target: "cursor",
       mode,
       plannedPaths: [targetPath],
       changed: !existsSync(targetPath),
       ok: true,
-      warnings,
-      errors,
+      warnings: preflight.warnings,
+      errors: [],
     };
   }
 
-  const projectionBody = await readFile(projectionFile, "utf8");
-  const runtimeBody = await readFile(runtimeFile, "utf8");
+  const projectionBody = await readFile(projectProjectionPath(projectRoot), "utf8");
+  const runtimeBody = await readFile(projectRuntimePath(projectRoot), "utf8");
   const content = buildCursorProjectionMdc(projectionBody, runtimeBody);
   const existingContent = existsSync(targetPath)
     ? await readFile(targetPath, "utf8")
@@ -106,8 +107,8 @@ export async function runCursorProjectSetup(
       plannedPaths: [targetPath],
       changed,
       ok: true,
-      warnings,
-      errors,
+      warnings: preflight.warnings,
+      errors: [],
     };
   }
 
@@ -120,8 +121,8 @@ export async function runCursorProjectSetup(
     plannedPaths: [targetPath],
     changed,
     ok: true,
-    warnings,
-    errors,
+    warnings: preflight.warnings,
+    errors: [],
   };
 }
 

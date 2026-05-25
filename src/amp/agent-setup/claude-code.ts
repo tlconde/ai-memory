@@ -10,35 +10,28 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
-  PROJECT_LOCAL_DIR,
-  projectProjectionPath,
-  projectRuntimePath,
-} from "../projection/paths.js";
-import {
   hasCompleteMarkerBlock,
   isMalformedMarkerBlock,
   parseMarkerBlock,
   upsertMarkerBlock,
 } from "./markers.js";
+import {
+  PROJECTION_MATERIALIZATION_REQUIRED,
+  checkProjectProjectionPreflight,
+} from "./preflight.js";
 import type { AgentSetupMode, AgentSetupResult } from "./types.js";
 
 export const CLAUDE_PROJECT_FILENAME = "CLAUDE.md";
+export { PROJECTION_MATERIALIZATION_REQUIRED };
 
 const CLAUDE_IMPORT_LINES = [
   "@.amp/local/projection.md",
   "@.amp/local/runtime.md",
 ] as const;
 
-export const PROJECTION_MATERIALIZATION_REQUIRED =
-  "Run `ai-memory amp projection render --source local --apply` first to materialize project projection files.";
-
 export interface ClaudeCodeSetupOptions {
   projectRoot: string;
   mode: AgentSetupMode;
-}
-
-function projectLocalDir(projectRoot: string): string {
-  return join(projectRoot, PROJECT_LOCAL_DIR);
 }
 
 function claudePath(projectRoot: string): string {
@@ -51,27 +44,21 @@ export async function runClaudeCodeProjectSetup(
 ): Promise<AgentSetupResult> {
   const { projectRoot, mode } = options;
   const targetPath = claudePath(projectRoot);
-  const warnings: string[] = [];
-  const errors: string[] = [];
-  const localDir = projectLocalDir(projectRoot);
-  const projectionExists = existsSync(projectProjectionPath(projectRoot));
-  const runtimeExists = existsSync(projectRuntimePath(projectRoot));
+  const preflight = checkProjectProjectionPreflight({
+    projectRoot,
+    mode,
+    requireFiles: false,
+  });
 
-  if (!projectionExists || !runtimeExists) {
-    warnings.push(
-      "Project projection files are missing; imports will reference paths that may not exist yet."
-    );
-  }
-
-  if (mode === "apply" && !existsSync(localDir)) {
+  if (!preflight.ok) {
     return {
       target: "claude-code",
       mode,
       plannedPaths: [targetPath],
       changed: false,
       ok: false,
-      warnings,
-      errors: [PROJECTION_MATERIALIZATION_REQUIRED],
+      warnings: preflight.warnings,
+      errors: preflight.errors,
     };
   }
 
@@ -88,8 +75,8 @@ export async function runClaudeCodeProjectSetup(
       plannedPaths: [targetPath],
       changed,
       ok: true,
-      warnings,
-      errors,
+      warnings: preflight.warnings,
+      errors: [],
     };
   }
 
@@ -100,8 +87,8 @@ export async function runClaudeCodeProjectSetup(
     plannedPaths: [targetPath],
     changed,
     ok: true,
-    warnings,
-    errors,
+    warnings: preflight.warnings,
+    errors: [],
   };
 }
 

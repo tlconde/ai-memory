@@ -38,3 +38,10 @@ export {
   runCursorProjectSetup,
   type CursorSetupOptions,
 } from "./cursor.js";
+
+export {
+  PROJECTION_FILES_MISSING_WARNING,
+  checkProjectProjectionPreflight,
+  type ProjectProjectionPreflightOptions,
+  type ProjectProjectionPreflightResult,
+} from "./preflight.js";
