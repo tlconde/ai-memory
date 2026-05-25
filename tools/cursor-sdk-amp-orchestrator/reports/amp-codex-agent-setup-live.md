@@ -1,4 +1,4 @@
-# AMP Codex Agent Setup — Manual Live Test Protocol
+# AMP Codex Agent Setup — Live Verification Report
 
 > **Date:** 2026-05-25
 > **Branch:** `ralph/amp-agent-setup-codex`
@@ -6,32 +6,60 @@
 
 ---
 
-## Claim labels (honest)
+## Claim labels
 
 | Claim | Label |
 |-------|-------|
-| Codex loads project `AGENTS.md` content at session start | **VERIFIED (manual, 2026-05-25)** — operator-inlined AGENTS.md; Codex quoted runtime sentinels |
-| Manual inline of `.amp/local/*.md` into AGENTS.md works | **VERIFIED (manual)** — same session as above |
-| `amp agent setup --target codex --apply` writes correct marker block | **VERIFIED (offline unit/E2E tests)** — not yet live-gated in acceptance |
-| Live Codex session loads content from **automated** AMP setup | **PROVISIONAL** until sentinel protocol below passes |
+| Codex loads project `AGENTS.md` content at session start | **VERIFIED** |
+| Codex AGENTS.md marker-block setup (`amp agent setup --target codex`) | **VERIFIED** |
+| Live load from automated `amp agent setup --target codex` | **VERIFIED** |
+| `amp agent setup --target codex --apply` writes correct marker block | **VERIFIED** (offline unit/E2E tests + live session) |
 | Codex `@import` / `@path` in AGENTS.md | **UNKNOWN** — not used by AMP; not tested |
 | Codex reads AGENTS.md from parent dirs when cwd is nested | **UNKNOWN** |
+| Invalid cached schedule `SKILL.md` warning at Codex startup | **Unrelated** — plugin cache parse error; does not affect AGENTS.md loading |
 
 ---
 
-## Prior manual result (baseline)
+## Live verification result (2026-05-25)
 
-Temp git project with materialized `.amp/local/` and operator-authored `AGENTS.md` containing inlined projection/runtime sections.
+| Field | Value |
+|-------|-------|
+| Project root | `/private/var/folders/c2/w06jh9q541xc30bzn45j0f_h0000gn/T/tmp.ZptMNpNdVw` |
+| Codex version | v0.133.0 |
+| Session cwd | Temp project root (same path as above) |
+| Setup path | Automated `amp agent setup --target codex --apply` (marker block in `AGENTS.md`) |
 
-Probe:
+### AGENTS.md contents (observed)
+
+- `<!-- amp:agent-setup:codex:v1:start -->`
+- `AMP_SENTINEL_CODEX_CONTEXT_20260525`
+- `<!-- amp:agent-setup:codex:v1:end -->`
+
+Sentinel appeared under the AMP Project Runtime section (runtime projection body included `episodic_signal` context).
+
+### Probe prompt
 
 > Without reading files manually, do you have any project rule or context mentioning AMP_SENTINEL_CODEX_CONTEXT_20260525?
 
-Expected when sentinel **not** captured: Codex denies CODEX sentinel but cites Cursor/Claude sentinels from AGENTS.md runtime — **observed VERIFIED**.
+### Observed response
+
+Codex answered **yes**, quoted the exact string `AMP_SENTINEL_CODEX_CONTEXT_20260525`, and attributed it to **`AGENTS.md`** under **AMP Project Runtime / episodic_signal**.
+
+**Verdict:** Live load from automated AMP Codex agent setup is **VERIFIED**.
+
+### Unrelated startup noise
+
+Codex reported skipping one invalid cached skill:
+
+```
+⚠ ~/.codex/plugins/cache/.../schedule/SKILL.md: invalid YAML
+```
+
+This is a plugin-cache parse warning and is **unrelated** to project `AGENTS.md` loading or the AMP marker block.
 
 ---
 
-## Protocol: automated setup + sentinel
+## Protocol (for re-testing)
 
 ### 1. Prepare isolated project
 
@@ -49,10 +77,10 @@ ai-memory amp projection render --source local --apply
 
 ### 2. Capture a Codex-specific runtime sentinel
 
-Use capture with a unique string, e.g. `AMP_SENTINEL_CODEX_SETUP_CLI_20260525`, then re-render projection:
+Use capture with a unique string, e.g. `AMP_SENTINEL_CODEX_CONTEXT_20260525`, then re-render projection:
 
 ```bash
-ai-memory amp capture --note "AMP_SENTINEL_CODEX_SETUP_CLI_20260525"
+ai-memory amp capture --note "AMP_SENTINEL_CODEX_CONTEXT_20260525"
 ai-memory amp projection render --source local --apply
 ```
 
@@ -75,7 +103,7 @@ Expect ok finding: `AGENTS.md contains an AMP marker block with inlined projecti
 
 ### 5. Live Codex probe
 
-Open Codex **with project root = `$TMP`** (important: workspace must be the temp project):
+Open Codex **with project root = temp project** (cwd must be the project root):
 
 ```bash
 cd "$TMP"
@@ -84,17 +112,17 @@ codex
 
 Prompt:
 
-> Without reading files manually, quote the exact string AMP_SENTINEL_CODEX_SETUP_CLI_20260525 and say which document section it came from.
+> Without reading files manually, do you have any project rule or context mentioning AMP_SENTINEL_CODEX_CONTEXT_20260525?
 
 | Outcome | Label |
 |---------|-------|
-| Quotes sentinel + cites AGENTS.md / AMP Project Runtime | Upgrade automated setup to **VERIFIED** |
+| Quotes sentinel + cites AGENTS.md / AMP Project Runtime | **VERIFIED** (observed 2026-05-25) |
 | Partial / paraphrase only | **PROVISIONAL** |
 | No sentinel | **UNKNOWN** — check workspace root, projection apply, marker block |
 
 ### 6. Negative control
 
-Ask about a sentinel never captured (e.g. `AMP_SENTINEL_CODEX_CONTEXT_20260525` if absent). Codex should deny — confirms load without hallucination.
+Ask about a sentinel never captured in the project. Codex should deny — confirms load without hallucination.
 
 ---
 
@@ -110,6 +138,6 @@ Do not commit temp project `AGENTS.md` into the ai-memory repo.
 
 ## Related reports
 
-- `amp-local-agent-live-verification.md` — Wave 16 live harness matrix (§10 Codex manual path)
+- `amp-local-agent-live-verification.md` — Wave 16 live harness matrix
 - `amp-codex-agent-setup-spike.md` — contract/spike (local docs only)
-- `amp-local-agent-setup.md` — Wave 16 offline agent setup summary (update target list when merged)
+- `amp-local-agent-setup.md` — Wave 16 offline agent setup summary
