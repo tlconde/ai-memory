@@ -20,3 +20,11 @@ export {
   upsertMarkerBlock,
   type MarkerBlockParts,
 } from "./markers.js";
+
+export {
+  CLAUDE_PROJECT_FILENAME,
+  PROJECTION_MATERIALIZATION_REQUIRED,
+  inspectClaudeCodeMarkerBlock,
+  runClaudeCodeProjectSetup,
+  type ClaudeCodeSetupOptions,
+} from "./claude-code.js";
