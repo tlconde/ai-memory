@@ -14,21 +14,19 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
 import { CURSOR_FROM_AMP_REL } from "../adapters/sas/cursor/adapter.js";
 import { CURSOR_PROJECTION_RULE_FILENAME } from "../agent-setup/cursor.js";
 import { CLAUDE_PROJECT_FILENAME } from "../agent-setup/claude-code.js";
 import { runAmpAgentSetup } from "../cli/agent-setup.js";
-import { runAmpCapture } from "../cli/capture.js";
-import { openRuntimeStore, resolveCliProjectContext } from "../cli/cli-context.js";
 import { runAmpDoctor } from "../cli/doctor.js";
-import { runAmpInit } from "../cli/init.js";
-import { runAmpProjectionRender } from "../cli/projection.js";
-import { consolidateNow } from "../substrate/storage/consolidation-minimal.js";
 import {
-  assertCleanAmpGitStatus,
-  initGitRepo,
-} from "./_helpers/invariant-6-git.js";
+  applyLocalProjectionsForTest,
+  createIsolatedAmpTestEnv,
+  dryRunLocalProjectionsForTest,
+  prepareGitProjectWithAmpInit,
+  seedLocalProjectionContent,
+} from "./_helpers/local-projection-fixture.js";
+import { assertCleanAmpGitStatus } from "./_helpers/invariant-6-git.js";
 
 describe("Local agent setup E2E", () => {
   let tempRoot = "";
@@ -43,69 +41,42 @@ describe("Local agent setup E2E", () => {
 
   it("materializes projections, wires agents, and keeps git clean", async () => {
     const projectRoot = join(tempRoot, "agent-setup-flow");
-    const fakeHome = join(tempRoot, "isolated-home");
-    const ampUserRoot = join(tempRoot, "injected-amp-user-root");
-    const env = {
-      HOME: fakeHome,
-      AMP_USER_ROOT: ampUserRoot,
-      AMP_KNOWLEDGE_BACKEND: "in-memory",
-    };
-    const rejectRealHomedir = (): string => {
-      throw new Error("must not resolve real homedir during agent setup E2E");
-    };
+    const { env, ampUserRoot, fakeHome, rejectRealHomedir } = createIsolatedAmpTestEnv(
+      tempRoot,
+      "agent-setup-flow"
+    );
 
     await mkdir(projectRoot, { recursive: true });
-    initGitRepo(projectRoot);
     await writeFile(
       join(projectRoot, CLAUDE_PROJECT_FILENAME),
       "# Operator notes\n\nKeep this paragraph.\n",
       "utf8"
     );
-
-    await runAmpInit({ projectRoot, env });
+    await prepareGitProjectWithAmpInit(projectRoot, env);
     assertCleanAmpGitStatus(projectRoot, "after init");
 
-    runAmpCapture({
+    const knowledge = await seedLocalProjectionContent({
       projectRoot,
-      content: "Prefer explicit return types on exported AMP functions.",
-      scope: "project",
       env,
       homedir: () => fakeHome,
-    });
-    runAmpCapture({
-      projectRoot,
-      content: "Queued runtime note for agent setup.",
-      scope: "project",
-      env,
-      homedir: () => fakeHome,
+      preference: "Prefer explicit return types on exported AMP functions.",
+      runtimeNote: "Queued runtime note for agent setup.",
+      capturePattern: "consolidate-after",
     });
 
-    const knowledge = new InMemoryKnowledgeStore();
-    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
-    const runtime = openRuntimeStore(context.runtimeDbPath);
-    try {
-      consolidateNow(runtime, knowledge);
-    } finally {
-      runtime.close();
-    }
-
-    const dryRunProjection = await runAmpProjectionRender({
+    const dryRunProjection = await dryRunLocalProjectionsForTest({
       projectRoot,
-      source: "local",
-      dryRun: true,
       env,
       homedir: rejectRealHomedir,
-      knowledgeStore: knowledge,
+      knowledge,
     });
     assert.equal(dryRunProjection.ok, true);
 
-    const applyProjection = await runAmpProjectionRender({
+    const applyProjection = await applyLocalProjectionsForTest({
       projectRoot,
-      source: "local",
-      apply: true,
       env,
       homedir: rejectRealHomedir,
-      knowledgeStore: knowledge,
+      knowledge,
     });
     assert.equal(applyProjection.ok, true);
     assert.equal(existsSync(join(projectRoot, ".amp", "local", "projection.md")), true);

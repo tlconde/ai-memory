@@ -10,27 +10,26 @@ import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { homedir as realHomedir } from "node:os";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
-import { runAmpCapture } from "../cli/capture.js";
-import { openRuntimeStore, resolveCliProjectContext } from "../cli/cli-context.js";
-import { runAmpInit } from "../cli/init.js";
-import { runAmpProjectionRender } from "../cli/projection.js";
 import {
   AMP_GITIGNORE_MARKER,
   AMP_LOCAL_DIR_REL,
   AMP_RUNTIME_DIR_REL,
   DEFAULT_AMP_GITIGNORE_LINES,
 } from "../gitignore/paths.js";
-import { PROJECTION_FILE_KINDS } from "../projection/constants.js";
-import { consolidateNow } from "../substrate/storage/consolidation-minimal.js";
 import {
-  assertCleanAmpGitStatus,
-  initGitRepo,
-} from "./_helpers/invariant-6-git.js";
+  applyLocalProjectionsForTest,
+  canonicalLocalProjectionPaths,
+  createIsolatedAmpTestEnv,
+  dryRunLocalProjectionsForTest,
+  prepareGitProjectWithAmpInit,
+  PROJECTION_FILE_KINDS,
+  seedLocalProjectionContent,
+} from "./_helpers/local-projection-fixture.js";
+import { assertCleanAmpGitStatus } from "./_helpers/invariant-6-git.js";
 
 describe("Local projection materialization E2E", () => {
   let tempRoot = "";
@@ -45,21 +44,12 @@ describe("Local projection materialization E2E", () => {
 
   it("captures preference, applies local projections, and keeps git clean", async () => {
     const projectRoot = join(tempRoot, "local-materialization");
-    const fakeHome = join(tempRoot, "isolated-home");
-    const ampUserRoot = join(tempRoot, "injected-amp-user-root");
-    const env = {
-      HOME: fakeHome,
-      AMP_USER_ROOT: ampUserRoot,
-      AMP_KNOWLEDGE_BACKEND: "in-memory",
-    };
-    const rejectRealHomedir = (): string => {
-      throw new Error("must not resolve real homedir during local materialization E2E");
-    };
+    const { env, ampUserRoot, rejectRealHomedir } = createIsolatedAmpTestEnv(
+      tempRoot,
+      "local-materialization"
+    );
 
-    await mkdir(projectRoot, { recursive: true });
-    initGitRepo(projectRoot);
-
-    const initResult = await runAmpInit({ projectRoot, env });
+    const initResult = await prepareGitProjectWithAmpInit(projectRoot, env);
     assert.equal(initResult.localDirCreated, true);
     assert.equal(initResult.runtimeDirCreated, true);
     assert.deepEqual(initResult.gitignoreEntriesAdded, [...DEFAULT_AMP_GITIGNORE_LINES]);
@@ -73,47 +63,22 @@ describe("Local projection materialization E2E", () => {
     const preference = "Prefer explicit return types on exported AMP functions.";
     const runtimeNote = "In-flight runtime note for projection test.";
 
-    runAmpCapture({
+    const knowledge = await seedLocalProjectionContent({
       projectRoot,
-      content: preference,
-      scope: "project",
       env,
       homedir: rejectRealHomedir,
+      preference,
+      runtimeNote,
+      capturePattern: "consolidate-between",
     });
 
-    const context = resolveCliProjectContext({
+    const canonicalPaths = canonicalLocalProjectionPaths(projectRoot, ampUserRoot);
+
+    const dryRunResult = await dryRunLocalProjectionsForTest({
       projectRoot,
       env,
       homedir: rejectRealHomedir,
-    });
-    const runtime = openRuntimeStore(context.runtimeDbPath);
-    const knowledge = new InMemoryKnowledgeStore();
-    const consolidation = consolidateNow(runtime, knowledge);
-    assert.equal(consolidation.processed, 1);
-
-    runAmpCapture({
-      projectRoot,
-      content: runtimeNote,
-      scope: "project",
-      env,
-      homedir: rejectRealHomedir,
-    });
-    runtime.close();
-
-    const canonicalPaths = [
-      join(ampUserRoot, "projection", "global.md"),
-      join(ampUserRoot, "runtime", "global.md"),
-      join(projectRoot, ".amp", "local", "projection.md"),
-      join(projectRoot, ".amp", "local", "runtime.md"),
-    ];
-
-    const dryRunResult = await runAmpProjectionRender({
-      projectRoot,
-      source: "local",
-      dryRun: true,
-      homedir: rejectRealHomedir,
-      env,
-      knowledgeStore: knowledge,
+      knowledge,
     });
 
     assert.equal(dryRunResult.ok, true);
@@ -134,13 +99,11 @@ describe("Local projection materialization E2E", () => {
     }
     assertCleanAmpGitStatus(projectRoot, "after local dry-run");
 
-    const applyResult = await runAmpProjectionRender({
+    const applyResult = await applyLocalProjectionsForTest({
       projectRoot,
-      source: "local",
-      apply: true,
-      homedir: rejectRealHomedir,
       env,
-      knowledgeStore: knowledge,
+      homedir: rejectRealHomedir,
+      knowledge,
     });
 
     assert.equal(applyResult.ok, true);
