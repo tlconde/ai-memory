@@ -6,10 +6,8 @@
  */
 
 import { consolidateToGbrain } from "../substrate/consolidation/gbrain-consolidation.js";
-import {
-  consolidateNow,
-  type ConsolidationResult,
-} from "../substrate/storage/consolidation-minimal.js";
+import { consolidateNow } from "../substrate/storage/consolidation-minimal.js";
+import type { ConsolidationResult } from "../substrate/consolidation/types.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
 import {
   createKnowledgeBackend,

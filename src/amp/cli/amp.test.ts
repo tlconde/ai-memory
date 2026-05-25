@@ -28,6 +28,9 @@ describe("registerAmpCommands", () => {
     const retrieve = amp.commands.find((cmd) => cmd.name() === "retrieve");
     assert.ok(retrieve, "expected amp retrieve subcommand");
 
+    const propagate = amp.commands.find((cmd) => cmd.name() === "propagate");
+    assert.ok(propagate, "expected amp propagate subcommand");
+
     const status = amp.commands.find((cmd) => cmd.name() === "status");
     assert.ok(status, "expected amp status shell subcommand");
   });
