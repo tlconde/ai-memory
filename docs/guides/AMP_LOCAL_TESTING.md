@@ -16,11 +16,13 @@ This gate must remain offline. Do not set `AMP_LIVE_GBRAIN=1` or live write conf
 
 ## Read-only preflight
 
-Before connecting to live gbrain, run the read-only preflight command (available after AMP-REAL-01 lands):
+Before connecting to live gbrain, run the read-only preflight command:
 
 ```bash
 ai-memory amp gbrain-preflight
 ```
+
+Preflight performs read-only **local process probes** (`which`, `gbrain doctor`, `gbrain serve --help`). It does not mutate your gbrain database.
 
 Optional: evaluate a specific backend flag without changing env:
 
@@ -112,7 +114,7 @@ Deprecated alias: `--live-gbrain` (same as `--confirm-live-gbrain-write`).
 ai-memory amp retrieve --knowledge gbrain
 ```
 
-**Label:** PROVISIONAL — connects to `gbrain serve` for reads; AMP does not write during retrieve, but MCP session startup may have side effects.
+**Label:** PROVISIONAL — connects to `gbrain serve` for reads; AMP prints a live-read warning and does not write during retrieve.
 
 ## One-shot live capture workflow
 
@@ -141,4 +143,6 @@ If live testing leaves unwanted pages:
 2. **Label:** PROVISIONAL — `gbrain call delete_page '{"slug":"..."}'` or vendor UI; soft-delete may leave recoverable pages for ~72h
 3. Restore from backup if needed (operator-specific restore procedure)
 
-See also: `tools/cursor-sdk-amp-orchestrator/reports/amp-real-gbrain-safety.md`
+See also:
+- `tools/cursor-sdk-amp-orchestrator/reports/amp-real-gbrain-safety.md`
+- `tools/cursor-sdk-amp-orchestrator/reports/amp-real-gbrain-policy-unified.md`

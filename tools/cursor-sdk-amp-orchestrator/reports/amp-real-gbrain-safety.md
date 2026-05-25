@@ -13,10 +13,13 @@ Checklist for operators testing AMP against a real local gbrain database without
 | Invariant | Status |
 |---|---|
 | `npm run amp:acceptance` stays offline/deterministic | **VERIFIED** — no live env required |
-| No live gbrain calls without explicit env/flag | **VERIFIED** after AMP-REAL-02 (consolidate writes) |
+| Live gbrain **writes** require explicit confirmation | **VERIFIED** — enforced in `createKnowledgeBackend({ access: "write" })` |
+| Live gbrain **reads** via retrieve | **PROVISIONAL** — connects to `gbrain serve`; user-facing warning printed |
+| Preflight read-only local process probes | **VERIFIED** — `which`, `gbrain doctor`, `gbrain serve --help`; no DB mutation |
 | No harness writes outside `from-amp/` | **VERIFIED** — existing path guards |
 | No automatic migration/cleanup/delete | **VERIFIED** — preflight recommends only; never runs migrate |
-| Fail closed when safety cannot be proven | **VERIFIED** — consolidate throws without confirmation |
+| Fail closed when write safety cannot be proven | **VERIFIED** — backend factory throws without confirmation |
+| Preflight + write guard shipped together | **VERIFIED** — do not release preflight without backend write enforcement |
 
 ## Operator sequence
 
@@ -33,7 +36,7 @@ Checklist for operators testing AMP against a real local gbrain database without
 |---|---|---|
 | Acceptance gate offline | **VERIFIED** | CI/local default |
 | Preflight read-only probes | **VERIFIED** | spawn `which`, `gbrain doctor`, no mutate |
-| Live write guard | **VERIFIED** | `AMP_CONFIRM_LIVE_GBRAIN_WRITE=1` or CLI flag |
+| Live write guard | **VERIFIED** | `createWriteKnowledgeBackend()` / `AMP_CONFIRM_LIVE_GBRAIN_WRITE=1` |
 | gbrain backup via filesystem copy | **PROVISIONAL** | stop processes first |
 | gbrain first-party backup command | **UNKNOWN** | not verified in this wave |
 | Live retrieve side effects | **PROVISIONAL** | MCP stdio startup |
@@ -49,5 +52,5 @@ Checklist for operators testing AMP against a real local gbrain database without
 ## Related docs
 
 - Operator guide: `docs/guides/AMP_LOCAL_TESTING.md`
-- Live test report: `tools/cursor-sdk-amp-orchestrator/reports/amp-gbrain-live.md`
+- Policy module report: `tools/cursor-sdk-amp-orchestrator/reports/amp-real-gbrain-policy-unified.md`
 - Spike transport: `tools/cursor-sdk-amp-orchestrator/reports/amp-gbrain-spike.md`

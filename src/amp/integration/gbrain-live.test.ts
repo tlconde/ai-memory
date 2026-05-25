@@ -1,8 +1,9 @@
 /**
- * Opt-in live gbrain MCP integration (V1-LIVE-01).
+ * Opt-in live gbrain MCP integration (V1-LIVE-01 / AMP-REAL-04).
  *
  * Skipped unless AMP_LIVE_GBRAIN=1. Requires `gbrain` on PATH with an initialized brain.
- * Uses a unique AMP frame slug per run; attempts delete_page cleanup in finally.
+ * Uses unique AMP-owned slugs only (`live-v1-*` → `amp/frames/h.{hex}`).
+ * Attempts delete_page cleanup in finally; soft-delete uncertainty documented on failure.
  */
 
 import { describe, it } from "node:test";
@@ -14,7 +15,15 @@ import { fileURLToPath } from "node:url";
 import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import { frameIdToSlug } from "../adapters/ssa/gbrain/frame-codec.js";
 import { createFrame } from "../core/frame-schema.js";
-import { isLiveGbrainTestEnabled } from "../gbrain/live-policy.js";
+import {
+  AMP_LIVE_PROJECT_REF,
+  AMP_LIVE_SLUG_PREFIX,
+  formatResidualPageWarning,
+  interpretDeletePageCleanup,
+  isAmpOwnedLiveFrameId,
+  isLiveGbrainTestEnabled,
+  type LiveGbrainCleanupReport,
+} from "../gbrain/live-policy.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../");
 const GBRAIN_SPEC = join(REPO_ROOT, "ssa-files/gbrain.yaml");
@@ -25,6 +34,15 @@ function uniqueLiveFrameId(): string {
   return `live-v1-${Date.now()}-${randomBytes(4).toString("hex")}`;
 }
 
+function assertAmpOwnedSlug(frameId: string, slug: string): void {
+  assert.equal(isAmpOwnedLiveFrameId(frameId), true, "live test must use AMP-owned frame ids");
+  assert.match(
+    slug,
+    new RegExp(`^${AMP_LIVE_SLUG_PREFIX}[0-9a-f]+$`),
+    "live test must write under amp/frames/h.{hex} only"
+  );
+}
+
 describe(
   "gbrain live MCP round trip",
   { skip: LIVE_ENABLED ? false : "set AMP_LIVE_GBRAIN=1 to run against gbrain serve" },
@@ -32,6 +50,8 @@ describe(
     it("writes, reads, lists, searches, and cleans up via gbrain serve stdio MCP", async () => {
       const frameId = uniqueLiveFrameId();
       const slug = frameIdToSlug(frameId);
+      assertAmpOwnedSlug(frameId, slug);
+
       const probeToken = `AMP-LIVE-01 probe ${frameId}`;
 
       const adapter = new GbrainKnowledgeAdapter({
@@ -39,8 +59,12 @@ describe(
         useLiveTransport: true,
       });
 
-      let cleanupAttempted = false;
-      let cleanupSucceeded = false;
+      const cleanupReport: LiveGbrainCleanupReport = {
+        slug,
+        frameId,
+        cleanupAttempted: false,
+        cleanupSucceeded: false,
+      };
 
       try {
         const frame = createFrame({
@@ -49,7 +73,7 @@ describe(
           content: probeToken,
           source: { surface: "cursor" },
           created_at: new Date().toISOString(),
-          scope: { kind: "project", project_ref: "amp-live-verification" },
+          scope: { kind: "project", project_ref: AMP_LIVE_PROJECT_REF },
           curation_mode: "personal",
         });
 
@@ -66,7 +90,7 @@ describe(
 
         const listed = await adapter.listFrames({
           scopeKind: "project",
-          projectRef: "amp-live-verification",
+          projectRef: AMP_LIVE_PROJECT_REF,
         });
         assert.equal(listed.success, true, `list failed: ${JSON.stringify(listed)}`);
         if (!listed.success) return;
@@ -83,27 +107,23 @@ describe(
           "frame should appear in keyword search"
         );
       } finally {
-        cleanupAttempted = true;
+        cleanupReport.cleanupAttempted = true;
         try {
           const deleteResult = await adapter.transport.callTool("delete_page", { slug });
-          const status =
-            typeof deleteResult === "object" && deleteResult !== null
-              ? (deleteResult as { status?: string }).status
-              : undefined;
-          cleanupSucceeded = status === "soft_deleted" || status === "deleted";
+          const interpreted = interpretDeletePageCleanup(deleteResult);
+          cleanupReport.cleanupSucceeded = interpreted.cleanupSucceeded;
+          cleanupReport.deleteStatus = interpreted.deleteStatus;
         } catch {
-          cleanupSucceeded = false;
+          cleanupReport.cleanupSucceeded = false;
         }
 
         await adapter.transport.close?.();
       }
 
-      assert.equal(cleanupAttempted, true);
-      assert.equal(
-        cleanupSucceeded,
-        true,
-        `delete_page cleanup failed; residual slug may remain: ${slug}`
-      );
+      assert.equal(cleanupReport.cleanupAttempted, true);
+      if (!cleanupReport.cleanupSucceeded) {
+        assert.fail(formatResidualPageWarning(cleanupReport));
+      }
     });
   }
 );
