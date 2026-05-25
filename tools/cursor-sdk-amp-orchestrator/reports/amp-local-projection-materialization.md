@@ -1,9 +1,9 @@
 # AMP Local Projection Materialization — Wave 15 Report
 
-> **Task:** AMP-PROJ-15 (A–F) — offline DB/runtime-backed projection source + CLI materialization  
-> **Base:** `ralph/amp-projection-materialization-v2-integrated`  
-> **Branch stack:** `15a` content model → `15b` local source → `15c` CLI → `15d` E2E → `15f` runtime close → `15e` docs  
-> **Date:** 2026-05-25  
+> **Task:** AMP-PROJ-15 (A–F) — offline DB/runtime-backed projection source + CLI materialization
+> **Base:** `ralph/amp-projection-materialization-v2-integrated`
+> **Branch stack:** `15a` content model → `15b` local source → `15c` CLI → `15d` E2E → `15f` runtime close → `15e` docs
+> **Date:** 2026-05-25
 > **Scope:** Documentation and operator guidance for implemented local projection path
 
 ---
@@ -88,9 +88,9 @@ ai-memory amp projection render --dry-run --project-root "$TMP_PROJECT"
 
 CLI cross-invocation cannot yet share in-memory knowledge. Automated E2E therefore:
 
-1. Uses `runAmpCapture` + `consolidateNow` in-process  
-2. Passes `knowledgeStore: InMemoryKnowledgeStore` into `runAmpProjectionRender`  
-3. Sets `AMP_USER_ROOT` in env and rejects real homedir in tests  
+1. Uses `runAmpCapture` + `consolidateNow` in-process
+2. Passes `knowledgeStore: InMemoryKnowledgeStore` into `runAmpProjectionRender`
+3. Sets `AMP_USER_ROOT` in env and rejects real homedir in tests
 
 **VERIFIED:** integration test source
 

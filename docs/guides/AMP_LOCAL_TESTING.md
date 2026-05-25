@@ -1,7 +1,7 @@
 # AMP Local Testing — Operator Guide
 
-> **Audience:** Operators and contributors running AMP offline on a laptop or in CI  
-> **Scope:** Local projection materialization (Wave 15), Invariant 6 safety, and acceptance gates  
+> **Audience:** Operators and contributors running AMP offline on a laptop or in CI
+> **Scope:** Local projection materialization (Wave 15), Invariant 6 safety, and acceptance gates
 > **Companion:** `docs/specs/AMP_CONSOLIDATED_SPEC.md` §4.2.1, §12.6
 
 ---
@@ -123,7 +123,7 @@ ai-memory amp projection render --source local --apply --project-root "$TMP_PROJ
 
 **Note:** With only CLI invocations, in-memory knowledge starts empty each process. To see preference text in project projection bodies, either:
 
-- Run capture → consolidate → render in one Node test/process with injected `knowledgeStore`, or  
+- Run capture → consolidate → render in one Node test/process with injected `knowledgeStore`, or
 - Seed knowledge in-process before calling `runAmpProjectionRender` (see integration test below)
 
 Runtime queue items **do** persist in the project runtime SQLite DB across CLI invocations, so queued (unconsolidated) signals can appear in project runtime projection without cross-process knowledge sharing.
