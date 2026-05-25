@@ -72,17 +72,20 @@ export function resolveAmpRepoRoot(explicit?: string): string {
     return resolve(explicit);
   }
 
-  const fromModule = resolve(fileURLToPath(import.meta.url), "..", "..", "..");
-  if (existsSync(join(fromModule, SSA_GBRAIN_REL))) {
-    return fromModule;
+  const moduleDir = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    resolve(moduleDir, "..", ".."),
+    resolve(moduleDir, "..", "..", ".."),
+    resolve(process.cwd()),
+  ];
+
+  for (const root of candidates) {
+    if (existsSync(join(root, SSA_GBRAIN_REL))) {
+      return root;
+    }
   }
 
-  const cwd = resolve(process.cwd());
-  if (existsSync(join(cwd, SSA_GBRAIN_REL))) {
-    return cwd;
-  }
-
-  return fromModule;
+  return candidates[1] ?? candidates[0];
 }
 
 function hasCommandInPath(command: string, env: NodeJS.ProcessEnv): boolean {

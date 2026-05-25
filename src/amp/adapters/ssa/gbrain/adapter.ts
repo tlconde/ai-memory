@@ -67,7 +67,7 @@ import {
 
 const DEFAULT_GBRAIN_SSA_SPEC = join(
   dirname(fileURLToPath(import.meta.url)),
-  "../../../../../ssa-files/gbrain.yaml"
+  "../../../../ssa-files/gbrain.yaml"
 );
 
 export type GbrainSearchMode = "keyword" | "hybrid" | "vector" | "graph";

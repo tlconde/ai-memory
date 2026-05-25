@@ -7,6 +7,6 @@ export const BUDGET_HARD_FAIL_BLOCKS_APPLY =
   "Projection materialization blocked: combined token budget exceeds hard cap.";
 
 export const LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE =
-  "Local projection source requires an offline knowledge backend. Set AMP_KNOWLEDGE_BACKEND=in-memory or run `ai-memory amp projection render --source placeholder --dry-run`.";
+  "Local projection source requires an offline knowledge backend. Set AMP_KNOWLEDGE_BACKEND=in-memory or run `amp projection render --source placeholder --dry-run`.";
 
 export const GBRAIN_PROJECTION_READ_FAILED = "Gbrain projection read failed:";

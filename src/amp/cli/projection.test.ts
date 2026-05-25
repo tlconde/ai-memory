@@ -373,7 +373,7 @@ describe("runAmpProjectionRender", () => {
     assert.equal(result.ok, false);
     assert.equal(result.source, "local");
     assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
-    assert.match(result.error ?? "", /ai-memory amp projection render --source placeholder --dry-run/);
+    assert.match(result.error ?? "", /amp projection render --source placeholder --dry-run/);
     assert.equal(result.writes.length, 0);
   });
 
