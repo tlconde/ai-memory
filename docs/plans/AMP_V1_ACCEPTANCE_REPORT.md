@@ -142,6 +142,7 @@ Post-v1 **live verification** is a separate wave that exercises real transports 
 |---|---|
 | `amp-gbrain-live.md` | Live `gbrain serve` MCP stdio transport |
 | `amp-hermes-live.md` | Live Hermes skill discovery (`hermes -s` and related session checks) |
+| `amp-post-v1-readiness.md` | Merge/package readiness after live wave integration |
 
 If those files are not yet published, see the reports directory for the latest live-verification record. Live results may upgrade individual PROVISIONAL/UNKNOWN items above; they do not replace or extend the offline acceptance gate.
 
