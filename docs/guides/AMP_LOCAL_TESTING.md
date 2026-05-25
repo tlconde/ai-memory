@@ -146,3 +146,4 @@ If live testing leaves unwanted pages:
 See also:
 - `tools/cursor-sdk-amp-orchestrator/reports/amp-real-gbrain-safety.md`
 - `tools/cursor-sdk-amp-orchestrator/reports/amp-real-gbrain-policy-unified.md`
+- `tools/cursor-sdk-amp-orchestrator/reports/amp-claude-projection-setup.md` — Claude Code `@import` wiring design (report-only; not in acceptance gate)
