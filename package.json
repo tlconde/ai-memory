@@ -5,7 +5,7 @@
   "type": "module",
   "bin": {
     "ai-memory": "./dist/cli/index.js",
-    "amp": "./dist/cli/index.js"
+    "amp": "./dist/cli/amp-entry.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

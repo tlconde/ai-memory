@@ -10,6 +10,8 @@ import { detectEnvironments, injectCapabilityConfig, getCapabilityManualInstruct
 import { registerAmpCommands } from "../amp/cli/index.js";
 import { AI_PATHS } from "../schema-constants.js";
 import {
+  AMP_CLI_INVOCATION_DIRECT,
+  AMP_CLI_INVOCATION_ENV,
   isCliEntryInvocation,
   resolveCliInvocationMode,
   type CliInvocationMode,
@@ -751,9 +753,10 @@ evalCmd.addCommand(
 }
 
 const isDirectCliInvocation =
+  !process.argv.includes("--test") &&
   process.argv[1] !== undefined &&
-  isCliEntryInvocation(process.argv[1], CLI_ENTRY_PATH) &&
-  !process.argv.includes("--test");
+  (process.env[AMP_CLI_INVOCATION_ENV] === AMP_CLI_INVOCATION_DIRECT ||
+    isCliEntryInvocation(process.argv[1], CLI_ENTRY_PATH));
 
 if (isDirectCliInvocation) {
   program.parse(process.argv);

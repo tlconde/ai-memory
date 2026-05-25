@@ -1,22 +1,29 @@
-import { lstatSync, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import { basename, resolve } from "node:path";
+
+/** Env var set by `amp-entry.js` before loading the shared CLI bootstrap. */
+export const AMP_CLI_INVOCATION_ENV = "AMP_CLI_INVOCATION";
+
+/** Value of {@link AMP_CLI_INVOCATION_ENV} for direct `amp` binary invocation. */
+export const AMP_CLI_INVOCATION_DIRECT = "amp-direct";
 
 export type CliInvocationMode = "amp-direct" | "ai-memory";
 
-const AMP_BIN_NAMES = new Set(["amp"]);
-const AI_MEMORY_BIN_NAMES = new Set(["ai-memory"]);
-
 /** Resolve how the shared CLI entry was invoked (amp vs ai-memory). */
 export function resolveCliInvocationMode(argv: string[]): CliInvocationMode {
+  if (process.env[AMP_CLI_INVOCATION_ENV] === AMP_CLI_INVOCATION_DIRECT) {
+    return "amp-direct";
+  }
+
   const scriptArg = argv[1];
   if (!scriptArg) {
     return "ai-memory";
   }
 
-  const binName = resolveInvokingBinName(scriptArg);
-  if (AMP_BIN_NAMES.has(binName)) {
+  if (normalizeBinBasename(basename(scriptArg)) === "amp") {
     return "amp-direct";
   }
+
   return "ai-memory";
 }
 
@@ -27,24 +34,6 @@ export function isCliEntryInvocation(argv1: string, entryPath: string): boolean 
   } catch {
     return resolve(argv1) === resolve(entryPath);
   }
-}
-
-function resolveInvokingBinName(scriptPath: string): string {
-  const normalized = normalizeBinBasename(basename(scriptPath));
-
-  try {
-    if (lstatSync(scriptPath).isSymbolicLink()) {
-      return normalized;
-    }
-  } catch {
-    // Fall through to basename-based detection.
-  }
-
-  if (AMP_BIN_NAMES.has(normalized) || AI_MEMORY_BIN_NAMES.has(normalized)) {
-    return normalized;
-  }
-
-  return normalized;
 }
 
 function normalizeBinBasename(name: string): string {
