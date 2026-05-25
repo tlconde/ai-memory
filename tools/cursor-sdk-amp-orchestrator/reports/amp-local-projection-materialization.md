@@ -10,7 +10,7 @@
 
 ## Verdict
 
-**Local offline projection materialization is implemented and test-covered.** Operators can dry-run and apply four canonical projection files using `--source local` with explicit `--apply`, in-memory knowledge, and injected `AMP_USER_ROOT`. Live gbrain projection source and harness import loading remain out of scope.
+**Local offline projection materialization is implemented and test-covered.** Operators can dry-run and apply four canonical projection files using `--source local` with explicit `--apply`, in-memory knowledge, and injected `AMP_USER_ROOT`. Read-only gbrain projection (`--source gbrain`) is implemented separately; live dry-run remains **PROVISIONAL** until `AMP_LIVE_GBRAIN=1` (see `amp-gbrain-projection-live-verification.md`). Harness import loading remains out of scope for this wave.
 
 ---
 
@@ -65,7 +65,8 @@ amp projection render --dry-run --project-root "$TMP_PROJECT"
 | `--source local --dry-run` + in-memory | Plans 4 paths from stores | **VERIFIED** |
 | `--source local --apply` + in-memory | Writes 4 files atomically | **VERIFIED** |
 | `--source local` without in-memory | Error → suggest placeholder dry-run | **VERIFIED** |
-| Live gbrain as projection source | Not implemented | **VERIFIED** (absent) |
+| `--source gbrain --dry-run` (fake/offline tests) | Plans 4 paths via readonly gbrain adapter | **VERIFIED** |
+| `--source gbrain` live dry-run | Opt-in `AMP_LIVE_GBRAIN=1` only | **PROVISIONAL** |
 | Claude/Cursor/Codex agent setup (Wave 16+) | Implemented separately | **VERIFIED** — see `amp-local-agent-setup.md` |
 | Cross-CLI durable in-memory knowledge | Not solved | **PROVISIONAL** gap |
 | Truncation by priority (spec §4.2.3) | Budget gate only; no priority drop | **PROVISIONAL** |
