@@ -138,6 +138,73 @@ describe("runAmpProjectionRender", () => {
     assert.equal(existsSync(join(projectRoot, ".amp", "local", "projection.md")), false);
   });
 
+  it("closes local projection runtime store after successful dry-run", async () => {
+    const projectRoot = join(tempRoot, "local-runtime-close-dry-run");
+    const fakeHome = join(tempRoot, "home-local-runtime-close-dry-run");
+    const env = { HOME: fakeHome, AMP_KNOWLEDGE_BACKEND: "in-memory" };
+    await runAmpInit({ projectRoot, env });
+
+    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const runtime = openRuntimeStore(context.runtimeDbPath);
+    let closeCalls = 0;
+    const originalClose = runtime.close.bind(runtime);
+    runtime.close = () => {
+      closeCalls += 1;
+      originalClose();
+    };
+
+    const knowledge = new InMemoryKnowledgeStore();
+    const result = await runAmpProjectionRender({
+      projectRoot,
+      source: "local",
+      dryRun: true,
+      homedir: () => fakeHome,
+      env,
+      knowledgeStore: knowledge,
+      openRuntimeStoreForProjection: () => runtime,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(closeCalls, 1);
+  });
+
+  it("closes local projection runtime store when materialization throws", async () => {
+    const projectRoot = join(tempRoot, "local-runtime-close-error");
+    const fakeHome = join(tempRoot, "home-local-runtime-close-error");
+    const env = { HOME: fakeHome, AMP_KNOWLEDGE_BACKEND: "in-memory" };
+    await runAmpInit({ projectRoot, env });
+
+    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const runtime = openRuntimeStore(context.runtimeDbPath);
+    let closeCalls = 0;
+    const originalClose = runtime.close.bind(runtime);
+    runtime.close = () => {
+      closeCalls += 1;
+      originalClose();
+    };
+
+    const knowledge = new InMemoryKnowledgeStore();
+
+    await assert.rejects(
+      () =>
+        runAmpProjectionRender({
+          projectRoot,
+          source: "local",
+          dryRun: true,
+          homedir: () => fakeHome,
+          env,
+          knowledgeStore: knowledge,
+          openRuntimeStoreForProjection: () => runtime,
+          materializeProjectionsOverride: async () => {
+            throw new Error("simulated materialization failure");
+          },
+        }),
+      /simulated materialization failure/
+    );
+
+    assert.equal(closeCalls, 1);
+  });
+
   it("local dry-run plans four writes with injected knowledge store", async () => {
     const projectRoot = join(tempRoot, "local-dry-run");
     const ampUserRoot = join(tempRoot, "amp-user-local-dry-run");

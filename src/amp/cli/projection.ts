@@ -16,6 +16,7 @@ import {
   resolveKnowledgeBackend,
 } from "./knowledge-backend.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
+import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import {
   LocalProjectionSource,
   materializeProjections,
@@ -38,7 +39,15 @@ export interface AmpProjectionRenderOptions {
   homedir?: () => string;
   /** Inject in-memory knowledge for tests (consolidate + render in one process). */
   knowledgeStore?: InMemoryKnowledgeStore;
+  /** Test hook: override runtime store opener for local projection lifecycle checks. */
+  openRuntimeStoreForProjection?: (dbPath: string) => RuntimeStore;
+  /** Test hook: substitute materialization to verify source cleanup on failure. */
+  materializeProjectionsOverride?: typeof materializeProjections;
 }
+
+type ResolvedProjectionSource =
+  | { error: string }
+  | { source: ProjectionSource; cleanup: () => void };
 
 export interface AmpProjectionRenderResult {
   projectRoot: string;
@@ -67,9 +76,12 @@ function resolveProjectionSource(
   projectRef: string | undefined,
   runtimeDbPath: string,
   options: AmpProjectionRenderOptions
-): ProjectionSource | { error: string } {
+): ResolvedProjectionSource {
   if (sourceKind === "placeholder") {
-    return new PlaceholderProjectionSource({ projectRef });
+    return {
+      source: new PlaceholderProjectionSource({ projectRef }),
+      cleanup: () => {},
+    };
   }
 
   const knowledge =
@@ -89,12 +101,18 @@ function resolveProjectionSource(
     return { error: LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE };
   }
 
-  const runtime = openRuntimeStore(runtimeDbPath);
-  return new LocalProjectionSource({
-    knowledge,
-    runtime,
-    projectRef,
-  });
+  const openStore = options.openRuntimeStoreForProjection ?? openRuntimeStore;
+  const runtime = openStore(runtimeDbPath);
+  return {
+    source: new LocalProjectionSource({
+      knowledge,
+      runtime,
+      projectRef,
+    }),
+    cleanup: () => {
+      runtime.close();
+    },
+  };
 }
 
 /** Plan or render projection artifacts through the materialization pipeline. */
@@ -155,13 +173,19 @@ export async function runAmpProjectionRender(
     };
   }
 
-  const plan = await materializeProjections(resolvedSource, {
-    projectRoot,
-    mode,
-    projectRef,
-    env,
-    homedir: options.homedir,
-  });
+  let plan;
+  try {
+    const materialize = options.materializeProjectionsOverride ?? materializeProjections;
+    plan = await materialize(resolvedSource.source, {
+      projectRoot,
+      mode,
+      projectRef,
+      env,
+      homedir: options.homedir,
+    });
+  } finally {
+    resolvedSource.cleanup();
+  }
 
   return {
     projectRoot: plan.projectRoot,
