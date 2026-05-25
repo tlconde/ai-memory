@@ -19,6 +19,15 @@ describe("registerAmpCommands", () => {
     const doctor = amp.commands.find((cmd) => cmd.name() === "doctor");
     assert.ok(doctor, "expected amp doctor subcommand");
 
+    const capture = amp.commands.find((cmd) => cmd.name() === "capture");
+    assert.ok(capture, "expected amp capture subcommand");
+
+    const consolidate = amp.commands.find((cmd) => cmd.name() === "consolidate");
+    assert.ok(consolidate, "expected amp consolidate subcommand");
+
+    const retrieve = amp.commands.find((cmd) => cmd.name() === "retrieve");
+    assert.ok(retrieve, "expected amp retrieve subcommand");
+
     const status = amp.commands.find((cmd) => cmd.name() === "status");
     assert.ok(status, "expected amp status shell subcommand");
   });

@@ -7,8 +7,11 @@
 
 import type { Command } from "commander";
 
+import { formatAmpCaptureMessages, runAmpCapture } from "./capture.js";
+import { formatAmpConsolidateMessages, runAmpConsolidate } from "./consolidate.js";
 import { formatAmpDoctorReport, runAmpDoctor } from "./doctor.js";
 import { formatAmpInitMessages, runAmpInit } from "./init.js";
+import { formatAmpRetrieveMessages, runAmpRetrieve } from "./retrieve.js";
 
 export const AMP_CLI_SHELL_VERSION = "1.0.0";
 
@@ -50,14 +53,102 @@ export function registerAmpCommands(program: Command): Command {
     });
 
   amp
+    .command("capture")
+    .description("Capture a preference signal into the runtime queue")
+    .requiredOption("--content <text>", "Preference content to capture")
+    .option("--scope <scope>", "Scope: project, user, or universal", "project")
+    .option("--project-ref <ref>", "Project ref (required for project scope; defaults from config)")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--surface <surface>", "Capture surface label", "cursor")
+    .action(
+      (opts: {
+        content: string;
+        scope?: string;
+        projectRef?: string;
+        projectRoot?: string;
+        surface?: string;
+      }) => {
+        const result = runAmpCapture({
+          content: opts.content,
+          scope: opts.scope as "project" | "user" | "universal" | undefined,
+          projectRef: opts.projectRef,
+          projectRoot: opts.projectRoot,
+          surface: opts.surface,
+        });
+        for (const line of formatAmpCaptureMessages(result)) {
+          process.stdout.write(`${line}\n`);
+        }
+      }
+    );
+
+  amp
+    .command("consolidate")
+    .description("Consolidate runtime queue into knowledge storage")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option(
+      "--knowledge <backend>",
+      "Knowledge backend: in-memory, gbrain, or fake-gbrain (default: gbrain with fake transport)"
+    )
+    .option(
+      "--live-gbrain",
+      "Use live gbrain serve transport (PROVISIONAL — not conformance-tested in CI)"
+    )
+    .action(async (opts: { projectRoot?: string; knowledge?: string; liveGbrain?: boolean }) => {
+      const result = await runAmpConsolidate({
+        projectRoot: opts.projectRoot,
+        knowledge: opts.knowledge,
+        useLiveGbrain: opts.liveGbrain ?? false,
+      });
+      for (const line of formatAmpConsolidateMessages(result)) {
+        process.stdout.write(`${line}\n`);
+      }
+    });
+
+  amp
+    .command("retrieve")
+    .description("Retrieve consolidated preferences from knowledge storage")
+    .option("--scope <scope>", "Scope: project, user, or universal", "project")
+    .option("--project-ref <ref>", "Project ref filter (defaults from config for project scope)")
+    .option("--query <text>", "Optional content filter")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option(
+      "--knowledge <backend>",
+      "Knowledge backend: in-memory, gbrain, or fake-gbrain (default: gbrain with fake transport)"
+    )
+    .option(
+      "--live-gbrain",
+      "Use live gbrain serve transport (PROVISIONAL — not conformance-tested in CI)"
+    )
+    .action(
+      async (opts: {
+        scope?: string;
+        projectRef?: string;
+        query?: string;
+        projectRoot?: string;
+        knowledge?: string;
+        liveGbrain?: boolean;
+      }) => {
+        const result = await runAmpRetrieve({
+          scope: opts.scope as "project" | "user" | "universal" | undefined,
+          projectRef: opts.projectRef,
+          query: opts.query,
+          projectRoot: opts.projectRoot,
+          knowledge: opts.knowledge,
+          useLiveGbrain: opts.liveGbrain ?? false,
+        });
+        for (const line of formatAmpRetrieveMessages(result)) {
+          process.stdout.write(`${line}\n`);
+        }
+      }
+    );
+
+  amp
     .command("status")
     .description("Show AMP CLI shell status")
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
-      process.stdout.write("Wired: init, doctor.\n");
-      process.stdout.write(
-        "Planned: capture, consolidate, retrieve, propagate (not wired yet).\n"
-      );
+      process.stdout.write("Wired: init, doctor, capture, consolidate, retrieve.\n");
+      process.stdout.write("Planned: propagate (not wired yet).\n");
     });
 
   return amp;
