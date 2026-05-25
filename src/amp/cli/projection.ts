@@ -8,6 +8,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
+import type { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import type { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
 import { projectConfigPath } from "../config/paths.js";
 import { AMP_KNOWLEDGE_BACKEND_ENV } from "./knowledge-backend.js";
@@ -31,6 +32,8 @@ export interface AmpProjectionRenderOptions {
   homedir?: () => string;
   /** Inject in-memory knowledge for tests (consolidate + render in one process). */
   knowledgeStore?: InMemoryKnowledgeStore;
+  /** Inject gbrain adapter for tests — bypasses live gbrain transport. */
+  gbrainAdapter?: GbrainKnowledgeAdapter;
 }
 
 export interface AmpProjectionRenderResult {
@@ -105,6 +108,7 @@ export async function runAmpProjectionRender(
     projectRef,
     runtimeDbPath,
     knowledgeStore: options.knowledgeStore,
+    gbrainAdapter: options.gbrainAdapter,
     env,
   });
 

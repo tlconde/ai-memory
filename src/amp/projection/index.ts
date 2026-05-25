@@ -98,6 +98,8 @@ export {
 export {
   BUDGET_HARD_FAIL_BLOCKS_APPLY,
   DB_BACKED_MATERIALIZATION_NOT_WIRED,
+  GBRAIN_PROJECTION_IN_MEMORY_BACKEND,
+  GBRAIN_PROJECTION_READ_FAILED,
   LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
 } from "./messages.js";
 
@@ -127,3 +129,10 @@ export {
   LocalProjectionSource,
   type LocalProjectionSourceOptions,
 } from "./local-source.js";
+
+export {
+  GbrainProjectionSource,
+  type GbrainProjectionSourceOptions,
+} from "./gbrain-source.js";
+
+export { ProjectionSourceLoadError } from "./errors.js";

@@ -3,13 +3,17 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
+import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
+import { FakeGbrainMcpTransport } from "../adapters/ssa/gbrain/fake-transport.js";
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
 import { createFrame } from "../core/frame-schema.js";
 import { PROJECTION_FILE_KINDS } from "../projection/constants.js";
 import {
   DB_BACKED_MATERIALIZATION_NOT_WIRED,
+  GBRAIN_PROJECTION_IN_MEMORY_BACKEND,
   LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
 } from "../projection/messages.js";
 import { capturePreference } from "../substrate/capture-preference.js";
@@ -23,6 +27,9 @@ import {
   formatAmpProjectionRenderReport,
   runAmpProjectionRender,
 } from "./projection.js";
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const GBRAIN_SPEC = join(REPO_ROOT, "ssa-files/gbrain.yaml");
 
 describe("projection source factory", () => {
   let tempRoot = "";
@@ -368,6 +375,122 @@ describe("runAmpProjectionRender", () => {
     assert.equal(result.source, "local");
     assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
     assert.match(result.error ?? "", /ai-memory amp projection render --source placeholder --dry-run/);
+    assert.equal(result.writes.length, 0);
+  });
+
+  it("gbrain dry-run plans four writes without live gbrain when adapter is injected", async () => {
+    const projectRoot = join(tempRoot, "gbrain-dry-run");
+    const ampUserRoot = join(tempRoot, "amp-user-gbrain-dry-run");
+    const fakeHome = join(tempRoot, "home-gbrain-dry-run");
+    const env = { HOME: fakeHome, AMP_USER_ROOT: ampUserRoot };
+    await runAmpInit({ projectRoot, env });
+
+    const fake = new FakeGbrainMcpTransport();
+    const adapter = new GbrainKnowledgeAdapter({ transport: fake, ssaSpecPath: GBRAIN_SPEC });
+    await adapter.writeFrames([
+      createFrame({
+        id: "gbrain-cli-pref",
+        kind: "semantic",
+        content: "Gbrain CLI dry-run preference.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "project", project_ref: "gbrain-dry-run" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const result = await runAmpProjectionRender({
+      projectRoot,
+      source: "gbrain",
+      dryRun: true,
+      homedir: () => fakeHome,
+      env,
+      gbrainAdapter: adapter,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.source, "gbrain");
+    assert.equal(result.dryRun, true);
+    assert.equal(result.writes.length, 4);
+    for (const write of result.writes) {
+      assert.equal(write.dryRun, true);
+      assert.equal(existsSync(write.path), false);
+    }
+  });
+
+  it("gbrain apply writes projection files without requiring write confirmation", async () => {
+    const projectRoot = join(tempRoot, "gbrain-apply");
+    const ampUserRoot = join(tempRoot, "amp-user-gbrain-apply");
+    const fakeHome = join(tempRoot, "home-gbrain-apply");
+    const env = { HOME: fakeHome, AMP_USER_ROOT: ampUserRoot };
+    await runAmpInit({ projectRoot, env });
+
+    const fake = new FakeGbrainMcpTransport();
+    const adapter = new GbrainKnowledgeAdapter({ transport: fake, ssaSpecPath: GBRAIN_SPEC });
+    await adapter.writeFrames([
+      createFrame({
+        id: "gbrain-cli-apply",
+        kind: "semantic",
+        content: "Gbrain CLI apply preference.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "project", project_ref: "gbrain-apply" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const result = await runAmpProjectionRender({
+      projectRoot,
+      source: "gbrain",
+      apply: true,
+      homedir: () => fakeHome,
+      env,
+      gbrainAdapter: adapter,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.source, "gbrain");
+    assert.equal(result.dryRun, false);
+
+    const projectProjectionPath = join(projectRoot, ".amp", "local", "projection.md");
+    assert.equal(existsSync(projectProjectionPath), true);
+    const projectProjection = await readFile(projectProjectionPath, "utf8");
+    assert.match(projectProjection, /Gbrain CLI apply preference\./);
+  });
+
+  it("gbrain source works without AMP_KNOWLEDGE_BACKEND=in-memory via fake-gbrain env", async () => {
+    const projectRoot = join(tempRoot, "gbrain-fake-env");
+    const fakeHome = join(tempRoot, "home-gbrain-fake-env");
+    const env = { HOME: fakeHome, AMP_KNOWLEDGE_BACKEND: "fake-gbrain" };
+    await runAmpInit({ projectRoot, env });
+
+    const result = await runAmpProjectionRender({
+      projectRoot,
+      source: "gbrain",
+      dryRun: true,
+      homedir: () => fakeHome,
+      env,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.source, "gbrain");
+    assert.equal(result.writes.length, 4);
+  });
+
+  it("fails gbrain source when AMP_KNOWLEDGE_BACKEND=in-memory", async () => {
+    const projectRoot = join(tempRoot, "gbrain-in-memory-backend");
+    await runAmpInit({ projectRoot });
+
+    const result = await runAmpProjectionRender({
+      projectRoot,
+      source: "gbrain",
+      dryRun: true,
+      env: { AMP_KNOWLEDGE_BACKEND: "in-memory" },
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.source, "gbrain");
+    assert.equal(result.error, GBRAIN_PROJECTION_IN_MEMORY_BACKEND);
     assert.equal(result.writes.length, 0);
   });
 });

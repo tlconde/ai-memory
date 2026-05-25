@@ -1,12 +1,14 @@
 /**
  * Projection source factory for CLI materialization.
  *
- * Falsifiable claim: local and placeholder sources are created with explicit
+ * Falsifiable claim: local, gbrain, and placeholder sources are created with explicit
  * runtime cleanup; test deps stay off public render options.
  */
 
+import type { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import type { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
 import {
+  GbrainProjectionSource,
   LocalProjectionSource,
   materializeProjections,
   PlaceholderProjectionSource,
@@ -16,9 +18,13 @@ import {
 } from "../projection/index.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import { openRuntimeStore } from "./cli-context.js";
-import { resolveProjectionKnowledgeStore } from "./knowledge-backend.js";
+import { resolveAmpRepoRoot } from "./doctor.js";
+import {
+  resolveProjectionGbrainAdapter,
+  resolveProjectionKnowledgeStore,
+} from "./knowledge-backend.js";
 
-export type AmpProjectionSourceKind = "placeholder" | "local";
+export type AmpProjectionSourceKind = "placeholder" | "local" | "gbrain";
 
 export interface ProjectionSourceFactoryDeps {
   openRuntimeStore?: (dbPath: string) => RuntimeStore;
@@ -34,7 +40,9 @@ export interface CreateProjectionRenderSourceOptions {
   projectRef?: string;
   runtimeDbPath: string;
   knowledgeStore?: InMemoryKnowledgeStore;
+  gbrainAdapter?: GbrainKnowledgeAdapter;
   env?: NodeJS.ProcessEnv;
+  ampRepoRoot?: string;
   deps?: ProjectionSourceFactoryDeps;
 }
 
@@ -42,12 +50,39 @@ export interface CreateProjectionRenderSourceOptions {
 export function createProjectionRenderSource(
   options: CreateProjectionRenderSourceOptions
 ): ResolvedProjectionRenderSource {
-  const { sourceKind, projectRef, runtimeDbPath, knowledgeStore, env, deps } = options;
+  const { sourceKind, projectRef, runtimeDbPath, knowledgeStore, gbrainAdapter, env, deps } =
+    options;
 
   if (sourceKind === "placeholder") {
     return {
       source: new PlaceholderProjectionSource({ projectRef }),
       cleanup: () => {},
+    };
+  }
+
+  const openStore = deps?.openRuntimeStore ?? openRuntimeStore;
+
+  if (sourceKind === "gbrain") {
+    const gbrainResult = resolveProjectionGbrainAdapter({
+      env,
+      gbrainAdapter,
+      ampRepoRoot: options.ampRepoRoot ?? resolveAmpRepoRoot(),
+    });
+
+    if (!gbrainResult.ok) {
+      return { error: gbrainResult.error };
+    }
+
+    const runtime = openStore(runtimeDbPath);
+    return {
+      source: new GbrainProjectionSource({
+        adapter: gbrainResult.adapter,
+        runtime,
+        projectRef,
+      }),
+      cleanup: () => {
+        runtime.close();
+      },
     };
   }
 
@@ -60,7 +95,6 @@ export function createProjectionRenderSource(
     return { error: knowledgeResult.error };
   }
 
-  const openStore = deps?.openRuntimeStore ?? openRuntimeStore;
   const runtime = openStore(runtimeDbPath);
   return {
     source: new LocalProjectionSource({

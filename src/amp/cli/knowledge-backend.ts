@@ -10,7 +10,10 @@ import { join } from "node:path";
 import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import { FakeGbrainMcpTransport } from "../adapters/ssa/gbrain/fake-transport.js";
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
-import { LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE } from "../projection/messages.js";
+import {
+  GBRAIN_PROJECTION_IN_MEMORY_BACKEND,
+  LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
+} from "../projection/messages.js";
 import {
   assertLiveGbrainWriteConfirmed,
   type KnowledgeBackendAccess,
@@ -165,4 +168,49 @@ export function resolveProjectionKnowledgeStore(
   }
 
   return { ok: true, store: handle.inMemory };
+}
+
+export interface ResolveProjectionGbrainAdapterOptions {
+  env?: NodeJS.ProcessEnv;
+  gbrainAdapter?: GbrainKnowledgeAdapter;
+  ampRepoRoot?: string;
+}
+
+export type ResolveProjectionGbrainAdapterResult =
+  | { ok: true; adapter: GbrainKnowledgeAdapter; liveGbrain: boolean }
+  | { ok: false; error: string };
+
+/** Resolve read-only gbrain adapter for projection render — never requires write confirmation. */
+export function resolveProjectionGbrainAdapter(
+  options: ResolveProjectionGbrainAdapterOptions = {}
+): ResolveProjectionGbrainAdapterResult {
+  if (options.gbrainAdapter) {
+    return { ok: true, adapter: options.gbrainAdapter, liveGbrain: false };
+  }
+
+  const backend = resolveKnowledgeBackend({ env: options.env });
+  if (backend === "in-memory") {
+    return { ok: false, error: GBRAIN_PROJECTION_IN_MEMORY_BACKEND };
+  }
+
+  try {
+    const handle = createReadKnowledgeBackend({
+      backend: backend === "fake-gbrain" ? "fake-gbrain" : "gbrain",
+      env: options.env,
+      ampRepoRoot: options.ampRepoRoot,
+    });
+
+    if (!handle.gbrain) {
+      return { ok: false, error: GBRAIN_PROJECTION_IN_MEMORY_BACKEND };
+    }
+
+    return {
+      ok: true,
+      adapter: handle.gbrain,
+      liveGbrain: handle.liveGbrain === true,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, error: message };
+  }
 }

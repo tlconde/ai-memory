@@ -11,6 +11,7 @@ import {
   evaluateProjectionBudget,
   type EvaluateProjectionBudgetResult,
 } from "./budget.js";
+import { ProjectionSourceLoadError } from "./errors.js";
 import {
   BUDGET_HARD_FAIL_BLOCKS_APPLY,
   DB_BACKED_MATERIALIZATION_NOT_WIRED,
@@ -88,7 +89,20 @@ async function runLoadReconcileBudget(
     loadOptions.projectRef = options.projectRef;
   }
 
-  const raw = await loadDocuments(source, loadOptions);
+  let raw: ProjectionDocument[];
+  try {
+    raw = await loadDocuments(source, loadOptions);
+  } catch (error) {
+    if (error instanceof ProjectionSourceLoadError) {
+      return {
+        ok: false,
+        error: error.message,
+        documents: [],
+        projectRef: options.projectRef,
+      };
+    }
+    throw error;
+  }
   const projectRef = inferProjectRef(raw, options.projectRef);
 
   try {

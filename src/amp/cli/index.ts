@@ -221,9 +221,9 @@ export function registerAmpCommands(
     .command("render")
     .description("Plan or apply projection artifacts on disk")
     .option("--project-root <path>", "Project root (default: current directory)")
-    .option("--source <kind>", "Projection source: placeholder (default) or local")
+    .option("--source <kind>", "Projection source: placeholder (default), local, or gbrain")
     .option("--dry-run", "Plan writes without touching disk")
-    .option("--apply", "Apply writes (requires --source local)")
+    .option("--apply", "Apply writes (requires --source local or gbrain)")
     .action(
       async (opts: {
         projectRoot?: string;
@@ -232,10 +232,14 @@ export function registerAmpCommands(
         apply?: boolean;
       }) => {
         const source =
-          opts.source === "local" || opts.source === "placeholder" ? opts.source : undefined;
+          opts.source === "local" ||
+          opts.source === "placeholder" ||
+          opts.source === "gbrain"
+            ? opts.source
+            : undefined;
         if (opts.source && !source) {
           process.stderr.write(
-            `Invalid projection source "${opts.source}" — expected placeholder or local.\n`
+            `Invalid projection source "${opts.source}" — expected placeholder, local, or gbrain.\n`
           );
           process.exitCode = 1;
           return;
@@ -300,7 +304,7 @@ export function registerAmpCommands(
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local --dry-run or --apply when AMP_KNOWLEDGE_BACKEND=in-memory), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local when AMP_KNOWLEDGE_BACKEND=in-memory; gbrain read-only source with --source gbrain), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
       );
     });
 

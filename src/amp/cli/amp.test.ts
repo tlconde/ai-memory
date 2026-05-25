@@ -110,6 +110,7 @@ describe("registerAmpCommands", () => {
 
     const output = chunks.join("");
     assert.match(output, /--source local/);
+    assert.match(output, /--source gbrain/);
     assert.match(output, /AMP_KNOWLEDGE_BACKEND=in-memory/);
   });
 
