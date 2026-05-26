@@ -17,7 +17,7 @@ export interface LocalProjectionSourceOptions {
   runtime: RuntimeStore;
   projectRef?: string;
   generatedAt?: string;
-  /** Optional typed runtime semantics; omitted preserves queue-only projection output. */
+  /** Optional typed runtime semantics; empty source list yields queue-only typed blocks. */
   runtimeSemanticSource?: RuntimeSemanticEntitySource;
 }
 

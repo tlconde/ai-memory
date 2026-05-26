@@ -121,7 +121,7 @@ describe("RuntimeSemanticStorageEntitySource", () => {
 });
 
 describe("RuntimeStoreSemanticEntityReader", () => {
-  it("returns no entities while RuntimeStore lacks a typed semantic table", async () => {
+  it("returns no entities when the typed semantic table is empty", async () => {
     const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-store-semantic-reader-"));
     const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
     try {
@@ -153,6 +153,68 @@ describe("RuntimeStoreSemanticEntityReader", () => {
       await rm(tempDir, { recursive: true, force: true });
     }
   });
+
+  it("reads persisted valid typed records in insertion order", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-store-semantic-reader-order-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+    try {
+      runtime.semanticEntityInsert({
+        id: "pref-b",
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: ACTIVE_PREFERENCE,
+        observed_at: ISO,
+      });
+      runtime.semanticEntityInsert({
+        id: "pref-a",
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: { ...ACTIVE_PREFERENCE, id: "pref-a", statement: "Earlier preference." },
+        observed_at: ISO,
+      });
+
+      const reader = new RuntimeStoreSemanticEntityReader(runtime);
+      const entities = reader.readEntities();
+
+      assert.deepEqual(
+        entities.map((entity) => entity.id),
+        ["pref-b", "pref-a"]
+      );
+      assert.equal(entities[0]?.kind, "runtime-preference-candidate");
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed on invalid stored payloads via materialization skip report", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-store-semantic-reader-invalid-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+    try {
+      runtime.semanticEntityInsert({
+        id: "dec-bad",
+        kind: "unresolved-decision",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: { id: "dec-bad" },
+      });
+
+      const source = new RuntimeSemanticStorageEntitySource(
+        new RuntimeStoreSemanticEntityReader(runtime)
+      );
+      const result = materializeRuntimeProjectionFromSource(source, {
+        projectRef: PROJECT_REF,
+      });
+
+      assert.equal(result.items.length, 0);
+      assert.equal(result.skipped.length, 1);
+      assert.equal(result.skipped[0]?.recordId, "dec-bad");
+      assert.equal(result.skipped[0]?.reason, "invalid_input");
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("RuntimeSemanticStorageEntitySource with RuntimeStoreSemanticEntityReader", () => {
@@ -174,6 +236,34 @@ describe("RuntimeSemanticStorageEntitySource with RuntimeStoreSemanticEntityRead
 
       assert.equal(result.items.length, 0);
       assert.equal(result.skipped.length, 0);
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("materializes valid persisted records through RuntimeStoreSemanticEntityReader", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-store-semantic-reader-materialize-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+    try {
+      runtime.semanticEntityInsert({
+        id: "pref-1",
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: ACTIVE_PREFERENCE,
+        observed_at: ISO,
+      });
+
+      const source = new RuntimeSemanticStorageEntitySource(
+        new RuntimeStoreSemanticEntityReader(runtime)
+      );
+      const result = materializeRuntimeProjectionFromSource(source, {
+        projectRef: PROJECT_REF,
+      });
+
+      assert.equal(result.items.length, 1);
+      assert.equal(result.skipped.length, 0);
+      assert.match(result.items[0]?.text ?? "", /Keep responses short today/);
     } finally {
       runtime.close();
       await rm(tempDir, { recursive: true, force: true });

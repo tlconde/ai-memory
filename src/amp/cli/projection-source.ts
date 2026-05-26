@@ -61,8 +61,8 @@ export interface CreateProjectionRenderSourceOptions {
   deps?: ProjectionSourceFactoryDeps;
   /**
    * Optional override for local typed runtime semantics. When omitted, the factory
-   * wires {@link RuntimeSemanticStorageEntitySource} with default-empty
-   * {@link RuntimeStoreSemanticEntityReader} (queue-only output until typed tables exist).
+   * wires {@link RuntimeSemanticStorageEntitySource} with {@link RuntimeStoreSemanticEntityReader}
+   * (reads `runtime_semantic_entity`; empty table yields queue-only typed output).
    */
   runtimeSemanticSource?: RuntimeSemanticEntitySource;
 }

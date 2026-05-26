@@ -68,4 +68,29 @@ describe("RuntimeStore", () => {
     assert.equal(second?.payload.content, "second");
     assert.equal(store.queuePeek(), undefined);
   });
+
+  it("semanticEntityList returns empty array when no typed rows exist", () => {
+    assert.deepEqual(store.semanticEntityList(), []);
+  });
+
+  it("semanticEntityInsert preserves insertion order", () => {
+    store.semanticEntityInsert({
+      id: "pref-a",
+      kind: "runtime-preference-candidate",
+      scope: "user",
+      payload: { id: "pref-a", statement: "first" },
+    });
+    store.semanticEntityInsert({
+      id: "pref-b",
+      kind: "runtime-preference-candidate",
+      scope: "user",
+      payload: { id: "pref-b", statement: "second" },
+    });
+
+    const listed = store.semanticEntityList();
+    assert.deepEqual(
+      listed.map((row) => row.id),
+      ["pref-a", "pref-b"]
+    );
+  });
 });

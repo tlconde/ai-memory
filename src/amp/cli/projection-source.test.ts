@@ -179,6 +179,47 @@ describe("createProjectionRenderSource local", () => {
     }
   });
 
+  it("materializes persisted typed entities through default local factory path", () => {
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "local-persisted-typed-runtime.db") });
+    const knowledge = new InMemoryKnowledgeStore();
+    try {
+      runtime.semanticEntityInsert({
+        id: "pref-1",
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: activePreference,
+        observed_at: PREFERENCE_ISO,
+      });
+      capturePreference(runtime, {
+        content: "Queued note stays separate from typed table.",
+        scope: "project",
+        projectRef: LOCAL_PROJECT_REF,
+      });
+
+      const resolved = createProjectionRenderSource({
+        sourceKind: "local",
+        projectRef: LOCAL_PROJECT_REF,
+        runtimeDbPath: join(tempDir, "local-persisted-typed-runtime.db"),
+        knowledgeStore: knowledge,
+        env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "in-memory" },
+        deps: { openRuntimeStore: () => runtime },
+      });
+
+      assert.ok(!("error" in resolved));
+      const documents = resolved.source.loadProjectionDocuments({
+        projectRef: LOCAL_PROJECT_REF,
+      });
+      const globalRuntime = documents.find((doc) => doc.metadata.kind === "global_runtime");
+      const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
+
+      assert.match(globalRuntime?.body ?? "", /Keep responses short today/);
+      assert.equal(globalRuntime?.metadata.source_revision, "rev-local-pref-1");
+      assert.match(projectRuntime?.body ?? "", /Queued note stays separate from typed table\./);
+    } finally {
+      runtime.close();
+    }
+  });
+
   it("passes injected runtimeSemanticSource into LocalProjectionSource", () => {
     const runtime = new RuntimeStore({ dbPath: join(tempDir, "local-typed-runtime.db") });
     const knowledge = new InMemoryKnowledgeStore();

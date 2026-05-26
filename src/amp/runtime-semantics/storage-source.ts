@@ -3,7 +3,7 @@
  *
  * Falsifiable claim: typed runtime semantic records can be loaded from a
  * read-only storage reader and materialized via materializeRuntimeProjectionFromSource
- * without changing RuntimeStore persistence or capture/consolidation behavior.
+ * without changing capture/consolidation behavior.
  *
  * Boundary ownership:
  * - RuntimeSemanticEntityReader: storage read boundary (records only, no parsing).
@@ -12,11 +12,28 @@
  * - materializeRuntimeProjectionFromSource: parse, validate, and format records.
  */
 
+import type { ScopeKind } from "../core/frame-schema.js";
+import type { RuntimeSemanticEntityRow } from "../substrate/storage/runtime-semantic-entity.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import type {
   RuntimeSemanticEntityRecord,
   RuntimeSemanticEntitySource,
+  RuntimeFormatterRegistryKind,
 } from "./projection-source.js";
+
+/** Maps storage rows to projection records; materialization validates kind/scope/payload. */
+function rowToRuntimeSemanticEntityRecord(
+  row: RuntimeSemanticEntityRow
+): RuntimeSemanticEntityRecord {
+  return {
+    id: row.id,
+    kind: row.kind as RuntimeFormatterRegistryKind,
+    scope: row.scope as ScopeKind,
+    ...(row.project_ref ? { project_ref: row.project_ref } : {}),
+    payload: row.payload,
+    ...(row.observed_at ? { observed_at: row.observed_at } : {}),
+  };
+}
 
 /** Read-only storage boundary for typed runtime semantic entity records. Sync read only; async deferred to storage wiring. */
 export interface RuntimeSemanticEntityReader {
@@ -26,16 +43,14 @@ export interface RuntimeSemanticEntityReader {
 /**
  * Production read-only adapter from {@link RuntimeStore} to {@link RuntimeSemanticEntityReader}.
  *
- * Storage seam only — not typed runtime persistence yet. RuntimeStore has no dedicated
- * typed semantic entity table; {@link readEntities} returns `[]` until schema migration
- * and writer APIs land. Raw `runtime_queue` rows are never interpreted as typed entities.
+ * Reads typed rows from `runtime_semantic_entity` in insertion order. Empty table yields `[]`
+ * (queue-only projection output). Raw `runtime_queue` rows are never interpreted here.
  */
 export class RuntimeStoreSemanticEntityReader implements RuntimeSemanticEntityReader {
   constructor(private readonly runtime: RuntimeStore) {}
 
   readEntities(): readonly RuntimeSemanticEntityRecord[] {
-    // Typed semantic entity table not wired yet; runtime is held for future reads only.
-    return [];
+    return this.runtime.semanticEntityList().map(rowToRuntimeSemanticEntityRecord);
   }
 }
 
