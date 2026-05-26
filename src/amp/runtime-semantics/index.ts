@@ -90,6 +90,21 @@ export {
 } from "./capture-rejected-signal.js";
 
 export {
+  planRuntimeGraduation,
+  RUNTIME_GRADUATION_KIND_PROVENANCE,
+  RUNTIME_GRADUATION_SOURCE_SURFACE,
+  type PlanRuntimeGraduationInput,
+  type RuntimeGraduationDecision,
+  type RuntimeGraduationDeferralReason,
+  type RuntimeGraduationPlan,
+  type RuntimeGraduationPlanSummary,
+  type RuntimeGraduationProposal,
+  type RuntimeGraduationProposalReason,
+  type RuntimeGraduationReason,
+  type RuntimeGraduationSkipReason,
+} from "./graduation-planner.js";
+
+export {
   REJECTED_SIGNAL_DEFAULT_RECORD_ID_PREFIX,
   defaultRejectedSignalRecordId,
   mapRejectedRuntimeCaptureToEntityRecord,
