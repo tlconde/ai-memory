@@ -94,3 +94,23 @@ describe("RuntimeStore", () => {
     );
   });
 });
+
+describe("RuntimeStore semanticEntityHas", () => {
+  it("reports presence after low-level insert", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-has-test-"));
+    const isolated = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+    try {
+      assert.equal(isolated.semanticEntityHas("pref-probe"), false);
+      isolated.semanticEntityInsert({
+        id: "pref-probe",
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: { id: "pref-probe" },
+      });
+      assert.equal(isolated.semanticEntityHas("pref-probe"), true);
+    } finally {
+      isolated.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+});

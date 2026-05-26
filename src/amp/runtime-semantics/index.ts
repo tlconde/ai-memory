@@ -32,12 +32,18 @@ export {
   InMemoryRuntimeSemanticEntitySource,
   materializeRuntimeProjectionFromSource,
   resolveRuntimeSemanticEntitySection,
+  validateRuntimeSemanticEntityForStorage,
 } from "./projection-source.js";
 
 export {
   RuntimeSemanticStorageEntitySource,
   RuntimeStoreSemanticEntityReader,
 } from "./storage-source.js";
+
+export {
+  RuntimeStoreSemanticEntityWriter,
+  writeRuntimeSemanticEntity,
+} from "./storage-writer.js";
 
 export type {
   FormatterEntityByKind,
@@ -67,6 +73,11 @@ export type {
 } from "./projection-source.js";
 
 export type { RuntimeSemanticEntityReader } from "./storage-source.js";
+
+export type {
+  RuntimeSemanticEntityWriteFailureReason,
+  RuntimeSemanticEntityWriteResult,
+} from "./projection-source.js";
 
 export type {
   FormatEpisodicFrameOptions,

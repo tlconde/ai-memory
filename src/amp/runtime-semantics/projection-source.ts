@@ -13,9 +13,10 @@
  * - leaning-attachments: parent decision ↔ current-decision-leaning join policy.
  */
 
-import type { ScopeKind } from "../core/frame-schema.js";
+import { ScopeKindSchema, type ScopeKind } from "../core/frame-schema.js";
 import {
   formatParsedRuntimeEntityForProjection,
+  isFormatterRegistryKind,
   isProjectableFormatterKind,
   parseRuntimeEntityAtBoundary,
   type FormatRuntimeEntityProjectionFailureReason,
@@ -171,10 +172,22 @@ function extractPayloadScopeMetadata(
   }
 }
 
+type RecordPayloadAlignmentSkipReason =
+  | "missing_record_project_ref"
+  | "record_payload_scope_mismatch"
+  | "record_payload_project_ref_mismatch";
+
+interface RecordPayloadAlignmentSkip {
+  recordId: string;
+  kind: RuntimeFormatterRegistryKind;
+  reason: RecordPayloadAlignmentSkipReason;
+  message: string;
+}
+
 function validateRecordPayloadAlignment(
   record: RuntimeSemanticEntityRecord,
   payload: PayloadScopeMetadata,
-): RuntimeProjectionMaterializationSkip | undefined {
+): RecordPayloadAlignmentSkip | undefined {
   if (payload.scope !== undefined && payload.scope !== record.scope) {
     return {
       recordId: record.id,
@@ -207,6 +220,61 @@ function validateRecordPayloadAlignment(
   }
 
   return undefined;
+}
+
+export type RuntimeSemanticEntityWriteFailureReason =
+  | FormatRuntimeEntityProjectionFailureReason
+  | "invalid_scope"
+  | "missing_record_project_ref"
+  | "record_payload_scope_mismatch"
+  | "record_payload_project_ref_mismatch"
+  | "duplicate_id";
+
+export type RuntimeSemanticEntityWriteResult =
+  | { ok: true }
+  | { ok: false; reason: RuntimeSemanticEntityWriteFailureReason; message: string };
+
+/** Validate a typed runtime semantic record before persistence (RUNTIME-14). */
+export function validateRuntimeSemanticEntityForStorage(
+  record: RuntimeSemanticEntityRecord
+): RuntimeSemanticEntityWriteResult {
+  const scopeResult = ScopeKindSchema.safeParse(record.scope);
+  if (!scopeResult.success) {
+    return {
+      ok: false,
+      reason: "invalid_scope",
+      message: `Invalid record scope: ${record.scope}`,
+    };
+  }
+
+  if (!isFormatterRegistryKind(record.kind)) {
+    return {
+      ok: false,
+      reason: "unknown_kind",
+      message: `Unknown formatter registry kind: ${record.kind}`,
+    };
+  }
+
+  const parseResult = parseRuntimeEntityAtBoundary(record.kind, record.payload);
+  if (!parseResult.success) {
+    return {
+      ok: false,
+      reason: "invalid_input",
+      message: parseResult.error,
+    };
+  }
+
+  const payloadScope = extractPayloadScopeMetadata(record.kind, parseResult.value);
+  const alignmentSkip = validateRecordPayloadAlignment(record, payloadScope);
+  if (alignmentSkip !== undefined) {
+    return {
+      ok: false,
+      reason: alignmentSkip.reason,
+      message: alignmentSkip.message,
+    };
+  }
+
+  return { ok: true };
 }
 
 function resolveEnvelopeSkip(

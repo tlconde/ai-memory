@@ -122,7 +122,15 @@ export class RuntimeStore {
     this.db.prepare(`DELETE FROM runtime_queue WHERE id IN (${placeholders})`).run(...ids);
   }
 
-  /** Append a typed runtime semantic entity row (tests / future writers). */
+  /** True when a typed runtime semantic entity row exists for `id`. */
+  semanticEntityHas(id: string): boolean {
+    const row = this.db
+      .prepare(`SELECT 1 AS present FROM runtime_semantic_entity WHERE id = ? LIMIT 1`)
+      .get(id) as { present: 1 } | undefined;
+    return row !== undefined;
+  }
+
+  /** Low-level append of a typed runtime semantic entity row (prefer runtime-semantics writer). */
   semanticEntityInsert(row: RuntimeSemanticEntityRow): void {
     const maxRow = this.db
       .prepare(`SELECT COALESCE(MAX(position), 0) AS max_pos FROM runtime_semantic_entity`)

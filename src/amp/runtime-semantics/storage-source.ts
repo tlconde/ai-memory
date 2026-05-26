@@ -7,7 +7,8 @@
  *
  * Boundary ownership:
  * - RuntimeSemanticEntityReader: storage read boundary (records only, no parsing).
- * - RuntimeStoreSemanticEntityReader: production RuntimeStore adapter (RUNTIME-11).
+ * - RuntimeStoreSemanticEntityReader: production RuntimeStore read adapter (RUNTIME-11).
+ * - RuntimeStoreSemanticEntityWriter: validated write adapter (RUNTIME-14; see storage-writer.ts).
  * - RuntimeSemanticStorageEntitySource: RuntimeSemanticEntitySource adapter.
  * - materializeRuntimeProjectionFromSource: parse, validate, and format records.
  */

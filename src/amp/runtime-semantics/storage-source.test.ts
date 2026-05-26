@@ -15,6 +15,7 @@ import {
   RuntimeStoreSemanticEntityReader,
   type RuntimeSemanticEntityReader,
 } from "./storage-source.js";
+import { writeRuntimeSemanticEntity } from "./storage-writer.js";
 
 const ISO = "2026-05-26T12:00:00.000Z";
 const PROJECT_REF = "ai-memory";
@@ -246,13 +247,19 @@ describe("RuntimeSemanticStorageEntitySource with RuntimeStoreSemanticEntityRead
     const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-store-semantic-reader-materialize-"));
     const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
     try {
-      runtime.semanticEntityInsert({
-        id: "pref-1",
-        kind: "runtime-preference-candidate",
-        scope: "user",
-        payload: ACTIVE_PREFERENCE,
-        observed_at: ISO,
-      });
+      assert.equal(
+        writeRuntimeSemanticEntity(
+          runtime,
+          record({
+            id: "pref-1",
+            kind: "runtime-preference-candidate",
+            scope: "user",
+            payload: ACTIVE_PREFERENCE,
+            observed_at: ISO,
+          })
+        ).ok,
+        true
+      );
 
       const source = new RuntimeSemanticStorageEntitySource(
         new RuntimeStoreSemanticEntityReader(runtime)
