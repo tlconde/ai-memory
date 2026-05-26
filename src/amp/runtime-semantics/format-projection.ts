@@ -119,6 +119,32 @@ function formatEpisodicLineage(frame: EpisodicFrame): string[] {
   return ["Lineage:", ...lineageParts.map((part) => `- ${part}`)];
 }
 
+function formatEpisodicFrameHeading(
+  frame: EpisodicFrame,
+  metadataOnly: boolean,
+): string {
+  switch (frame.event_type) {
+    case "correction":
+      return metadataOnly
+        ? "Episodic correction (metadata only)"
+        : "Episodic correction (not durable truth)";
+    case "signal_observed":
+    case "goal_event":
+    case "decision_event":
+    case "hypothesis_event":
+    case "preference_event":
+    case "tool_attempt":
+    case "session_event":
+    case "projection_event":
+    case "rejection_event":
+      return metadataOnly ? "Episodic frame (metadata only)" : "Episodic frame";
+    default: {
+      const _exhaustive: never = frame.event_type;
+      throw new Error(`Unhandled episodic event_type: ${String(_exhaustive)}`);
+    }
+  }
+}
+
 function formatEpisodicMetadataOnly(
   frame: EpisodicFrame,
   heading: string,
@@ -421,7 +447,7 @@ function formatActiveEpisodicFrame(
   if (frame.sensitivity === "secret_redacted") {
     return formatEpisodicMetadataOnly(
       frame,
-      "Episodic frame (metadata only)",
+      formatEpisodicFrameHeading(frame, true),
       "[secret_redacted: summary and details omitted from runtime projection]",
     );
   }
@@ -429,13 +455,13 @@ function formatActiveEpisodicFrame(
   if (frame.sensitivity === "sensitive" && options.includeSensitive !== true) {
     return formatEpisodicMetadataOnly(
       frame,
-      "Episodic frame (metadata only)",
+      formatEpisodicFrameHeading(frame, true),
       "[sensitive: summary and details omitted from runtime projection]",
     );
   }
 
   const lines: string[] = [
-    "Episodic frame",
+    formatEpisodicFrameHeading(frame, false),
     formatScopeLine(frame.scope, frame.project_ref),
     frame.summary,
     `confidence: ${frame.confidence}`,

@@ -457,10 +457,11 @@ describe("formatHarnessOperationalStateForRuntime", () => {
 });
 
 describe("formatEpisodicFrameForRuntime", () => {
-  it("renders active frames with summary and lineage", () => {
+  it("renders active correction frames with episodic context wording", () => {
     const formatted = formatEpisodicFrameForRuntime(ACTIVE_EPISODIC_FRAME);
     assert.ok(formatted);
     const text = textOf(formatted);
+    assert.match(text, /Episodic correction \(not durable truth\)/);
     assert.match(text, /User corrected the storage approach/);
     assert.match(text, /Lineage/i);
     assert.match(text, /frame-v1/);

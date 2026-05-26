@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { FIXTURE_ISO } from "../runtime-semantics/runtime-semantics.test-fixture.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
 import { runAmpInit } from "./init.js";
+import { createProjectionRenderSource } from "./projection-source.js";
 import { runAmpRuntimeInspect } from "./runtime-inspect.js";
 import {
   formatAmpRuntimeCorrectReport,
@@ -75,6 +76,44 @@ describe("runAmpRuntimeCorrect", () => {
     assert.match(text, /correction-frame-123/);
     assert.match(text, /Reclassify as correction_event/);
     assert.match(text, /OK Runtime correction captured/);
+  });
+
+  it("surfaces explicit corrections in local runtime projection output", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("correct-projection");
+    const note = "Correction visible in runtime projection";
+
+    const result = runAmpRuntimeCorrect({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      id: "frame-proj",
+      note,
+      recordId: "correction-frame-proj",
+      scope: "project",
+      occurredAt: FIXTURE_ISO,
+      recordedAt: FIXTURE_ISO,
+    });
+    assert.equal(result.ok, true);
+
+    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const resolved = createProjectionRenderSource({
+      sourceKind: "local",
+      projectRef: context.projectRef,
+      runtimeDbPath: context.runtimeDbPath,
+      env,
+    });
+    assert.ok(!("error" in resolved));
+    try {
+      const documents = resolved.source.loadProjectionDocuments({
+        projectRef: context.projectRef,
+      });
+      const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
+      assert.ok(projectRuntime);
+      assert.match(projectRuntime.body, new RegExp(note));
+      assert.match(projectRuntime.body, /Episodic correction \(not durable truth\)/);
+    } finally {
+      resolved.cleanup();
+    }
   });
 
   it("returns duplicate_id for repeated correction record ids", async () => {
