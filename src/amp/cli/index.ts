@@ -29,14 +29,16 @@ import { formatAmpRetrieveMessages, runAmpRetrieve } from "./retrieve.js";
 import {
   formatAmpRuntimeCorrectJson,
   formatAmpRuntimeCorrectReport,
-  formatAmpRuntimeInspectJson,
-  formatAmpRuntimeInspectReport,
   formatAmpRuntimeStatusReport,
   runAmpRuntimeCorrect,
-  runAmpRuntimeInspect,
   runAmpRuntimeStatus,
   writeAmpRuntimeCliResult,
 } from "./runtime.js";
+import {
+  formatAmpRuntimeInspectJson,
+  formatAmpRuntimeInspectReport,
+  runAmpRuntimeInspect,
+} from "./runtime-inspect.js";
 import {
   formatAmpRuntimeSeedJson,
   formatAmpRuntimeSeedReport,
@@ -316,7 +318,9 @@ export function registerAmpCommands(
 
   const runtime = amp
     .command("runtime")
-    .description("Runtime semantics inspection and correction (local-only stubs)");
+    .description(
+      "Runtime semantics inspection, seeding, and correction (inspect/seed read local typed storage; correct unwired)"
+    );
 
   runtime
     .command("status")
@@ -330,7 +334,9 @@ export function registerAmpCommands(
 
   runtime
     .command("inspect")
-    .description("Inspect runtime semantic state (read-only stub until storage is wired)")
+    .description(
+      "Experimental operator command — inspect persisted typed runtime semantic entities (read-only)"
+    )
     .option("--project-root <path>", "Project root (default: current directory)")
     .option("--entity <kind>", "Runtime entity kind slug (e.g. episodic-frame)")
     .option("--json", "Emit JSON instead of human-readable report")
@@ -409,7 +415,7 @@ export function registerAmpCommands(
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local when AMP_KNOWLEDGE_BACKEND=in-memory; gbrain read-only source with --source gbrain), runtime status/inspect/correct (schema stubs; storage not wired), runtime seed (experimental operator JSON seeding), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local when AMP_KNOWLEDGE_BACKEND=in-memory; gbrain read-only source with --source gbrain), runtime status/inspect/seed (typed entity inspect/seed on local storage; correct unwired), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
       );
     });
 

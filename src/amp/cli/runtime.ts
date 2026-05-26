@@ -1,29 +1,24 @@
 /**
- * `amp runtime status|inspect|correct` — runtime semantics CLI stubs (RUNTIME-03).
+ * `amp runtime status|correct` — runtime semantics CLI (RUNTIME-03).
  *
- * Falsifiable claim: status lists supported entity schemas; inspect validates entity
- * kinds read-only; correct records intent but refuses durable mutation until wired.
+ * Falsifiable claim: status lists supported entity schemas; correct records intent
+ * but refuses durable mutation until wired. Persisted entity inspect lives in
+ * runtime-inspect.ts (RUNTIME-18).
  */
 
 import { resolve } from "node:path";
 
 import {
   RUNTIME_CORRECT_NOT_WIRED,
-  RUNTIME_INSPECT_NOT_WIRED,
   RUNTIME_STORAGE_NOT_WIRED,
 } from "../runtime-semantics/messages.js";
 import {
-  RUNTIME_ENTITY_REGISTRY,
   RUNTIME_ENTITY_SCHEMA_NAMES,
-  type RuntimeEntityKind,
   type RuntimeEntitySchemaName,
-  isRuntimeEntityKind,
-  runtimeEntitySchemaNameForKind,
 } from "../runtime-semantics/schema.js";
 
 export {
   RUNTIME_CORRECT_NOT_WIRED,
-  RUNTIME_INSPECT_NOT_WIRED,
   RUNTIME_STORAGE_NOT_WIRED,
 } from "../runtime-semantics/messages.js";
 
@@ -56,92 +51,11 @@ export function formatAmpRuntimeStatusReport(result: AmpRuntimeStatusResult): st
 
   lines.push("");
   lines.push(`NOTE ${RUNTIME_STORAGE_NOT_WIRED}`);
-  lines.push("OK Runtime semantics schemas are available; use `amp runtime inspect` once storage is wired.");
-
-  return lines;
-}
-
-export interface AmpRuntimeInspectOptions {
-  projectRoot?: string;
-  entity?: string;
-}
-
-export interface AmpRuntimeInspectResult {
-  projectRoot: string;
-  entity?: RuntimeEntityKind;
-  entitySchemaName?: RuntimeEntitySchemaName;
-  storageWired: false;
-  ok: boolean;
-  error?: string;
-}
-
-/** Read-only runtime inspect stub; validates entity kind without storage access. */
-export function runAmpRuntimeInspect(
-  options: AmpRuntimeInspectOptions = {}
-): AmpRuntimeInspectResult {
-  const projectRoot = resolve(options.projectRoot ?? process.cwd());
-
-  let entity: RuntimeEntityKind | undefined;
-  if (options.entity !== undefined) {
-    if (!isRuntimeEntityKind(options.entity)) {
-      const expected = RUNTIME_ENTITY_REGISTRY.map((entry) => entry.kind).join(", ");
-      return {
-        projectRoot,
-        storageWired: false,
-        ok: false,
-        error: `Invalid runtime entity kind "${options.entity}" — expected one of: ${expected}.`,
-      };
-    }
-    entity = options.entity;
-  }
-
-  return {
-    projectRoot,
-    entity,
-    entitySchemaName: entity ? runtimeEntitySchemaNameForKind(entity) : undefined,
-    storageWired: false,
-    ok: true,
-  };
-}
-
-/** Human-readable runtime inspect report lines for CLI and tests. */
-export function formatAmpRuntimeInspectReport(result: AmpRuntimeInspectResult): string[] {
-  const lines = [`AMP runtime inspect — ${result.projectRoot}`, ""];
-
-  if (result.error) {
-    lines.push(`  ERROR ${result.error}`);
-    lines.push("");
-    lines.push("ERROR Runtime inspect did not run.");
-    return lines;
-  }
-
-  if (result.entity) {
-    lines.push(`  entity: ${result.entity} (${result.entitySchemaName})`);
-    lines.push("");
-  }
-
-  lines.push(`  NOTE ${RUNTIME_INSPECT_NOT_WIRED}`);
-  lines.push("");
-  lines.push("OK Runtime inspect stub finished read-only; no state was mutated.");
-
-  return lines;
-}
-
-/** JSON payload for `amp runtime inspect --json`. */
-export function formatAmpRuntimeInspectJson(result: AmpRuntimeInspectResult): string {
-  return JSON.stringify(
-    {
-      ok: result.ok,
-      projectRoot: result.projectRoot,
-      entity: result.entity ?? null,
-      entitySchemaName: result.entitySchemaName ?? null,
-      storageWired: result.storageWired,
-      error: result.error ?? null,
-      message: result.ok ? RUNTIME_INSPECT_NOT_WIRED : null,
-    },
-    null,
-    2
+  lines.push(
+    "OK Runtime semantics schemas are available; use `amp runtime inspect` to read persisted typed entities (experimental).",
   );
+
+  return lines;
 }
 
 export interface AmpRuntimeCorrectOptions {

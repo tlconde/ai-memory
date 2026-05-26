@@ -6,14 +6,10 @@ import { RUNTIME_ENTITY_SCHEMA_NAMES } from "../runtime-semantics/schema.js";
 import { registerAmpCommands } from "./index.js";
 import {
   formatAmpRuntimeCorrectReport,
-  formatAmpRuntimeInspectJson,
-  formatAmpRuntimeInspectReport,
   formatAmpRuntimeStatusReport,
   runAmpRuntimeCorrect,
-  runAmpRuntimeInspect,
   runAmpRuntimeStatus,
   RUNTIME_CORRECT_NOT_WIRED,
-  RUNTIME_INSPECT_NOT_WIRED,
   RUNTIME_STORAGE_NOT_WIRED,
 } from "./runtime.js";
 
@@ -33,56 +29,6 @@ describe("runAmpRuntimeStatus", () => {
     assert.match(text, /EpisodicFrame/);
     assert.match(text, /DormantSnapshot/);
     assert.match(text, new RegExp(RUNTIME_STORAGE_NOT_WIRED.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  });
-});
-
-describe("runAmpRuntimeInspect", () => {
-  it("succeeds as read-only stub for episodic-frame", () => {
-    const result = runAmpRuntimeInspect({
-      projectRoot: "/tmp/demo",
-      entity: "episodic-frame",
-    });
-
-    assert.equal(result.ok, true);
-    assert.equal(result.entity, "episodic-frame");
-    assert.equal(result.entitySchemaName, "EpisodicFrame");
-    assert.equal(result.storageWired, false);
-
-    const text = formatAmpRuntimeInspectReport(result).join("\n");
-    assert.match(text, /episodic-frame \(EpisodicFrame\)/);
-    assert.match(text, new RegExp(RUNTIME_INSPECT_NOT_WIRED.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    assert.match(text, /no state was mutated/);
-  });
-
-  it("rejects invalid entity kind with clear error", () => {
-    const result = runAmpRuntimeInspect({ entity: "not-a-real-kind" });
-
-    assert.equal(result.ok, false);
-    assert.match(result.error ?? "", /Invalid runtime entity kind "not-a-real-kind"/);
-    assert.match(result.error ?? "", /episodic-frame/);
-
-    const text = formatAmpRuntimeInspectReport(result).join("\n");
-    assert.match(text, /ERROR Runtime inspect did not run/);
-  });
-
-  it("returns parseable JSON with --json formatting helper", () => {
-    const result = runAmpRuntimeInspect({
-      projectRoot: "/tmp/demo",
-      entity: "dormant-snapshot",
-    });
-    const payload = JSON.parse(formatAmpRuntimeInspectJson(result)) as {
-      ok: boolean;
-      entity: string;
-      entitySchemaName: string;
-      storageWired: boolean;
-      message: string;
-    };
-
-    assert.equal(payload.ok, true);
-    assert.equal(payload.entity, "dormant-snapshot");
-    assert.equal(payload.entitySchemaName, "DormantSnapshot");
-    assert.equal(payload.storageWired, false);
-    assert.equal(payload.message, RUNTIME_INSPECT_NOT_WIRED);
   });
 });
 
@@ -163,7 +109,7 @@ describe("registerAmpCommands runtime group", () => {
     }
 
     const output = chunks.join("");
-    assert.match(output, /runtime status\/inspect\/correct/);
-    assert.match(output, /storage not wired/);
+    assert.match(output, /runtime status\/inspect\/seed/);
+    assert.match(output, /typed entity inspect\/seed/);
   });
 });
