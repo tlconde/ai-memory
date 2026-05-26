@@ -24,6 +24,11 @@ import {
   InMemoryRuntimeSemanticEntitySource,
   type RuntimeSemanticEntityRecord,
 } from "../runtime-semantics/projection-source.js";
+import {
+  RuntimeSemanticStorageEntitySource,
+  RuntimeStoreSemanticEntityReader,
+  type RuntimeSemanticEntityReader,
+} from "../runtime-semantics/storage-source.js";
 import { capturePreference } from "../substrate/capture-preference.js";
 import { AMP_KNOWLEDGE_BACKEND_ENV } from "./knowledge-backend.js";
 import { createProjectionRenderSource } from "./projection-source.js";
@@ -57,6 +62,12 @@ function gbrainAdapterFromSource(source: GbrainProjectionSource): GbrainKnowledg
 
 function localOptionsFromSource(source: LocalProjectionSource): LocalProjectionSourceOptions {
   return (source as unknown as { options: LocalProjectionSourceOptions }).options;
+}
+
+function storageSourceReaderFromSource(
+  source: RuntimeSemanticStorageEntitySource
+): RuntimeSemanticEntityReader {
+  return (source as unknown as { reader: RuntimeSemanticEntityReader }).reader;
 }
 
 function normalizeGeneratedAt(documents: ProjectionDocument[]): ProjectionDocument[] {
@@ -123,7 +134,6 @@ describe("createProjectionRenderSource local", () => {
 
       assert.ok(!("error" in resolved));
       assert.ok(resolved.source instanceof LocalProjectionSource);
-      assert.equal(localOptionsFromSource(resolved.source).runtimeSemanticSource, undefined);
 
       const documents = resolved.source.loadProjectionDocuments({
         projectRef: LOCAL_PROJECT_REF,
@@ -139,6 +149,31 @@ describe("createProjectionRenderSource local", () => {
       const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
       assert.match(projectRuntime?.body ?? "", /Queued project runtime note\./);
       assert.doesNotMatch(projectRuntime?.body ?? "", /Typed runtime semantics/);
+    } finally {
+      runtime.close();
+    }
+  });
+
+  it("wires default RuntimeSemanticStorageEntitySource when runtimeSemanticSource is omitted", () => {
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "local-default-semantic-source.db") });
+    const knowledge = new InMemoryKnowledgeStore();
+    try {
+      const resolved = createProjectionRenderSource({
+        sourceKind: "local",
+        projectRef: LOCAL_PROJECT_REF,
+        runtimeDbPath: join(tempDir, "local-default-semantic-source.db"),
+        knowledgeStore: knowledge,
+        env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "in-memory" },
+        deps: { openRuntimeStore: () => runtime },
+      });
+
+      assert.ok(!("error" in resolved));
+      const semanticSource = localOptionsFromSource(resolved.source).runtimeSemanticSource;
+      assert.ok(semanticSource instanceof RuntimeSemanticStorageEntitySource);
+
+      const reader = storageSourceReaderFromSource(semanticSource);
+      assert.ok(reader instanceof RuntimeStoreSemanticEntityReader);
+      assert.deepEqual(semanticSource.listEntities(), []);
     } finally {
       runtime.close();
     }
@@ -161,10 +196,9 @@ describe("createProjectionRenderSource local", () => {
 
       assert.ok(!("error" in resolved));
       assert.ok(resolved.source instanceof LocalProjectionSource);
-      assert.equal(
-        localOptionsFromSource(resolved.source).runtimeSemanticSource,
-        runtimeSemanticSource,
-      );
+      const wired = localOptionsFromSource(resolved.source).runtimeSemanticSource;
+      assert.equal(wired, runtimeSemanticSource);
+      assert.ok(!(wired instanceof RuntimeSemanticStorageEntitySource));
 
       const documents = resolved.source.loadProjectionDocuments({
         projectRef: LOCAL_PROJECT_REF,

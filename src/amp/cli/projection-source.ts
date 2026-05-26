@@ -23,6 +23,10 @@ import {
   type ProjectionSource,
 } from "../projection/index.js";
 import type { RuntimeSemanticEntitySource } from "../runtime-semantics/projection-source.js";
+import {
+  RuntimeSemanticStorageEntitySource,
+  RuntimeStoreSemanticEntityReader,
+} from "../runtime-semantics/storage-source.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import {
   collectGbrainPreflightChecks,
@@ -56,8 +60,9 @@ export interface CreateProjectionRenderSourceOptions {
   spawnFn?: GbrainPreflightSpawnFn;
   deps?: ProjectionSourceFactoryDeps;
   /**
-   * Test/DI only: typed runtime semantics wired into local projection source.
-   * Omitted preserves queue-only local projection output.
+   * Optional override for local typed runtime semantics. When omitted, the factory
+   * wires {@link RuntimeSemanticStorageEntitySource} with default-empty
+   * {@link RuntimeStoreSemanticEntityReader} (queue-only output until typed tables exist).
    */
   runtimeSemanticSource?: RuntimeSemanticEntitySource;
 }
@@ -126,6 +131,16 @@ function resolveGbrainProjectionAdapter(
   }
 }
 
+function resolveLocalRuntimeSemanticSource(
+  runtime: RuntimeStore,
+  override?: RuntimeSemanticEntitySource
+): RuntimeSemanticEntitySource {
+  return (
+    override ??
+    new RuntimeSemanticStorageEntitySource(new RuntimeStoreSemanticEntityReader(runtime))
+  );
+}
+
 function createRuntimeBackedProjectionSource<T extends ProjectionSource>(
   runtimeDbPath: string,
   openStore: (dbPath: string) => RuntimeStore,
@@ -190,7 +205,7 @@ export function createProjectionRenderSource(
         knowledge: knowledgeResult.store,
         runtime,
         projectRef,
-        runtimeSemanticSource,
+        runtimeSemanticSource: resolveLocalRuntimeSemanticSource(runtime, runtimeSemanticSource),
       })
   );
 }
