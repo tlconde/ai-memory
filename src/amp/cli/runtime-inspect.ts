@@ -72,26 +72,24 @@ export interface AmpRuntimeInspectResult {
 function toInspectRecordEntry(
   record: RuntimeSemanticEntityRecord,
 ): AmpRuntimeInspectRecordEntry {
-  const parseResult = safeParseRuntimeSemanticEntityRecordFromUnknown(record);
-  if (parseResult.ok) {
-    return {
-      id: record.id,
-      kind: record.kind,
-      scope: record.scope,
-      ...(record.project_ref ? { project_ref: record.project_ref } : {}),
-      ...(record.observed_at ? { observed_at: record.observed_at } : {}),
-      payload: record.payload,
-      ok: true,
-    };
-  }
-
-  return {
+  const base = {
     id: record.id,
     kind: record.kind,
     scope: record.scope,
     ...(record.project_ref ? { project_ref: record.project_ref } : {}),
     ...(record.observed_at ? { observed_at: record.observed_at } : {}),
     payload: record.payload,
+  };
+  const parseResult = safeParseRuntimeSemanticEntityRecordFromUnknown(record);
+  if (parseResult.ok) {
+    return {
+      ...base,
+      ok: true,
+    };
+  }
+
+  return {
+    ...base,
     ok: false,
     reason: parseResult.reason,
     message: parseResult.message,

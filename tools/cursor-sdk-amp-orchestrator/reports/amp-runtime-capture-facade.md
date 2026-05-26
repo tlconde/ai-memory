@@ -32,10 +32,26 @@ createRuntimeSemanticCaptureFacade(runtime, deps?) → {
 Both methods:
 
 - Fail closed through existing validation (`validateRuntimeSemanticEntityForStorage`, correction mapper guards)
+- Enforce facade-level provenance gates for schemas with schema-native lineage fields (`validateRuntimeSemanticEntityWriteProvenance`)
 - Write **only** to `runtime_semantic_entity` via `writeRuntimeSemanticEntity`
 - Never touch runtime queue rows, projection documents, or gbrain
 
 Optional `deps.writeEntity` supports test doubles without changing production validation.
+
+## Provenance gate (RUNTIME-28)
+
+The facade is the production-facing write boundary for future capture/consolidation. It requires traceable provenance before persistence when the target schema has an appropriate lineage surface:
+
+| Kind | Required provenance surface |
+|------|-----------------------------|
+| `episodic-frame` | non-blank `provenance.transform_id` |
+| `runtime-preference-candidate` | at least one non-blank `source_signal_ids` entry |
+| `runtime-crystal-candidate` | non-blank `source_signal_ids` or `lineage.transform_id` |
+| `unresolved-decision` | at least one non-blank `provenance` ref |
+| `current-decision-leaning` | non-blank `source_signal_id` |
+| `harness-operational-state` | at least one non-blank `source_signal_ids` entry |
+
+`rejected-signal-log` and `dormant-snapshot` are exempt because their schemas already carry specialized audit/snapshot lineage and they are not normal production capture outputs. Low-level storage tests may still use `RuntimeStore.semanticEntityInsert` or `writeRuntimeSemanticEntity`; new production writers should use the facade.
 
 ---
 
@@ -80,6 +96,7 @@ Low-level modules (`capture-correction.ts`, `storage-writer.ts`) remain for unit
 | Facade correction persists for inspect + projection | `capture-facade.test.ts` |
 | Invalid correction fails before storage | `capture-facade.test.ts` |
 | Generic write validates and rejects invalid records | `capture-facade.test.ts` |
+| Generic facade write rejects missing provenance | `provenance-validation.test.ts`, `capture-facade.test.ts` |
 | No queue rows on any facade path | `capture-facade.test.ts` |
 | CLI still works through facade | `runtime-correct.test.ts` |
 

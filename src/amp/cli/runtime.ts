@@ -100,10 +100,6 @@ export interface AmpRuntimeCorrectResult {
   reason?: CaptureRuntimeCorrectionFailureReason;
 }
 
-function defaultCorrectionRecordId(targetEntityId: string): string {
-  return defaultExplicitCorrectionRecordId(targetEntityId);
-}
-
 function defaultCorrectionTimestamps(options: {
   id: string;
   note: string;
@@ -139,7 +135,7 @@ export function runAmpRuntimeCorrect(options: AmpRuntimeCorrectOptions): AmpRunt
   const inferredScope: ScopeKind =
     options.scope ?? (bootstrap.projectRef ? "project" : "user");
   const projectRef = options.projectRef ?? bootstrap.projectRef;
-  const recordId = options.recordId ?? defaultCorrectionRecordId(options.id);
+  const recordId = options.recordId ?? defaultExplicitCorrectionRecordId(options.id);
   let occurredAt = options.occurredAt;
   let recordedAt = options.recordedAt;
   if (occurredAt === undefined && recordedAt === undefined) {

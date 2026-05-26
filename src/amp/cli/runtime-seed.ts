@@ -19,9 +19,9 @@ import {
   runtimeSemanticEntityRecordIdFromUnknown,
   safeParseRuntimeSemanticEntityRecordFromUnknown,
 } from "../runtime-semantics/entity-record-parse.js";
-import type { RuntimeSemanticEntityWriteFailureReason } from "../runtime-semantics/storage-validation.js";
 import {
   createRuntimeSemanticCaptureFacade,
+  type RuntimeSemanticCaptureEntityWriteFailureReason,
   type RuntimeSemanticCaptureFacadeDeps,
 } from "../runtime-semantics/capture-facade.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
@@ -33,7 +33,7 @@ import {
 
 export type AmpRuntimeSeedRecordFailureReason =
   | RuntimeSemanticEntityRecordParseFailureReason
-  | Extract<RuntimeSemanticEntityWriteFailureReason, "duplicate_id">;
+  | RuntimeSemanticCaptureEntityWriteFailureReason;
 
 export type AmpRuntimeSeedItemResult =
   | { id: string; ok: true }

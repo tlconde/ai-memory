@@ -8,6 +8,7 @@
  * Boundary ownership:
  * - capture-correction: explicit correction mapping + validated write.
  * - storage-writer: generic validated typed entity write.
+ * - provenance-validation: facade-only production gate for traceable writes.
  * - capture-facade (this module): single internal entry point for supported captures.
  */
 
@@ -17,13 +18,14 @@ import {
   type CaptureRuntimeCorrectionFailureReason,
   type CaptureRuntimeCorrectionResult,
   type ExplicitRuntimeCorrectionCaptureInput,
+  type RuntimeSemanticCaptureEntityWrite,
+  type RuntimeSemanticCaptureEntityWriteFailureReason,
+  type RuntimeSemanticCaptureEntityWriteResult,
+  type CaptureRuntimeCorrectionDeps,
 } from "./capture-correction.js";
 import type { RuntimeSemanticEntityRecord } from "./entity-record.js";
-import {
-  writeRuntimeSemanticEntity,
-  writeRuntimeSemanticEntityWithRecordId,
-} from "./storage-writer.js";
-import type { CaptureRuntimeCorrectionDeps } from "./capture-correction.js";
+import { validateRuntimeSemanticEntityWriteProvenance } from "./provenance-validation.js";
+import { writeRuntimeSemanticEntity } from "./storage-writer.js";
 
 export interface RuntimeSemanticCaptureFacadeDeps extends CaptureRuntimeCorrectionDeps {}
 
@@ -37,13 +39,32 @@ export interface RuntimeSemanticCaptureFacade {
 }
 
 export type RuntimeSemanticCaptureWriteResult =
-  import("./storage-writer.js").RuntimeSemanticEntityWriteWithIdResult;
+  | { ok: true; recordId: string }
+  | {
+      ok: false;
+      reason: RuntimeSemanticCaptureEntityWriteFailureReason;
+      message: string;
+    };
 
 export type {
   CaptureRuntimeCorrectionFailureReason,
   CaptureRuntimeCorrectionResult,
   ExplicitRuntimeCorrectionCaptureInput,
+  RuntimeSemanticCaptureEntityWriteFailureReason,
 };
+
+function writeRuntimeSemanticEntityWithFacadeContract(
+  runtime: RuntimeStore,
+  record: RuntimeSemanticEntityRecord,
+  writeEntity: RuntimeSemanticCaptureEntityWrite,
+): RuntimeSemanticCaptureEntityWriteResult {
+  const provenanceValidation = validateRuntimeSemanticEntityWriteProvenance(record);
+  if (!provenanceValidation.ok) {
+    return provenanceValidation;
+  }
+
+  return writeEntity(runtime, record);
+}
 
 /** Create a capture facade bound to one {@link RuntimeStore} instance. */
 export function createRuntimeSemanticCaptureFacade(
@@ -51,13 +72,24 @@ export function createRuntimeSemanticCaptureFacade(
   deps: RuntimeSemanticCaptureFacadeDeps = {},
 ): RuntimeSemanticCaptureFacade {
   const writeEntity = deps.writeEntity ?? writeRuntimeSemanticEntity;
+  const writeEntityWithFacadeContract = (
+    runtime: RuntimeStore,
+    record: RuntimeSemanticEntityRecord,
+  ): RuntimeSemanticCaptureEntityWriteResult =>
+    writeRuntimeSemanticEntityWithFacadeContract(runtime, record, writeEntity);
 
   return {
     captureExplicitCorrection(input) {
-      return captureRuntimeCorrection(runtime, input, { writeEntity });
+      return captureRuntimeCorrection(runtime, input, {
+        writeEntity: writeEntityWithFacadeContract,
+      });
     },
     writeValidatedEntity(record) {
-      return writeRuntimeSemanticEntityWithRecordId(runtime, record, writeEntity);
+      const writeResult = writeEntityWithFacadeContract(runtime, record);
+      if (!writeResult.ok) {
+        return writeResult;
+      }
+      return { ok: true, recordId: record.id };
     },
   };
 }

@@ -18,6 +18,7 @@ import {
   ACTIVE_PREFERENCE,
   FIXTURE_ISO,
   FIXTURE_PROJECT_REF,
+  TRACEABLE_EPISODIC_FRAME,
 } from "./runtime-semantics.test-fixture.js";
 
 describe("createRuntimeSemanticCaptureFacade", () => {
@@ -127,4 +128,60 @@ describe("createRuntimeSemanticCaptureFacade", () => {
       await rm(tempDir, { recursive: true, force: true });
     }
   });
+
+  it("rejects generic episodic-frame writes without transform provenance", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-capture-facade-provenance-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+
+    try {
+      const facade = createRuntimeSemanticCaptureFacade(runtime);
+      const result = facade.writeValidatedEntity({
+        id: "episodic-missing-provenance",
+        kind: "episodic-frame",
+        scope: "user",
+        payload: {
+          ...TRACEABLE_EPISODIC_FRAME,
+          id: "episodic-missing-provenance",
+          provenance: {},
+        },
+      });
+
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.equal(result.reason, "missing_provenance_transform_id");
+      }
+      assert.deepEqual(runtime.semanticEntityList(), []);
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts generic episodic-frame writes with transform provenance", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-capture-facade-provenance-ok-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+
+    try {
+      const facade = createRuntimeSemanticCaptureFacade(runtime);
+      const result = facade.writeValidatedEntity({
+        id: "episodic-valid-provenance",
+        kind: "episodic-frame",
+        scope: "user",
+        payload: {
+          ...TRACEABLE_EPISODIC_FRAME,
+          id: "episodic-valid-provenance",
+        },
+      });
+
+      assert.deepEqual(result, { ok: true, recordId: "episodic-valid-provenance" });
+      assert.deepEqual(
+        runtime.semanticEntityList().map((row) => row.id),
+        ["episodic-valid-provenance"],
+      );
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
 });

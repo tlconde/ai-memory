@@ -5,6 +5,7 @@
 import type { RuntimeSemanticEntityRecord } from "./entity-record.js";
 import type {
   CurrentDecisionLeaning,
+  EpisodicFrame,
   RejectedSignalLog,
   RuntimePreferenceCandidate,
   UnresolvedDecision,
@@ -36,6 +37,32 @@ export const VALID_ACTIVE_PREFERENCE_RECORD: RuntimeSemanticEntityRecord = {
   kind: "runtime-preference-candidate",
   scope: "user",
   payload: ACTIVE_PREFERENCE,
+};
+
+export const TRACEABLE_EPISODIC_FRAME: EpisodicFrame = {
+  id: "episodic-facade",
+  event_type: "session_event",
+  summary: "Facade generic episodic write",
+  details: {
+    source_surface: "test",
+  },
+  tags: [],
+  scope: "user",
+  curation_mode: "personal",
+  occurred_at: FIXTURE_ISO,
+  recorded_at: FIXTURE_ISO,
+  source_signals: ["signal-facade-1"],
+  related_entities: {},
+  evidence_refs: [],
+  provenance: {
+    transform_id: "test.generic-episodic.v1",
+  },
+  confidence: "medium",
+  source: "agent_inferred",
+  sensitivity: "normal",
+  visibility: "user_private",
+  pinned: false,
+  lifecycle_state: "active",
 };
 
 export const OPEN_DECISION: UnresolvedDecision = {

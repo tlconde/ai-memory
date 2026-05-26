@@ -16,7 +16,6 @@ import type { RuntimeSemanticEntityRecord } from "./entity-record.js";
 import { recordToRow } from "./storage-mapper.js";
 import {
   validateRuntimeSemanticEntityForStorage,
-  type RuntimeSemanticEntityWriteFailureReason,
   type RuntimeSemanticEntityWriteResult,
 } from "./storage-validation.js";
 
@@ -69,21 +68,4 @@ export function writeRuntimeSemanticEntity(
   record: RuntimeSemanticEntityRecord
 ): RuntimeSemanticEntityWriteResult {
   return new RuntimeStoreSemanticEntityWriter(runtime).write(record);
-}
-
-export type RuntimeSemanticEntityWriteWithIdResult =
-  | { ok: true; recordId: string }
-  | { ok: false; reason: RuntimeSemanticEntityWriteFailureReason; message: string };
-
-/** Validated write that returns the persisted record id on success. */
-export function writeRuntimeSemanticEntityWithRecordId(
-  runtime: RuntimeStore,
-  record: RuntimeSemanticEntityRecord,
-  writeEntity: typeof writeRuntimeSemanticEntity = writeRuntimeSemanticEntity,
-): RuntimeSemanticEntityWriteWithIdResult {
-  const writeResult = writeEntity(runtime, record);
-  if (!writeResult.ok) {
-    return writeResult;
-  }
-  return { ok: true, recordId: record.id };
 }

@@ -33,6 +33,7 @@ export {
 } from "./projection-source.js";
 
 export { validateRuntimeSemanticEntityForStorage } from "./storage-validation.js";
+export { validateRuntimeSemanticEntityWriteProvenance } from "./provenance-validation.js";
 
 export {
   parseRuntimeSemanticEntityRecordFromUnknown,
@@ -49,7 +50,6 @@ export {
   RuntimeStoreSemanticEntityWriter,
   writeRuntimeSemanticEntity,
 } from "./storage-writer.js";
-// Low-level write helpers above; prefer createRuntimeSemanticCaptureFacade for production writers.
 
 export {
   createRuntimeSemanticCaptureFacade,
@@ -94,6 +94,11 @@ export type {
   RuntimeSemanticEntityWriteFailureReason,
   RuntimeSemanticEntityWriteResult,
 } from "./storage-validation.js";
+
+export type {
+  RuntimeSemanticEntityProvenanceFailureReason,
+  RuntimeSemanticEntityProvenanceValidationResult,
+} from "./provenance-validation.js";
 
 export type {
   RuntimeSemanticEntityRecordParseFailureReason,
