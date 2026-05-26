@@ -20,6 +20,7 @@ The facade lives in `src/amp/runtime-semantics/capture-facade.ts` and is bound t
 ```ts
 createRuntimeSemanticCaptureFacade(runtime, deps?) → {
   captureExplicitCorrection(input): CaptureRuntimeCorrectionResult
+  captureRuntimePreferenceCandidate(input): CaptureRuntimePreferenceCandidateResult
   captureRejectedSignalAudit(input): CaptureRejectedRuntimeSignalResult
   filterAndCaptureRejectedSignal(input): FilteredRuntimeCaptureResult
   writeValidatedEntity(record): RuntimeSemanticCaptureWriteResult
@@ -29,6 +30,7 @@ createRuntimeSemanticCaptureFacade(runtime, deps?) → {
 | Method | Delegates to | Use when |
 |--------|--------------|----------|
 | `captureExplicitCorrection` | `captureRuntimeCorrection` → `writeRuntimeSemanticEntity` | Operator explicit corrections (RUNTIME-23) |
+| `captureRuntimePreferenceCandidate` | `captureRuntimePreferenceCandidate` | Typed runtime preference candidates (RUNTIME-06+) |
 | `captureRejectedSignalAudit` | `captureRejectedRuntimeSignal` | Pre-mapped rejected-signal audit rows (RUNTIME-06) |
 | `filterAndCaptureRejectedSignal` | `filterAndCaptureRejectedRuntimeSignal` | Evaluate exclusion + persist audit on reject (RUNTIME-06) |
 | `writeValidatedEntity` | `writeRuntimeSemanticEntity` | Generic typed entity persistence (seed, future consolidation writers) |
@@ -101,6 +103,7 @@ Low-level modules (`capture-correction.ts`, `storage-writer.ts`) remain for unit
 | Invalid correction fails before storage | `capture-facade.test.ts` |
 | Generic write validates and rejects invalid records | `capture-facade.test.ts` |
 | Generic facade write rejects missing provenance | `provenance-validation.test.ts`, `capture-facade.test.ts` |
+| Preference candidate capture persists + projects | `capture-preference-candidate.test.ts` |
 | No queue rows on any facade path | `capture-facade.test.ts` |
 | CLI still works through facade | `runtime-correct.test.ts` |
 
@@ -115,7 +118,7 @@ Same as explicit correction contract (RUNTIME-25):
 - No queue migration
 - No gbrain writes
 
-The facade is a **structural** hook only; it does not expand supported capture types beyond explicit correction + generic validated write.
+The facade is a **structural** hook; it does not replace `amp capture` queue behavior, wire automatic capture, or promote runtime entities to durable semantic frames.
 
 ---
 

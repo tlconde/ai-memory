@@ -7,6 +7,7 @@
  *
  * Boundary ownership:
  * - capture-correction: explicit correction mapping + validated write.
+ * - capture-preference-candidate: explicit preference candidate mapping + validated write.
  * - capture-rejected-signal: exclusion audit mapping + validated write.
  * - storage-writer: generic validated typed entity write.
  * - provenance-validation: facade-only production gate for traceable writes.
@@ -25,6 +26,13 @@ import {
   type CaptureRuntimeCorrectionDeps,
 } from "./capture-correction.js";
 import {
+  captureRuntimePreferenceCandidate,
+  type CaptureRuntimePreferenceCandidateFailureReason,
+  type CaptureRuntimePreferenceCandidateInput,
+  type CaptureRuntimePreferenceCandidateResult,
+  type CaptureRuntimePreferenceCandidateDeps,
+} from "./capture-preference-candidate.js";
+import {
   captureRejectedRuntimeSignal,
   filterAndCaptureRejectedRuntimeSignal,
   type CaptureRejectedRuntimeSignalFailureReason,
@@ -41,12 +49,16 @@ import { writeRuntimeSemanticEntity } from "./storage-writer.js";
 
 export interface RuntimeSemanticCaptureFacadeDeps
   extends CaptureRuntimeCorrectionDeps,
+    CaptureRuntimePreferenceCandidateDeps,
     FilteredRuntimeCaptureDeps {}
 
 export interface RuntimeSemanticCaptureFacade {
   captureExplicitCorrection(
     input: ExplicitRuntimeCorrectionCaptureInput,
   ): CaptureRuntimeCorrectionResult;
+  captureRuntimePreferenceCandidate(
+    input: CaptureRuntimePreferenceCandidateInput,
+  ): CaptureRuntimePreferenceCandidateResult;
   captureRejectedSignalAudit(
     input: RuntimeRejectedCaptureInput,
   ): CaptureRejectedRuntimeSignalResult;
@@ -71,6 +83,9 @@ export type {
   CaptureRejectedRuntimeSignalResult,
   CaptureRuntimeCorrectionFailureReason,
   CaptureRuntimeCorrectionResult,
+  CaptureRuntimePreferenceCandidateFailureReason,
+  CaptureRuntimePreferenceCandidateInput,
+  CaptureRuntimePreferenceCandidateResult,
   ExplicitRuntimeCorrectionCaptureInput,
   FilteredRuntimeCaptureInput,
   FilteredRuntimeCaptureResult,
@@ -107,6 +122,11 @@ export function createRuntimeSemanticCaptureFacade(
   return {
     captureExplicitCorrection(input) {
       return captureRuntimeCorrection(runtime, input, {
+        writeEntity: writeEntityWithFacadeContract,
+      });
+    },
+    captureRuntimePreferenceCandidate(input) {
+      return captureRuntimePreferenceCandidate(runtime, input, {
         writeEntity: writeEntityWithFacadeContract,
       });
     },
