@@ -150,6 +150,7 @@ function appendBlock(
   model[sectionKey].blocks.push(block);
 }
 
+/** Stable revision from sorted block IDs, including typed runtime semantic blocks. */
 function computeSourceRevision(
   section: ProjectionContentModel[ProjectionContentSectionKey],
   prefix: string
@@ -204,6 +205,8 @@ export interface BuildProjectionDocumentsOptions {
 }
 
 export interface BuildProjectionDocumentsReport {
+  runtimeSemanticMaterializedCount: number;
+  runtimeSemanticSkippedCount: number;
   runtimeSemanticSkipped: readonly RuntimeProjectionMaterializationSkip[];
 }
 
@@ -250,6 +253,8 @@ export function buildProjectionDocumentsWithReport(
   return {
     documents,
     report: {
+      runtimeSemanticMaterializedCount: materialization.items.length,
+      runtimeSemanticSkippedCount: materialization.skipped.length,
       runtimeSemanticSkipped: materialization.skipped,
     },
   };
