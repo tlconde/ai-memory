@@ -1,4 +1,10 @@
 export {
+  RUNTIME_CORRECT_NOT_WIRED,
+  RUNTIME_INSPECT_NOT_WIRED,
+  RUNTIME_STORAGE_NOT_WIRED,
+} from "./messages.js";
+
+export {
   ContradictionScoreSchema,
   CurrentDecisionLeaningSchema,
   CurationModeSchema,

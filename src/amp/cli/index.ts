@@ -35,6 +35,7 @@ import {
   runAmpRuntimeCorrect,
   runAmpRuntimeInspect,
   runAmpRuntimeStatus,
+  writeAmpRuntimeCliResult,
 } from "./runtime.js";
 import { confirmLiveGbrainWriteFromCliOptions } from "./live-gbrain-safety.js";
 
@@ -333,13 +334,12 @@ export function registerAmpCommands(
         projectRoot: opts.projectRoot,
         entity: opts.entity,
       });
-      if (opts.json) {
-        process.stdout.write(`${formatAmpRuntimeInspectJson(result)}\n`);
-      } else {
-        for (const line of formatAmpRuntimeInspectReport(result)) {
-          process.stdout.write(`${line}\n`);
-        }
-      }
+      writeAmpRuntimeCliResult({
+        result,
+        json: opts.json,
+        formatJson: formatAmpRuntimeInspectJson,
+        formatReport: formatAmpRuntimeInspectReport,
+      });
       if (!result.ok) {
         process.exitCode = 1;
       }
@@ -364,13 +364,12 @@ export function registerAmpCommands(
           id: opts.id,
           note: opts.note,
         });
-        if (opts.json) {
-          process.stdout.write(`${formatAmpRuntimeCorrectJson(result)}\n`);
-        } else {
-          for (const line of formatAmpRuntimeCorrectReport(result)) {
-            process.stdout.write(`${line}\n`);
-          }
-        }
+        writeAmpRuntimeCliResult({
+          result,
+          json: opts.json,
+          formatJson: formatAmpRuntimeCorrectJson,
+          formatReport: formatAmpRuntimeCorrectReport,
+        });
         process.exitCode = 1;
       }
     );

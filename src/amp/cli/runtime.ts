@@ -8,25 +8,28 @@
 import { resolve } from "node:path";
 
 import {
+  RUNTIME_CORRECT_NOT_WIRED,
+  RUNTIME_INSPECT_NOT_WIRED,
+  RUNTIME_STORAGE_NOT_WIRED,
+} from "../runtime-semantics/messages.js";
+import {
   RUNTIME_ENTITY_REGISTRY,
   RUNTIME_ENTITY_SCHEMA_NAMES,
   type RuntimeEntityKind,
+  type RuntimeEntitySchemaName,
   isRuntimeEntityKind,
   runtimeEntitySchemaNameForKind,
 } from "../runtime-semantics/schema.js";
 
-export const RUNTIME_STORAGE_NOT_WIRED =
-  "Runtime semantics storage and wiring are not implemented yet.";
-
-export const RUNTIME_INSPECT_NOT_WIRED =
-  "Runtime inspect requires future storage wiring; no entities were read.";
-
-export const RUNTIME_CORRECT_NOT_WIRED =
-  "Runtime correction is not wired yet; no durable state was mutated.";
+export {
+  RUNTIME_CORRECT_NOT_WIRED,
+  RUNTIME_INSPECT_NOT_WIRED,
+  RUNTIME_STORAGE_NOT_WIRED,
+} from "../runtime-semantics/messages.js";
 
 export interface AmpRuntimeStatusResult {
   ok: true;
-  schemas: readonly string[];
+  schemas: readonly RuntimeEntitySchemaName[];
   storageWired: false;
 }
 
@@ -66,7 +69,7 @@ export interface AmpRuntimeInspectOptions {
 export interface AmpRuntimeInspectResult {
   projectRoot: string;
   entity?: RuntimeEntityKind;
-  entitySchemaName?: string;
+  entitySchemaName?: RuntimeEntitySchemaName;
   storageWired: false;
   ok: boolean;
   error?: string;
@@ -78,17 +81,19 @@ export function runAmpRuntimeInspect(
 ): AmpRuntimeInspectResult {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
 
-  if (options.entity !== undefined && !isRuntimeEntityKind(options.entity)) {
-    const expected = RUNTIME_ENTITY_REGISTRY.map((entry) => entry.kind).join(", ");
-    return {
-      projectRoot,
-      storageWired: false,
-      ok: false,
-      error: `Invalid runtime entity kind "${options.entity}" — expected one of: ${expected}.`,
-    };
+  let entity: RuntimeEntityKind | undefined;
+  if (options.entity !== undefined) {
+    if (!isRuntimeEntityKind(options.entity)) {
+      const expected = RUNTIME_ENTITY_REGISTRY.map((entry) => entry.kind).join(", ");
+      return {
+        projectRoot,
+        storageWired: false,
+        ok: false,
+        error: `Invalid runtime entity kind "${options.entity}" — expected one of: ${expected}.`,
+      };
+    }
+    entity = options.entity;
   }
-
-  const entity = options.entity as RuntimeEntityKind | undefined;
 
   return {
     projectRoot,
@@ -198,4 +203,23 @@ export function formatAmpRuntimeCorrectJson(result: AmpRuntimeCorrectResult): st
     null,
     2
   );
+}
+
+export interface WriteAmpRuntimeCliResultOptions<T> {
+  result: T;
+  json?: boolean;
+  formatJson: (result: T) => string;
+  formatReport: (result: T) => string[];
+}
+
+/** Write runtime CLI output as JSON or human-readable report lines. */
+export function writeAmpRuntimeCliResult<T>(options: WriteAmpRuntimeCliResultOptions<T>): void {
+  if (options.json) {
+    process.stdout.write(`${options.formatJson(options.result)}\n`);
+    return;
+  }
+
+  for (const line of options.formatReport(options.result)) {
+    process.stdout.write(`${line}\n`);
+  }
 }
