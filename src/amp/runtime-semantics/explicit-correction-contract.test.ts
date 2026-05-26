@@ -13,33 +13,7 @@ import {
   defaultExplicitCorrectionRecordId,
   EXPLICIT_CORRECTION_DEFAULT_RECORD_ID_PREFIX,
 } from "./capture-correction-mapper.js";
-import { FIXTURE_ISO } from "./runtime-semantics.test-fixture.js";
-
-const CORRECTION_EPISODIC_FRAME = {
-  id: "frame-1",
-  event_type: "correction" as const,
-  summary: "Operator correction note",
-  details: {
-    target_entity_id: "frame-target",
-    correction_of: "frame-target",
-    capture_path: "explicit_operator_correction",
-  },
-  tags: [] as string[],
-  scope: "user" as const,
-  curation_mode: "personal" as const,
-  occurred_at: FIXTURE_ISO,
-  recorded_at: FIXTURE_ISO,
-  source_signals: [] as string[],
-  related_entities: {},
-  evidence_refs: [] as string[],
-  provenance: {},
-  confidence: "high" as const,
-  source: "user_explicit" as const,
-  sensitivity: "normal" as const,
-  visibility: "user_private" as const,
-  pinned: false,
-  lifecycle_state: "active" as const,
-};
+import { CORRECTION_EPISODIC_FRAME } from "./runtime-semantics.test-fixture.js";
 
 describe("explicit correction runtime contract gates", () => {
   it("status note does not regress to correct unwired", () => {

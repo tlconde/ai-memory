@@ -11,8 +11,12 @@ import {
   joinRuntimeProjectionLines,
 } from "./format-projection.js";
 import { EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING } from "./messages.js";
+import {
+  CORRECTION_EPISODIC_FRAME,
+  FIXTURE_ISO,
+} from "./runtime-semantics.test-fixture.js";
 
-const ISO = "2026-05-26T12:00:00.000Z";
+const ISO = FIXTURE_ISO;
 const ISO_EXPIRED = "2026-05-25T12:00:00.000Z";
 
 const OPEN_DECISION = {
@@ -153,29 +157,7 @@ const REJECTED_SIGNAL = {
   source_hash: "sha256:abc123",
 };
 
-const ACTIVE_EPISODIC_FRAME = {
-  id: "frame-1",
-  event_type: "correction" as const,
-  summary: "User corrected the storage approach",
-  details: { backend: "sqlite" },
-  tags: ["storage"],
-  scope: "user" as const,
-  curation_mode: "personal" as const,
-  occurred_at: ISO,
-  recorded_at: ISO,
-  source_signals: ["signal-5"],
-  related_entities: {},
-  evidence_refs: ["evidence-1"],
-  provenance: {
-    transform_id: "frame-v1",
-  },
-  confidence: "high" as const,
-  source: "user_explicit" as const,
-  sensitivity: "normal" as const,
-  visibility: "user_private" as const,
-  pinned: false,
-  lifecycle_state: "active" as const,
-};
+const ACTIVE_EPISODIC_FRAME = CORRECTION_EPISODIC_FRAME;
 
 function textOf(formatted: { lines: string[] } | null): string {
   return formatted ? joinRuntimeProjectionLines(formatted.lines) : "";

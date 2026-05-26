@@ -24,8 +24,13 @@ import {
   type FormatterRegistryKind,
 } from "./formatter-registry.js";
 import { RUNTIME_ENTITY_REGISTRY } from "./schema.js";
+import {
+  CORRECTION_EPISODIC_FRAME,
+  DORMANT_SNAPSHOT,
+  FIXTURE_ISO,
+} from "./runtime-semantics.test-fixture.js";
 
-const ISO = "2026-05-26T12:00:00.000Z";
+const ISO = FIXTURE_ISO;
 
 const OPEN_DECISION = {
   id: "dec-1",
@@ -63,35 +68,6 @@ const REJECTED_SIGNAL = {
   scope: "project" as const,
   redacted_excerpt: "token=secret-value-should-not-leak",
   source_hash: "sha256:abc123",
-};
-
-const DORMANT_SNAPSHOT = {
-  frame_id: "frame-dormant-1",
-  snapshot_version: 1,
-  event_type: "correction" as const,
-  summary_compressed: "Compressed summary",
-  key_terms: ["storage"],
-  encoding_context: {
-    goal_ids: [],
-    session_ids: [],
-  },
-  related_entities_compressed: {
-    goal_ids: [],
-    decision_ids: [],
-    hypothesis_ids: [],
-  },
-  occurred_at: ISO,
-  dormancy_entered_at: ISO,
-  embedding: [0.1, 0.2],
-  source: "user_explicit" as const,
-  confidence_at_dormancy: "medium" as const,
-  activation_history: {
-    times_activated: 0,
-  },
-  generated_by: {
-    transform_id: "snap-v1",
-    cache_key: "cache-1",
-  },
 };
 
 const ACTIVE_PREFERENCE = {
@@ -146,27 +122,8 @@ const HARNESS_STATE = {
 };
 
 const ACTIVE_EPISODIC_FRAME = {
-  id: "frame-1",
-  event_type: "correction" as const,
-  summary: "User corrected the storage approach",
-  details: { backend: "sqlite" },
-  tags: ["storage"],
-  scope: "user" as const,
-  curation_mode: "personal" as const,
-  occurred_at: ISO,
-  recorded_at: ISO,
-  source_signals: ["signal-5"],
-  related_entities: {},
-  evidence_refs: ["evidence-1"],
-  provenance: {
-    transform_id: "frame-v1",
-  },
-  confidence: "high" as const,
-  source: "user_explicit" as const,
+  ...CORRECTION_EPISODIC_FRAME,
   sensitivity: "secret_redacted" as const,
-  visibility: "user_private" as const,
-  pinned: false,
-  lifecycle_state: "active" as const,
 };
 
 const EXPECTED_PROJECTABLE_KINDS = [

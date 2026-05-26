@@ -6,6 +6,7 @@ import { validateRuntimeSemanticEntityWriteProvenance } from "./provenance-valid
 import {
   ACTIVE_PREFERENCE,
   CURRENT_DECISION_LEANING,
+  DORMANT_SNAPSHOT,
   FIXTURE_ISO,
   FIXTURE_PROJECT_REF,
   OPEN_DECISION,
@@ -56,35 +57,6 @@ const TRACEABLE_HARNESS_STATE = {
   status: "active" as const,
   observed_at: FIXTURE_ISO,
   source_signal_ids: ["signal-harness-1"],
-};
-
-const DORMANT_SNAPSHOT = {
-  frame_id: "frame-1",
-  snapshot_version: 1,
-  event_type: "correction" as const,
-  summary_compressed: "Storage backend correction",
-  key_terms: ["storage", "correction"],
-  encoding_context: {
-    goal_ids: ["goal-1"],
-    session_ids: ["session-1"],
-  },
-  related_entities_compressed: {
-    goal_ids: ["goal-1"],
-    decision_ids: [],
-    hypothesis_ids: [],
-  },
-  occurred_at: FIXTURE_ISO,
-  dormancy_entered_at: FIXTURE_ISO,
-  embedding: [0.1, 0.2],
-  source: "user_explicit" as const,
-  confidence_at_dormancy: "high" as const,
-  activation_history: {
-    times_activated: 0,
-  },
-  generated_by: {
-    transform_id: "dormant-snapshot-v1",
-    cache_key: "sha256:snapshot-key",
-  },
 };
 
 describe("validateRuntimeSemanticEntityWriteProvenance", () => {

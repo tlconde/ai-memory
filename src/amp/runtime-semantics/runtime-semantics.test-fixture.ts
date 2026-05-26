@@ -5,6 +5,7 @@
 import type { RuntimeSemanticEntityRecord } from "./entity-record.js";
 import type {
   CurrentDecisionLeaning,
+  DormantSnapshot,
   EpisodicFrame,
   RejectedSignalLog,
   RuntimePreferenceCandidate,
@@ -65,6 +66,30 @@ export const TRACEABLE_EPISODIC_FRAME: EpisodicFrame = {
   lifecycle_state: "active",
 };
 
+export const CORRECTION_EPISODIC_FRAME: EpisodicFrame = {
+  id: "frame-1",
+  event_type: "correction",
+  summary: "User corrected the storage approach",
+  details: { backend: "sqlite" },
+  tags: ["storage"],
+  scope: "user",
+  curation_mode: "personal",
+  occurred_at: FIXTURE_ISO,
+  recorded_at: FIXTURE_ISO,
+  source_signals: ["signal-5"],
+  related_entities: {},
+  evidence_refs: ["evidence-1"],
+  provenance: {
+    transform_id: "frame-v1",
+  },
+  confidence: "high",
+  source: "user_explicit",
+  sensitivity: "normal",
+  visibility: "user_private",
+  pinned: false,
+  lifecycle_state: "active",
+};
+
 export const OPEN_DECISION: UnresolvedDecision = {
   id: "dec-1",
   question: "Which storage backend?",
@@ -101,4 +126,33 @@ export const REJECTED_SIGNAL: RejectedSignalLog = {
   scope: "project",
   redacted_excerpt: "token=secret-value-should-not-leak",
   source_hash: "sha256:abc123",
+};
+
+export const DORMANT_SNAPSHOT: DormantSnapshot = {
+  frame_id: "frame-1",
+  snapshot_version: 1,
+  event_type: "correction",
+  summary_compressed: "Storage backend correction",
+  key_terms: ["storage", "correction"],
+  encoding_context: {
+    goal_ids: ["goal-1"],
+    session_ids: ["session-1"],
+  },
+  related_entities_compressed: {
+    goal_ids: ["goal-1"],
+    decision_ids: [],
+    hypothesis_ids: [],
+  },
+  occurred_at: FIXTURE_ISO,
+  dormancy_entered_at: FIXTURE_ISO,
+  embedding: [0.1, 0.2],
+  source: "user_explicit",
+  confidence_at_dormancy: "high",
+  activation_history: {
+    times_activated: 0,
+  },
+  generated_by: {
+    transform_id: "dormant-snapshot-v1",
+    cache_key: "sha256:snapshot-key",
+  },
 };
