@@ -371,11 +371,13 @@ function formatParsedEntityForProjection(
   }
 }
 
-function formatRuntimeEntityForProjectionImpl(
+type EnforceProjectionFormatPolicyResult =
+  | Extract<FormatRuntimeEntityForProjectionResult, { ok: false }>
+  | { ok: true; projectableKind: ProjectableFormatterKind };
+
+function enforceProjectionFormatPolicy(
   kind: FormatterRegistryKind,
-  input: unknown,
-  options?: unknown,
-): FormatRuntimeEntityForProjectionResult {
+): EnforceProjectionFormatPolicyResult {
   if (!isFormatterRegistryKind(kind)) {
     return {
       ok: false,
@@ -402,7 +404,80 @@ function formatRuntimeEntityForProjectionImpl(
     };
   }
 
-  const parsed = entry.safeParse(input);
+  return { ok: true, projectableKind: kind as ProjectableFormatterKind };
+}
+
+function formatParsedRuntimeEntityForProjectionImpl(
+  kind: FormatterRegistryKind,
+  parsedValue: unknown,
+  options?: unknown,
+): FormatRuntimeEntityForProjectionResult {
+  const policy = enforceProjectionFormatPolicy(kind);
+  if (!policy.ok) {
+    return policy;
+  }
+
+  const formatted = formatParsedEntityForProjection(
+    policy.projectableKind,
+    parsedValue as FormatterEntityByKind[ProjectableFormatterKind],
+    options as FormatterOptionsByKind[ProjectableFormatterKind],
+  );
+
+  return { ok: true, formatted };
+}
+
+/** Format an already-parsed runtime entity for projection without re-running Zod parse. */
+export function formatParsedRuntimeEntityForProjection(
+  kind: "unresolved-decision",
+  parsedValue: UnresolvedDecision,
+  options?: FormatUnresolvedDecisionOptions,
+): FormatRuntimeEntityForProjectionResult;
+export function formatParsedRuntimeEntityForProjection(
+  kind: "runtime-preference-candidate",
+  parsedValue: RuntimePreferenceCandidate,
+  options?: FormatRuntimePreferenceOptions,
+): FormatRuntimeEntityForProjectionResult;
+export function formatParsedRuntimeEntityForProjection(
+  kind: "runtime-crystal-candidate",
+  parsedValue: RuntimeCrystalCandidate,
+): FormatRuntimeEntityForProjectionResult;
+export function formatParsedRuntimeEntityForProjection(
+  kind: "harness-operational-state",
+  parsedValue: HarnessOperationalState,
+  options?: FormatHarnessOperationalOptions,
+): FormatRuntimeEntityForProjectionResult;
+export function formatParsedRuntimeEntityForProjection(
+  kind: "episodic-frame",
+  parsedValue: EpisodicFrame,
+  options?: FormatEpisodicFrameOptions,
+): FormatRuntimeEntityForProjectionResult;
+export function formatParsedRuntimeEntityForProjection(
+  kind: FormatterRegistryKind,
+  parsedValue: unknown,
+  options?: unknown,
+): FormatRuntimeEntityForProjectionResult;
+export function formatParsedRuntimeEntityForProjection(
+  kind: FormatterRegistryKind,
+  parsedValue: unknown,
+  options?: unknown,
+): FormatRuntimeEntityForProjectionResult {
+  return formatParsedRuntimeEntityForProjectionImpl(kind, parsedValue, options);
+}
+
+function formatRuntimeEntityForProjectionImpl(
+  kind: FormatterRegistryKind,
+  input: unknown,
+  options?: unknown,
+): FormatRuntimeEntityForProjectionResult {
+  if (!isFormatterRegistryKind(kind)) {
+    return {
+      ok: false,
+      error: `Unknown formatter registry kind: ${kind}`,
+      reason: "unknown_kind",
+    };
+  }
+
+  const parsed = getFormatterRegistryEntry(kind).safeParse(input);
   if (!parsed.success) {
     return {
       ok: false,
@@ -411,13 +486,7 @@ function formatRuntimeEntityForProjectionImpl(
     };
   }
 
-  const formatted = formatParsedEntityForProjection(
-    kind as ProjectableFormatterKind,
-    parsed.value as FormatterEntityByKind[ProjectableFormatterKind],
-    options as FormatterOptionsByKind[ProjectableFormatterKind],
-  );
-
-  return { ok: true, formatted };
+  return formatParsedRuntimeEntityForProjectionImpl(kind, parsed.value, options);
 }
 
 /** Format and validate a runtime entity for projection at the registry boundary. */

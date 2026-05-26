@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  formatParsedRuntimeEntityForProjection,
   formatRuntimeEntityForProjection,
   joinRuntimeProjectionLines,
 } from "./index.js";
@@ -163,7 +164,7 @@ describe("materializeRuntimeProjectionFromSource", () => {
   });
 
   it("joins current-decision-leaning sub-entities onto parent decisions", () => {
-    const withLeaning = formatRuntimeEntityForProjection("unresolved-decision", OPEN_DECISION, {
+    const withLeaning = formatParsedRuntimeEntityForProjection("unresolved-decision", OPEN_DECISION, {
       currentLeaning: CURRENT_LEANING,
     });
     assert.equal(withLeaning.ok, true);
@@ -574,5 +575,136 @@ describe("materializeRuntimeProjectionFromSource", () => {
       result.skipped.map((entry) => entry.reason),
       ["invalid_input", "orphan_sub_entity", "not_projectable"],
     );
+  });
+
+  it("audits duplicate compatible leanings and does not attach either", () => {
+    const withoutLeaning = formatParsedRuntimeEntityForProjection(
+      "unresolved-decision",
+      OPEN_DECISION,
+    );
+    assert.equal(withoutLeaning.ok, true);
+
+    const source = new InMemoryRuntimeSemanticEntitySource([
+      record({
+        id: "dec-1",
+        kind: "unresolved-decision",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: OPEN_DECISION,
+      }),
+      record({
+        id: "lean-a",
+        kind: "current-decision-leaning",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: CURRENT_LEANING,
+      }),
+      record({
+        id: "lean-b",
+        kind: "current-decision-leaning",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: {
+          ...CURRENT_LEANING,
+          source_signal_id: "signal-lean-2",
+        },
+      }),
+    ]);
+
+    const result = materializeRuntimeProjectionFromSource(source, {
+      projectRef: PROJECT_REF,
+    });
+
+    assert.equal(result.items.length, 1);
+    assert.equal(result.skipped.length, 2);
+    assert.deepEqual(
+      result.skipped.map((entry) => entry.recordId),
+      ["lean-a", "lean-b"],
+    );
+    assert.deepEqual(
+      result.skipped.map((entry) => entry.reason),
+      ["duplicate_sub_entity", "duplicate_sub_entity"],
+    );
+    if (withoutLeaning.ok) {
+      assert.deepEqual(result.items[0]?.formatted, withoutLeaning.formatted);
+      assert.doesNotMatch(result.items[0]?.text ?? "", /Current leaning/i);
+    }
+  });
+
+  it("audits duplicate parent decisions and does not attach leanings to either", () => {
+    const source = new InMemoryRuntimeSemanticEntitySource([
+      record({
+        id: "dec-record-1",
+        kind: "unresolved-decision",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: OPEN_DECISION,
+      }),
+      record({
+        id: "dec-record-2",
+        kind: "unresolved-decision",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: {
+          ...OPEN_DECISION,
+          question: "Duplicate storage backend decision?",
+        },
+      }),
+      record({
+        id: "lean-duplicate-parent",
+        kind: "current-decision-leaning",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: CURRENT_LEANING,
+      }),
+    ]);
+
+    const result = materializeRuntimeProjectionFromSource(source, {
+      projectRef: PROJECT_REF,
+    });
+
+    assert.equal(result.items.length, 0);
+    assert.deepEqual(
+      result.skipped.map((entry) => entry.recordId),
+      ["dec-record-1", "dec-record-2", "lean-duplicate-parent"],
+    );
+    assert.deepEqual(
+      result.skipped.map((entry) => entry.reason),
+      ["duplicate_parent_entity", "duplicate_parent_entity", "orphan_sub_entity"],
+    );
+  });
+
+  it("still attaches a single valid leaning when only one compatible record exists", () => {
+    const withLeaning = formatParsedRuntimeEntityForProjection("unresolved-decision", OPEN_DECISION, {
+      currentLeaning: CURRENT_LEANING,
+    });
+    assert.equal(withLeaning.ok, true);
+
+    const source = new InMemoryRuntimeSemanticEntitySource([
+      record({
+        id: "lean-only",
+        kind: "current-decision-leaning",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: CURRENT_LEANING,
+      }),
+      record({
+        id: "dec-1",
+        kind: "unresolved-decision",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: OPEN_DECISION,
+      }),
+    ]);
+
+    const result = materializeRuntimeProjectionFromSource(source, {
+      projectRef: PROJECT_REF,
+    });
+
+    assert.equal(result.items.length, 1);
+    assert.equal(result.skipped.length, 0);
+    if (withLeaning.ok) {
+      assert.deepEqual(result.items[0]?.formatted, withLeaning.formatted);
+    }
   });
 });

@@ -16,6 +16,7 @@ export {
 
 export {
   FORMATTER_REGISTRY_KINDS,
+  formatParsedRuntimeEntityForProjection,
   formatRuntimeEntityForProjection,
   getFormatterRegistryEntry,
   isFormatterRegistryKind,

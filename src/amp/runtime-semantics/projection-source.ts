@@ -2,7 +2,7 @@
  * Typed runtime semantic entity source adapter (RUNTIME-06).
  *
  * Falsifiable claim: in-memory runtime entity records convert to projection-
- * ready formatted text via formatRuntimeEntityForProjection without storage or
+ * ready formatted text via formatParsedRuntimeEntityForProjection without storage or
  * .amp/local/runtime.md wiring.
  *
  * Scope validation ownership:
@@ -14,7 +14,7 @@
 
 import type { ScopeKind } from "../core/frame-schema.js";
 import {
-  formatRuntimeEntityForProjection,
+  formatParsedRuntimeEntityForProjection,
   isProjectableFormatterKind,
   parseRuntimeEntityAtBoundary,
   type FormatRuntimeEntityProjectionFailureReason,
@@ -69,6 +69,8 @@ export type RuntimeProjectionMaterializationSkipReason =
   | "missing_record_project_ref"
   | "orphan_sub_entity"
   | "sub_entity_envelope_mismatch"
+  | "duplicate_parent_entity"
+  | "duplicate_sub_entity"
   | "invalid_sub_entity"
   | "empty_format";
 
@@ -101,6 +103,11 @@ interface ParsedRuntimeSemanticEntityRecord {
   payloadScope: PayloadScopeMetadata;
   envelopeSkip?: RuntimeProjectionMaterializationSkip;
   section?: RuntimeProjectionTargetSection;
+}
+
+interface LeaningAttachmentCandidate {
+  recordId: string;
+  leaning: CurrentDecisionLeaning;
 }
 
 interface LeaningAttachmentIndex {
@@ -282,7 +289,8 @@ function recordEnvelopesCompatible(
 function buildLeaningAttachmentIndex(
   parsedRecords: readonly ParsedRuntimeSemanticEntityRecord[],
 ): LeaningAttachmentIndex {
-  const parentDecisionsById = new Map<string, ParsedRuntimeSemanticEntityRecord>();
+  const parentCandidatesById = new Map<string, ParsedRuntimeSemanticEntityRecord[]>();
+  const skipsByRecordId = new Map<string, RuntimeProjectionMaterializationSkip>();
 
   for (const parsed of parsedRecords) {
     if (parsed.record.kind !== "unresolved-decision") {
@@ -293,11 +301,29 @@ function buildLeaningAttachmentIndex(
     }
 
     const decision = parsed.parseResult.value as FormatterEntityByKind["unresolved-decision"];
-    parentDecisionsById.set(decision.id, parsed);
+    const candidates = parentCandidatesById.get(decision.id) ?? [];
+    candidates.push(parsed);
+    parentCandidatesById.set(decision.id, candidates);
   }
 
-  const byDecisionId = new Map<string, CurrentDecisionLeaning>();
-  const skipsByRecordId = new Map<string, RuntimeProjectionMaterializationSkip>();
+  const parentDecisionsById = new Map<string, ParsedRuntimeSemanticEntityRecord>();
+  for (const [decisionId, candidates] of parentCandidatesById) {
+    if (candidates.length > 1) {
+      for (const candidate of candidates) {
+        skipsByRecordId.set(candidate.record.id, {
+          recordId: candidate.record.id,
+          kind: candidate.record.kind,
+          reason: "duplicate_parent_entity",
+          message: `Multiple unresolved-decision records share payload id ${decisionId}`,
+        });
+      }
+      continue;
+    }
+
+    parentDecisionsById.set(decisionId, candidates[0]!);
+  }
+
+  const compatibleCandidatesByDecisionId = new Map<string, LeaningAttachmentCandidate[]>();
 
   for (const parsed of parsedRecords) {
     if (parsed.record.kind !== "current-decision-leaning") {
@@ -336,7 +362,27 @@ function buildLeaningAttachmentIndex(
       continue;
     }
 
-    byDecisionId.set(leaning.decision_id, leaning);
+    const candidates = compatibleCandidatesByDecisionId.get(leaning.decision_id) ?? [];
+    candidates.push({ recordId: parsed.record.id, leaning });
+    compatibleCandidatesByDecisionId.set(leaning.decision_id, candidates);
+  }
+
+  const byDecisionId = new Map<string, CurrentDecisionLeaning>();
+
+  for (const [decisionId, candidates] of compatibleCandidatesByDecisionId) {
+    if (candidates.length > 1) {
+      for (const candidate of candidates) {
+        skipsByRecordId.set(candidate.recordId, {
+          recordId: candidate.recordId,
+          kind: "current-decision-leaning",
+          reason: "duplicate_sub_entity",
+          message: `Multiple compatible current-decision-leaning records for decision_id ${decisionId}`,
+        });
+      }
+      continue;
+    }
+
+    byDecisionId.set(decisionId, candidates[0]!.leaning);
   }
 
   return { byDecisionId, skipsByRecordId };
@@ -382,7 +428,14 @@ export function materializeRuntimeProjectionFromSource(
       continue;
     }
 
-    if (parsed.section === undefined) {
+    const attachmentSkip = leaningIndex.skipsByRecordId.get(record.id);
+    if (attachmentSkip !== undefined) {
+      skipped.push(attachmentSkip);
+      continue;
+    }
+
+    const section = parsed.section;
+    if (section === undefined) {
       skipped.push({
         recordId: record.id,
         kind: record.kind,
@@ -402,23 +455,22 @@ export function materializeRuntimeProjectionFromSource(
       continue;
     }
 
-    const formatOptions =
-      record.kind === "unresolved-decision"
-        ? {
-            currentLeaning: leaningIndex.byDecisionId.get(
-              (parsed.parseResult.value as FormatterEntityByKind["unresolved-decision"]).id,
-            ),
-          }
-        : undefined;
-
+    const parsedValue = parsed.parseResult.value;
     const formattedResult =
       record.kind === "unresolved-decision"
-        ? formatRuntimeEntityForProjection(
+        ? formatParsedRuntimeEntityForProjection(
             "unresolved-decision",
-            record.payload,
-            formatOptions,
+            parsedValue as FormatterEntityByKind["unresolved-decision"],
+            {
+              currentLeaning: leaningIndex.byDecisionId.get(
+                (parsedValue as FormatterEntityByKind["unresolved-decision"]).id,
+              ),
+            },
           )
-        : formatRuntimeEntityForProjection(record.kind, record.payload);
+        : formatParsedRuntimeEntityForProjection(
+            record.kind,
+            parsedValue as FormatterEntityByKind[typeof record.kind],
+          );
 
     if (!formattedResult.ok) {
       skipped.push({
@@ -443,7 +495,7 @@ export function materializeRuntimeProjectionFromSource(
     items.push({
       id: record.id,
       kind: record.kind,
-      section: parsed.section,
+      section,
       formatted: formattedResult.formatted,
       text: joinRuntimeProjectionLines(formattedResult.formatted.lines),
     });

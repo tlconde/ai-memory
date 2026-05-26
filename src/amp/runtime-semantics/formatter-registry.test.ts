@@ -11,6 +11,7 @@ import {
 } from "./format-projection.js";
 import {
   FORMATTER_REGISTRY_KINDS,
+  formatParsedRuntimeEntityForProjection,
   formatRuntimeEntityForProjection,
   getFormatterRegistryEntry,
   isFormatterRegistryKind,
@@ -369,6 +370,52 @@ describe("formatRuntimeEntityForProjection", () => {
         assert.deepEqual(result.formatted, direct, `${kind} should match direct formatter`);
       }
     }
+  });
+});
+
+describe("formatParsedRuntimeEntityForProjection", () => {
+  it("formats valid parsed values without requiring boundary input", () => {
+    const direct = formatUnresolvedDecisionForRuntime(OPEN_DECISION);
+    const result = formatParsedRuntimeEntityForProjection(
+      "unresolved-decision",
+      OPEN_DECISION,
+    );
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.deepEqual(result.formatted, direct);
+    }
+  });
+
+  it("blocks non-projectable kinds without re-parsing", () => {
+    const rejected = formatParsedRuntimeEntityForProjection(
+      "rejected-signal-log",
+      REJECTED_SIGNAL,
+    );
+    assert.equal(rejected.ok, false);
+    if (!rejected.ok) {
+      assert.equal(rejected.reason, "not_projectable");
+    }
+
+    const dormant = formatParsedRuntimeEntityForProjection(
+      "dormant-snapshot",
+      DORMANT_SNAPSHOT,
+    );
+    assert.equal(dormant.ok, false);
+    if (!dormant.ok) {
+      assert.equal(dormant.reason, "not_projectable");
+    }
+  });
+
+  it("matches boundary helper output for projectable parsed values", () => {
+    const boundary = formatRuntimeEntityForProjection(
+      "runtime-preference-candidate",
+      ACTIVE_PREFERENCE,
+    );
+    const parsed = formatParsedRuntimeEntityForProjection(
+      "runtime-preference-candidate",
+      ACTIVE_PREFERENCE,
+    );
+    assert.deepEqual(parsed, boundary);
   });
 });
 
