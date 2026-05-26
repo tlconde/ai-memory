@@ -138,5 +138,8 @@ export { ProjectionSourceLoadError } from "./errors.js";
 
 export {
   buildProjectionDocuments,
+  buildProjectionDocumentsWithReport,
   type BuildProjectionDocumentsOptions,
+  type BuildProjectionDocumentsReport,
+  type BuildProjectionDocumentsResult,
 } from "./build-documents.js";

@@ -4,6 +4,12 @@
 
 import type { Frame, ScopeKind } from "../core/frame-schema.js";
 import type { RuntimeQueueItem } from "../substrate/storage/episodic-signal.js";
+import {
+  materializeRuntimeProjectionFromSource,
+  type RuntimeProjectionMaterializationSkip,
+  type RuntimeProjectionMaterializedItem,
+  type RuntimeSemanticEntitySource,
+} from "../runtime-semantics/projection-source.js";
 import { PROJECTION_FILE_KINDS } from "./constants.js";
 import {
   createEmptyProjectionContentModel,
@@ -12,6 +18,7 @@ import {
   sortProjectionTextBlocks,
   sumSectionTokenEstimate,
   type ProjectionContentModel,
+  type ProjectionContentSection,
   type ProjectionContentSectionKey,
   type ProjectionTextBlock,
 } from "./content.js";
@@ -28,6 +35,8 @@ const PROJECTION_KIND_TO_SECTION: Record<
 };
 
 export type ProjectionStoreKind = "projection" | "runtime";
+
+const TYPED_RUNTIME_SEMANTIC_BLOCK_LABEL = "Typed runtime semantics";
 
 function frameToText(frame: Frame): string {
   return typeof frame.content === "string" ? frame.content : JSON.stringify(frame.content);
@@ -94,6 +103,45 @@ function runtimeItemToBlock(item: RuntimeQueueItem, priority: number): Projectio
   };
 }
 
+function maxBlockPriority(section: ProjectionContentSection): number {
+  if (section.blocks.length === 0) {
+    return -1;
+  }
+  return Math.max(...section.blocks.map((block) => block.priority));
+}
+
+function materializedRuntimeItemToBlock(
+  item: RuntimeProjectionMaterializedItem,
+  priority: number
+): ProjectionTextBlock {
+  return {
+    id: item.id,
+    label: `${TYPED_RUNTIME_SEMANTIC_BLOCK_LABEL} (${item.kind})`,
+    priority,
+    tokenEstimate: estimateProjectionTextTokens(item.text),
+    text: item.text,
+  };
+}
+
+function appendTypedRuntimeSemanticBlocks(
+  model: ProjectionContentModel,
+  items: readonly RuntimeProjectionMaterializedItem[]
+): void {
+  const nextPriorityBySection: Record<
+    "globalRuntime" | "projectRuntime",
+    number
+  > = {
+    globalRuntime: maxBlockPriority(model.globalRuntime) + 1,
+    projectRuntime: maxBlockPriority(model.projectRuntime) + 1,
+  };
+
+  for (const item of items) {
+    const priority = nextPriorityBySection[item.section];
+    appendBlock(model, item.section, materializedRuntimeItemToBlock(item, priority));
+    nextPriorityBySection[item.section] = priority + 1;
+  }
+}
+
 function appendBlock(
   model: ProjectionContentModel,
   sectionKey: ProjectionContentSectionKey,
@@ -116,7 +164,8 @@ function computeSourceRevision(
 export function buildProjectionContentModel(
   frames: readonly Frame[],
   runtimeItems: readonly RuntimeQueueItem[],
-  projectRef: string
+  projectRef: string,
+  runtimeSemanticItems: readonly RuntimeProjectionMaterializedItem[] = []
 ): ProjectionContentModel {
   const model = createEmptyProjectionContentModel(projectRef);
 
@@ -140,6 +189,8 @@ export function buildProjectionContentModel(
     appendBlock(model, sectionKey, runtimeItemToBlock(item, index));
   });
 
+  appendTypedRuntimeSemanticBlocks(model, runtimeSemanticItems);
+
   return model;
 }
 
@@ -149,18 +200,36 @@ export interface BuildProjectionDocumentsOptions {
   projectRef: string;
   generatedAt?: string;
   revisionPrefix: string;
+  runtimeSemanticSource?: RuntimeSemanticEntitySource;
+}
+
+export interface BuildProjectionDocumentsReport {
+  runtimeSemanticSkipped: readonly RuntimeProjectionMaterializationSkip[];
+}
+
+export interface BuildProjectionDocumentsResult {
+  documents: ProjectionDocument[];
+  report: BuildProjectionDocumentsReport;
 }
 
 /** Build four canonical projection documents from frames and runtime queue items. */
-export function buildProjectionDocuments(
+export function buildProjectionDocumentsWithReport(
   options: BuildProjectionDocumentsOptions
-): ProjectionDocument[] {
+): BuildProjectionDocumentsResult {
   const projectRef = options.projectRef;
   const generatedAt = options.generatedAt ?? new Date().toISOString();
-  const model = buildProjectionContentModel(options.frames, options.runtimeItems, projectRef);
+  const materialization = options.runtimeSemanticSource
+    ? materializeRuntimeProjectionFromSource(options.runtimeSemanticSource, { projectRef })
+    : { items: [], skipped: [] };
+  const model = buildProjectionContentModel(
+    options.frames,
+    options.runtimeItems,
+    projectRef,
+    materialization.items
+  );
   const bodies = renderProjectionContentModel(model);
 
-  return PROJECTION_FILE_KINDS.map((kind) => {
+  const documents = PROJECTION_FILE_KINDS.map((kind) => {
     const sectionKey = PROJECTION_KIND_TO_SECTION[kind];
     const section = model[sectionKey];
     const tokenCount = sumSectionTokenEstimate(section);
@@ -177,4 +246,18 @@ export function buildProjectionDocuments(
       truncated: false,
     });
   });
+
+  return {
+    documents,
+    report: {
+      runtimeSemanticSkipped: materialization.skipped,
+    },
+  };
+}
+
+/** Build four canonical projection documents from frames and runtime queue items. */
+export function buildProjectionDocuments(
+  options: BuildProjectionDocumentsOptions
+): ProjectionDocument[] {
+  return buildProjectionDocumentsWithReport(options).documents;
 }

@@ -7,8 +7,77 @@ import { join } from "node:path";
 import { createFrame } from "../core/frame-schema.js";
 import { capturePreference } from "../substrate/capture-preference.js";
 import { RuntimeStore } from "../substrate/storage/runtime-store.js";
-import { buildProjectionDocuments } from "./build-documents.js";
+import { InMemoryRuntimeSemanticEntitySource } from "../runtime-semantics/projection-source.js";
+import {
+  buildProjectionDocuments,
+  buildProjectionDocumentsWithReport,
+} from "./build-documents.js";
 import { estimateProjectionTextTokens } from "./content.js";
+
+const ISO = "2026-05-26T12:00:00.000Z";
+const PROJECT_REF = "demo-app";
+
+const ACTIVE_PREFERENCE = {
+  id: "pref-1",
+  statement: "Keep responses short today",
+  mode: "time_bounded" as const,
+  scope: "user" as const,
+  context: {},
+  status: "active" as const,
+  expires_at: ISO,
+  first_observed_at: ISO,
+  last_observed_at: ISO,
+  source_signal_ids: ["signal-3"],
+  confidence: "medium" as const,
+  promotion_evidence: {
+    repetition_count: 0,
+    independent_sessions: 0,
+  },
+};
+
+const OPEN_DECISION = {
+  id: "dec-1",
+  question: "Which storage backend?",
+  status: "open" as const,
+  scope: "project" as const,
+  options: [
+    {
+      id: "opt-1",
+      label: "SQLite",
+      tradeoffs: ["local only"],
+      evidence_refs: ["evidence-1"],
+    },
+  ],
+  urgency: "medium" as const,
+  owner: "user" as const,
+  created_at: ISO,
+  last_touched_at: ISO,
+  provenance: ["signal-1"],
+};
+
+const SECRET_EPISODIC_FRAME = {
+  id: "frame-secret",
+  event_type: "correction" as const,
+  summary: "Contains secret-token in summary",
+  details: { token: "secret-token" },
+  tags: ["storage"],
+  scope: "user" as const,
+  curation_mode: "personal" as const,
+  occurred_at: ISO,
+  recorded_at: ISO,
+  source_signals: ["signal-5"],
+  related_entities: {},
+  evidence_refs: ["evidence-1"],
+  provenance: {
+    transform_id: "frame-v1",
+  },
+  confidence: "high" as const,
+  source: "user_explicit" as const,
+  sensitivity: "secret_redacted" as const,
+  visibility: "user_private" as const,
+  pinned: false,
+  lifecycle_state: "active" as const,
+};
 
 describe("buildProjectionDocuments", () => {
   it("routes project-scoped knowledge frames to project projection", () => {
@@ -177,5 +246,199 @@ describe("buildProjectionDocuments", () => {
 
     assert.equal(localGlobal?.metadata.source_revision, "rev-local-rev-frame");
     assert.equal(gbrainGlobal?.metadata.source_revision, "rev-gbrain-rev-frame");
+  });
+
+  it("preserves current output when no typed runtime source is provided", () => {
+    const withoutTyped = buildProjectionDocuments({
+      frames: [],
+      runtimeItems: [],
+      projectRef: PROJECT_REF,
+      generatedAt: "2026-05-25T12:00:00.000Z",
+      revisionPrefix: "local",
+    });
+    const withUndefinedTyped = buildProjectionDocuments({
+      frames: [],
+      runtimeItems: [],
+      projectRef: PROJECT_REF,
+      generatedAt: "2026-05-25T12:00:00.000Z",
+      revisionPrefix: "local",
+      runtimeSemanticSource: undefined,
+    });
+
+    assert.deepEqual(withUndefinedTyped, withoutTyped);
+    assert.deepEqual(
+      buildProjectionDocumentsWithReport({
+        frames: [],
+        runtimeItems: [],
+        projectRef: PROJECT_REF,
+        generatedAt: "2026-05-25T12:00:00.000Z",
+        revisionPrefix: "local",
+      }).report.runtimeSemanticSkipped,
+      [],
+    );
+  });
+
+  it("routes user-scoped typed preferences to global runtime", () => {
+    const source = new InMemoryRuntimeSemanticEntitySource([
+      {
+        id: "pref-1",
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: ACTIVE_PREFERENCE,
+      },
+    ]);
+
+    const { documents } = buildProjectionDocumentsWithReport({
+      frames: [],
+      runtimeItems: [],
+      projectRef: PROJECT_REF,
+      generatedAt: "2026-05-25T12:00:00.000Z",
+      revisionPrefix: "local",
+      runtimeSemanticSource: source,
+    });
+
+    const globalRuntime = documents.find((doc) => doc.metadata.kind === "global_runtime");
+    const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
+
+    assert.match(globalRuntime?.body ?? "", /Typed runtime semantics \(runtime-preference-candidate\)/);
+    assert.match(globalRuntime?.body ?? "", /Keep responses short today/);
+    assert.doesNotMatch(projectRuntime?.body ?? "", /Keep responses short today/);
+  });
+
+  it("routes project-scoped unresolved decisions to project runtime", () => {
+    const source = new InMemoryRuntimeSemanticEntitySource([
+      {
+        id: "dec-1",
+        kind: "unresolved-decision",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: OPEN_DECISION,
+      },
+    ]);
+
+    const { documents } = buildProjectionDocumentsWithReport({
+      frames: [],
+      runtimeItems: [],
+      projectRef: PROJECT_REF,
+      generatedAt: "2026-05-25T12:00:00.000Z",
+      revisionPrefix: "local",
+      runtimeSemanticSource: source,
+    });
+
+    const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
+    const globalRuntime = documents.find((doc) => doc.metadata.kind === "global_runtime");
+
+    assert.match(projectRuntime?.body ?? "", /Typed runtime semantics \(unresolved-decision\)/);
+    assert.match(projectRuntime?.body ?? "", /Which storage backend/);
+    assert.doesNotMatch(globalRuntime?.body ?? "", /Which storage backend/);
+  });
+
+  it("does not leak secret_redacted episodic frame summary or details", () => {
+    const source = new InMemoryRuntimeSemanticEntitySource([
+      {
+        id: "frame-secret",
+        kind: "episodic-frame",
+        scope: "user",
+        payload: SECRET_EPISODIC_FRAME,
+      },
+    ]);
+
+    const { documents } = buildProjectionDocumentsWithReport({
+      frames: [],
+      runtimeItems: [],
+      projectRef: PROJECT_REF,
+      generatedAt: "2026-05-25T12:00:00.000Z",
+      revisionPrefix: "local",
+      runtimeSemanticSource: source,
+    });
+
+    const globalRuntime = documents.find((doc) => doc.metadata.kind === "global_runtime")?.body ?? "";
+    assert.match(globalRuntime, /secret_redacted/i);
+    assert.doesNotMatch(globalRuntime, /secret-token/);
+    assert.doesNotMatch(globalRuntime, /Contains secret-token in summary/);
+  });
+
+  it("surfaces skipped typed runtime records in the build report", () => {
+    const source = new InMemoryRuntimeSemanticEntitySource([
+      {
+        id: "dec-invalid",
+        kind: "unresolved-decision",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: { id: "dec-invalid" },
+      },
+      {
+        id: "lean-orphan",
+        kind: "current-decision-leaning",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: {
+          decision_id: "missing-parent",
+          option_id: "opt-1",
+          observed_at: ISO,
+          source_signal_id: "signal-lean-1",
+          freshness: "fresh" as const,
+        },
+      },
+    ]);
+
+    const { report } = buildProjectionDocumentsWithReport({
+      frames: [],
+      runtimeItems: [],
+      projectRef: PROJECT_REF,
+      generatedAt: "2026-05-25T12:00:00.000Z",
+      revisionPrefix: "local",
+      runtimeSemanticSource: source,
+    });
+
+    assert.deepEqual(
+      report.runtimeSemanticSkipped.map((entry) => entry.recordId),
+      ["dec-invalid", "lean-orphan"],
+    );
+    assert.deepEqual(
+      report.runtimeSemanticSkipped.map((entry) => entry.reason),
+      ["invalid_input", "orphan_sub_entity"],
+    );
+  });
+
+  it("renders raw runtime queue content before typed semantic blocks", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-build-documents-typed-runtime-order-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+
+    try {
+      capturePreference(runtime, {
+        content: "Queued global runtime note.",
+        scope: "user",
+      });
+
+      const source = new InMemoryRuntimeSemanticEntitySource([
+        {
+          id: "pref-1",
+          kind: "runtime-preference-candidate",
+          scope: "user",
+          payload: ACTIVE_PREFERENCE,
+        },
+      ]);
+
+      const { documents } = buildProjectionDocumentsWithReport({
+        frames: [],
+        runtimeItems: runtime.queueList(),
+        projectRef: PROJECT_REF,
+        generatedAt: "2026-05-25T12:00:00.000Z",
+        revisionPrefix: "local",
+        runtimeSemanticSource: source,
+      });
+
+      const globalRuntime = documents.find((doc) => doc.metadata.kind === "global_runtime")?.body ?? "";
+      const rawIndex = globalRuntime.indexOf("Queued global runtime note.");
+      const typedIndex = globalRuntime.indexOf("Typed runtime semantics (runtime-preference-candidate)");
+
+      assert.notEqual(rawIndex, -1);
+      assert.notEqual(typedIndex, -1);
+      assert.ok(rawIndex < typedIndex);
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 });
