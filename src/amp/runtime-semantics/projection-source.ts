@@ -17,6 +17,7 @@ import {
   formatParsedRuntimeEntityForProjection,
   isProjectableFormatterKind,
   parseRuntimeEntityAtBoundary,
+  type FormatRuntimeEntityForProjectionResult,
   type FormatRuntimeEntityProjectionFailureReason,
   type FormatterEntityByKind,
   type FormatterRegistryKind,
@@ -28,6 +29,7 @@ import {
 } from "./format-projection.js";
 import {
   buildLeaningAttachmentIndex,
+  type LeaningAttachmentIndex,
   type LeaningAttachmentParsedRecord,
   type LeaningAttachmentSkip,
 } from "./leaning-attachments.js";
@@ -98,6 +100,19 @@ interface ParsedRuntimeSemanticEntityRecord {
   section?: RuntimeProjectionTargetSection;
 }
 
+function materializationSkip(
+  record: RuntimeSemanticEntityRecord,
+  reason: RuntimeProjectionMaterializationSkipReason,
+  message: string,
+): RuntimeProjectionMaterializationSkip {
+  return {
+    recordId: record.id,
+    kind: record.kind,
+    reason,
+    message,
+  };
+}
+
 /** Resolve which runtime projection section an entity belongs in for a project. */
 export function resolveRuntimeSemanticEntitySection(
   record: Pick<RuntimeSemanticEntityRecord, "scope" | "project_ref">,
@@ -119,19 +134,19 @@ function resolveEnvelopeSkip(
   record: RuntimeSemanticEntityRecord,
   payloadScope: PayloadScopeMetadata,
   projectRef: string,
+  section: RuntimeProjectionTargetSection | undefined,
 ): RuntimeProjectionMaterializationSkip | undefined {
   const alignmentSkip = validateRecordPayloadAlignment(record, payloadScope);
   if (alignmentSkip !== undefined) {
     return alignmentSkip;
   }
 
-  if (resolveRuntimeSemanticEntitySection(record, projectRef) === undefined) {
-    return {
-      recordId: record.id,
-      kind: record.kind,
-      reason: "scope_mismatch",
-      message: `Entity scope ${record.scope} does not match projectRef ${projectRef}`,
-    };
+  if (section === undefined) {
+    return materializationSkip(
+      record,
+      "scope_mismatch",
+      `Entity scope ${record.scope} does not match projectRef ${projectRef}`,
+    );
   }
 
   return undefined;
@@ -152,18 +167,15 @@ function parseRuntimeSemanticEntityRecords(
     }
 
     const payloadScope = extractPayloadScopeMetadata(record.kind, parseResult.value);
-    const envelopeSkip = resolveEnvelopeSkip(record, payloadScope, projectRef);
-    const section =
-      envelopeSkip === undefined
-        ? resolveRuntimeSemanticEntitySection(record, projectRef)
-        : undefined;
+    const section = resolveRuntimeSemanticEntitySection(record, projectRef);
+    const envelopeSkip = resolveEnvelopeSkip(record, payloadScope, projectRef, section);
 
     return {
       record,
       parseResult,
       payloadScope,
       envelopeSkip,
-      section,
+      section: envelopeSkip === undefined ? section : undefined,
     };
   });
 }
@@ -175,6 +187,118 @@ function toLeaningAttachmentInput(
     record: parsed.record,
     parseResult: parsed.parseResult,
     hasEnvelopeSkip: parsed.envelopeSkip !== undefined,
+  };
+}
+
+function formatRecordForProjection(
+  kind: ProjectableFormatterKind,
+  parsedValue: FormatterEntityByKind[ProjectableFormatterKind],
+  leaningIndex: LeaningAttachmentIndex,
+): FormatRuntimeEntityForProjectionResult {
+  if (kind === "unresolved-decision") {
+    const decision = parsedValue as FormatterEntityByKind["unresolved-decision"];
+    return formatParsedRuntimeEntityForProjection("unresolved-decision", decision, {
+      currentLeaning: leaningIndex.byDecisionId.get(decision.id),
+    });
+  }
+
+  return formatParsedRuntimeEntityForProjection(
+    kind,
+    parsedValue as FormatterEntityByKind[typeof kind],
+  );
+}
+
+type MaterializationOutcome =
+  | { kind: "skip"; skip: RuntimeProjectionMaterializationSkip }
+  | { kind: "item"; item: RuntimeProjectionMaterializedItem }
+  | { kind: "handled" };
+
+function resolveMaterializationOutcome(
+  parsed: ParsedRuntimeSemanticEntityRecord,
+  leaningIndex: LeaningAttachmentIndex,
+  projectRef: string,
+): MaterializationOutcome {
+  const { record } = parsed;
+
+  if (record.kind === "current-decision-leaning") {
+    const leaningSkip = leaningIndex.skipsByRecordId.get(record.id);
+    return leaningSkip === undefined
+      ? { kind: "handled" }
+      : { kind: "skip", skip: leaningSkip };
+  }
+
+  if (!parsed.parseResult.success) {
+    return {
+      kind: "skip",
+      skip: materializationSkip(record, "invalid_input", parsed.parseResult.error),
+    };
+  }
+
+  if (parsed.envelopeSkip !== undefined) {
+    return { kind: "skip", skip: parsed.envelopeSkip };
+  }
+
+  const attachmentSkip = leaningIndex.skipsByRecordId.get(record.id);
+  if (attachmentSkip !== undefined) {
+    return { kind: "skip", skip: attachmentSkip };
+  }
+
+  const section = parsed.section;
+  if (section === undefined) {
+    return {
+      kind: "skip",
+      skip: materializationSkip(
+        record,
+        "scope_mismatch",
+        `Entity scope ${record.scope} does not match projectRef ${projectRef}`,
+      ),
+    };
+  }
+
+  if (!isProjectableFormatterKind(record.kind)) {
+    return {
+      kind: "skip",
+      skip: materializationSkip(
+        record,
+        "not_projectable",
+        `${record.kind} is not projectable`,
+      ),
+    };
+  }
+
+  const formattedResult = formatRecordForProjection(
+    record.kind,
+    parsed.parseResult.value as FormatterEntityByKind[typeof record.kind],
+    leaningIndex,
+  );
+
+  if (!formattedResult.ok) {
+    return {
+      kind: "skip",
+      skip: materializationSkip(record, formattedResult.reason, formattedResult.error),
+    };
+  }
+
+  if (formattedResult.formatted === null) {
+    return {
+      kind: "skip",
+      skip: materializationSkip(
+        record,
+        "empty_format",
+        `${record.kind} produced no projection output`,
+      ),
+    };
+  }
+
+  return {
+    kind: "item",
+    item: {
+      id: record.id,
+      kind: record.kind,
+      section,
+      formatted: formattedResult.formatted,
+      text: joinRuntimeProjectionLines(formattedResult.formatted.lines),
+    },
   };
 }
 
@@ -195,102 +319,12 @@ export function materializeRuntimeProjectionFromSource(
   const skipped: RuntimeProjectionMaterializationSkip[] = [];
 
   for (const parsed of parsedRecords) {
-    const { record } = parsed;
-
-    if (record.kind === "current-decision-leaning") {
-      const leaningSkip = leaningIndex.skipsByRecordId.get(record.id);
-      if (leaningSkip !== undefined) {
-        skipped.push(leaningSkip);
-      }
-      continue;
+    const outcome = resolveMaterializationOutcome(parsed, leaningIndex, options.projectRef);
+    if (outcome.kind === "skip") {
+      skipped.push(outcome.skip);
+    } else if (outcome.kind === "item") {
+      items.push(outcome.item);
     }
-
-    if (!parsed.parseResult.success) {
-      skipped.push({
-        recordId: record.id,
-        kind: record.kind,
-        reason: "invalid_input",
-        message: parsed.parseResult.error,
-      });
-      continue;
-    }
-
-    if (parsed.envelopeSkip !== undefined) {
-      skipped.push(parsed.envelopeSkip);
-      continue;
-    }
-
-    const attachmentSkip = leaningIndex.skipsByRecordId.get(record.id);
-    if (attachmentSkip !== undefined) {
-      skipped.push(attachmentSkip);
-      continue;
-    }
-
-    const section = parsed.section;
-    if (section === undefined) {
-      skipped.push({
-        recordId: record.id,
-        kind: record.kind,
-        reason: "scope_mismatch",
-        message: `Entity scope ${record.scope} does not match projectRef ${options.projectRef}`,
-      });
-      continue;
-    }
-
-    if (!isProjectableFormatterKind(record.kind)) {
-      skipped.push({
-        recordId: record.id,
-        kind: record.kind,
-        reason: "not_projectable",
-        message: `${record.kind} is not projectable`,
-      });
-      continue;
-    }
-
-    const parsedValue = parsed.parseResult.value;
-    const formattedResult =
-      record.kind === "unresolved-decision"
-        ? formatParsedRuntimeEntityForProjection(
-            "unresolved-decision",
-            parsedValue as FormatterEntityByKind["unresolved-decision"],
-            {
-              currentLeaning: leaningIndex.byDecisionId.get(
-                (parsedValue as FormatterEntityByKind["unresolved-decision"]).id,
-              ),
-            },
-          )
-        : formatParsedRuntimeEntityForProjection(
-            record.kind,
-            parsedValue as FormatterEntityByKind[typeof record.kind],
-          );
-
-    if (!formattedResult.ok) {
-      skipped.push({
-        recordId: record.id,
-        kind: record.kind,
-        reason: formattedResult.reason,
-        message: formattedResult.error,
-      });
-      continue;
-    }
-
-    if (formattedResult.formatted === null) {
-      skipped.push({
-        recordId: record.id,
-        kind: record.kind,
-        reason: "empty_format",
-        message: `${record.kind} produced no projection output`,
-      });
-      continue;
-    }
-
-    items.push({
-      id: record.id,
-      kind: record.kind,
-      section,
-      formatted: formattedResult.formatted,
-      text: joinRuntimeProjectionLines(formattedResult.formatted.lines),
-    });
   }
 
   return { items, skipped };
