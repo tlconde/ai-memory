@@ -5,19 +5,17 @@ import { Command } from "commander";
 import { RUNTIME_ENTITY_SCHEMA_NAMES } from "../runtime-semantics/schema.js";
 import { registerAmpCommands } from "./index.js";
 import {
-  formatAmpRuntimeCorrectReport,
   formatAmpRuntimeStatusReport,
   runAmpRuntimeCorrect,
   runAmpRuntimeStatus,
-  RUNTIME_CORRECT_NOT_WIRED,
-  RUNTIME_STORAGE_NOT_WIRED,
+  RUNTIME_STATUS_LOCAL_STORAGE_NOTE,
 } from "./runtime.js";
 
 describe("runAmpRuntimeStatus", () => {
   it("lists supported entity schemas and storage not-wired note", () => {
     const result = runAmpRuntimeStatus();
     assert.equal(result.ok, true);
-    assert.equal(result.storageWired, false);
+    assert.equal(result.localStorageWired, true);
     assert.deepEqual(result.schemas, RUNTIME_ENTITY_SCHEMA_NAMES);
 
     const text = formatAmpRuntimeStatusReport(result).join("\n");
@@ -28,27 +26,21 @@ describe("runAmpRuntimeStatus", () => {
     assert.match(text, /RejectedSignalLog/);
     assert.match(text, /EpisodicFrame/);
     assert.match(text, /DormantSnapshot/);
-    assert.match(text, new RegExp(RUNTIME_STORAGE_NOT_WIRED.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(text, new RegExp(RUNTIME_STATUS_LOCAL_STORAGE_NOTE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   });
 });
 
 describe("runAmpRuntimeCorrect", () => {
-  it("refuses to mutate and explains future wiring", () => {
+  it("returns bootstrap error when project AMP config is missing", () => {
     const result = runAmpRuntimeCorrect({
-      projectRoot: "/tmp/demo",
+      projectRoot: "/tmp/missing-amp-config",
       id: "frame-123",
       note: "Reclassify as correction_event",
     });
 
     assert.equal(result.ok, false);
     assert.equal(result.storageWired, false);
-    assert.equal(result.error, RUNTIME_CORRECT_NOT_WIRED);
-
-    const text = formatAmpRuntimeCorrectReport(result).join("\n");
-    assert.match(text, /frame-123/);
-    assert.match(text, /Reclassify as correction_event/);
-    assert.match(text, /not available yet/);
-    assert.match(text, /no state was mutated/);
+    assert.match(result.error ?? "", /Project AMP config not found/);
   });
 });
 

@@ -319,7 +319,7 @@ export function registerAmpCommands(
   const runtime = amp
     .command("runtime")
     .description(
-      "Runtime semantics inspection, seeding, and correction (inspect/seed read local typed storage; correct unwired)"
+      "Runtime semantics inspection, seeding, and correction (inspect/seed/correct on local typed storage)"
     );
 
   runtime
@@ -358,7 +358,7 @@ export function registerAmpCommands(
 
   runtime
     .command("correct")
-    .description("Explicit runtime correction/reclassify stub (not wired yet)")
+    .description("Capture an explicit operator correction into typed runtime semantic storage")
     .requiredOption("--id <id>", "Runtime entity id to correct")
     .requiredOption("--note <text>", "Operator note describing the correction intent")
     .option("--project-root <path>", "Project root (default: current directory)")
@@ -381,7 +381,9 @@ export function registerAmpCommands(
           formatJson: formatAmpRuntimeCorrectJson,
           formatReport: formatAmpRuntimeCorrectReport,
         });
-        process.exitCode = 1;
+        if (!result.ok) {
+          process.exitCode = 1;
+        }
       }
     );
 
@@ -415,7 +417,7 @@ export function registerAmpCommands(
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local when AMP_KNOWLEDGE_BACKEND=in-memory; gbrain read-only source with --source gbrain), runtime status/inspect/seed (typed entity inspect/seed on local storage; correct unwired), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local when AMP_KNOWLEDGE_BACKEND=in-memory; gbrain read-only source with --source gbrain), runtime status/inspect/seed/correct (typed entity inspect/seed/correct on local storage), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
       );
     });
 

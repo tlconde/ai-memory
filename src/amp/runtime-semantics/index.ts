@@ -1,6 +1,5 @@
 export {
-  RUNTIME_CORRECT_NOT_WIRED,
-  RUNTIME_STORAGE_NOT_WIRED,
+  RUNTIME_STATUS_LOCAL_STORAGE_NOTE,
 } from "./messages.js";
 
 export {
