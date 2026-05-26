@@ -105,6 +105,53 @@ describe("runAmpRuntimeSeed", () => {
     }
   });
 
+  it("reports invalid_record_shape for malformed envelope records via the seed CLI path", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("invalid-shape-seed");
+    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const seedPath = join(projectRoot, "invalid-shape-seed.json");
+    await writeFile(
+      seedPath,
+      JSON.stringify([
+        {
+          kind: "runtime-preference-candidate",
+          scope: "user",
+          payload: ACTIVE_PREFERENCE,
+        },
+        "not-an-object",
+      ]),
+      "utf8",
+    );
+
+    const result = await runAmpRuntimeSeed({
+      projectRoot,
+      file: seedPath,
+      env,
+      homedir: () => fakeHome,
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.results.length, 2);
+    assert.equal(result.results[0]?.ok, false);
+    assert.equal(result.results[1]?.ok, false);
+    if (result.results[0]?.ok === false) {
+      assert.equal(result.results[0].reason, "invalid_record_shape");
+      assert.equal(result.results[0].id, "record[0]");
+      assert.match(result.results[0].message, /id must be a non-empty string/i);
+    }
+    if (result.results[1]?.ok === false) {
+      assert.equal(result.results[1].reason, "invalid_record_shape");
+      assert.equal(result.results[1].id, "record[1]");
+      assert.match(result.results[1].message, /non-null object/i);
+    }
+
+    const runtime = openRuntimeStore(context.runtimeDbPath);
+    try {
+      assert.deepEqual(runtime.semanticEntityList(), []);
+    } finally {
+      runtime.close();
+    }
+  });
+
   it("reports validation failure for invalid records and does not write", async () => {
     const { projectRoot, env, fakeHome } = await initProject("invalid-seed");
     const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });

@@ -1,8 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+
+import { AMP_USER_CONFIG_PATH_ENV, PROJECT_CONFIG_REL } from "../config/paths.js";
 
 import { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import { runAmpInit } from "./init.js";
@@ -23,6 +25,30 @@ describe("resolveAmpRuntimeCliBootstrap", () => {
       if (!result.ok) {
         assert.match(result.error, /Project AMP config not found/);
         assert.match(result.error, /amp init/);
+      }
+    } finally {
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("returns a clear error when AMP config discovery fails", async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), "amp-runtime-bootstrap-invalid-config-"));
+    const configPath = join(projectRoot, PROJECT_CONFIG_REL);
+
+    try {
+      await mkdir(dirname(configPath), { recursive: true });
+      await writeFile(configPath, "not: [valid: yaml\n", "utf8");
+
+      const result = resolveAmpRuntimeCliBootstrap({
+        projectRoot,
+        env: {
+          [AMP_USER_CONFIG_PATH_ENV]: join(projectRoot, "missing-user.yaml"),
+        },
+      });
+
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.match(result.error, /AMP config discovery failed/);
       }
     } finally {
       await rm(projectRoot, { recursive: true, force: true });
@@ -89,6 +115,49 @@ describe("withAmpRuntimeCliStore", () => {
       );
 
       assert.equal(value, "done");
+      assert.equal(closeCalls, 1);
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("closes the runtime store when the callback throws", async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), "amp-runtime-bootstrap-throw-"));
+    const projectRoot = join(tempRoot, "project");
+    const fakeHome = join(tempRoot, "home");
+    const env = { HOME: fakeHome };
+
+    try {
+      await runAmpInit({ projectRoot, env });
+      const bootstrap = resolveAmpRuntimeCliBootstrap({
+        projectRoot,
+        env,
+        homedir: () => fakeHome,
+      });
+      assert.equal(bootstrap.ok, true);
+      if (!bootstrap.ok) {
+        return;
+      }
+
+      let closeCalls = 0;
+      const runtime = new RuntimeStore({ dbPath: bootstrap.runtimeDbPath });
+      const originalClose = runtime.close.bind(runtime);
+      runtime.close = () => {
+        closeCalls += 1;
+        originalClose();
+      };
+
+      assert.throws(
+        () =>
+          withAmpRuntimeCliStore(
+            bootstrap,
+            { deps: { openRuntimeStore: () => runtime } },
+            () => {
+              throw new Error("seed callback failed");
+            },
+          ),
+        /seed callback failed/,
+      );
       assert.equal(closeCalls, 1);
     } finally {
       await rm(tempRoot, { recursive: true, force: true });
