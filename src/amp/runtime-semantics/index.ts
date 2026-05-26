@@ -27,6 +27,12 @@ export {
   RUNTIME_FORMATTER_REGISTRY,
 } from "./formatter-registry.js";
 
+export {
+  InMemoryRuntimeSemanticEntitySource,
+  materializeRuntimeProjectionFromSource,
+  resolveRuntimeSemanticEntitySection,
+} from "./projection-source.js";
+
 export type {
   FormatterEntityByKind,
   FormatterOptionsByKind,
@@ -41,6 +47,18 @@ export type {
   RuntimeFormatterRegistryEntry,
   SensitivityPolicy,
 } from "./formatter-registry.js";
+
+export type {
+  MaterializeRuntimeProjectionFromSourceOptions,
+  MaterializeRuntimeProjectionFromSourceResult,
+  RuntimeFormatterRegistryKind,
+  RuntimeProjectionMaterializationSkip,
+  RuntimeProjectionMaterializationSkipReason,
+  RuntimeProjectionMaterializedItem,
+  RuntimeProjectionTargetSection,
+  RuntimeSemanticEntityRecord,
+  RuntimeSemanticEntitySource,
+} from "./projection-source.js";
 
 export type {
   FormatEpisodicFrameOptions,
