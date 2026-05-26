@@ -64,6 +64,8 @@ tsconfig.tsbuildinfo
 # Project memory and local MCP config (never publish)
 .ai/
 .mcp.json
+AGENTS.md
+benchmarks/
 
 # Tool-generated files (created by ai-memory install, never publish)
 .windsurfrules
