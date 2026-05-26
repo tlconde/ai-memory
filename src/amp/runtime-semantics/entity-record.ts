@@ -1,7 +1,7 @@
 /**
  * Typed runtime semantic entity record contract (RUNTIME-15).
  *
- * Shared envelope shape for projection, storage validation, and persistence.
+ * Shared envelope types for projection, storage validation, and persistence.
  */
 
 import type { ScopeKind } from "../core/frame-schema.js";
@@ -20,12 +20,4 @@ export interface RuntimeSemanticEntityRecord {
 
 export interface RuntimeSemanticEntitySource {
   listEntities(): readonly RuntimeSemanticEntityRecord[];
-}
-
-export class InMemoryRuntimeSemanticEntitySource implements RuntimeSemanticEntitySource {
-  constructor(private readonly entities: readonly RuntimeSemanticEntityRecord[]) {}
-
-  listEntities(): readonly RuntimeSemanticEntityRecord[] {
-    return this.entities;
-  }
 }

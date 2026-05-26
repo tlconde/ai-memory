@@ -1,16 +1,9 @@
 /**
  * Storage-backed runtime semantic entity source adapter (RUNTIME-08).
  *
- * Falsifiable claim: typed runtime semantic records can be loaded from a
- * read-only storage reader and materialized via materializeRuntimeProjectionFromSource
- * without changing capture/consolidation behavior.
- *
- * Boundary ownership:
- * - RuntimeSemanticEntityReader: storage read boundary (records only, no parsing).
- * - RuntimeStoreSemanticEntityReader: production RuntimeStore read adapter (RUNTIME-11).
- * - RuntimeStoreSemanticEntityWriter: validated write adapter (RUNTIME-14; see storage-writer.ts).
- * - RuntimeSemanticStorageEntitySource: RuntimeSemanticEntitySource adapter.
- * - materializeRuntimeProjectionFromSource: parse, validate, and format records.
+ * Read-path boundary: typed runtime semantic records load from RuntimeStore via
+ * {@link RuntimeStoreSemanticEntityReader} and adapt to {@link RuntimeSemanticEntitySource}
+ * for downstream projection materialization.
  */
 
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";

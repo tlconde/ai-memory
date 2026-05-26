@@ -1,9 +1,9 @@
 /**
  * Typed runtime semantic entity source adapter (RUNTIME-06).
  *
- * Falsifiable claim: in-memory runtime entity records convert to projection-
- * ready formatted text via formatParsedRuntimeEntityForProjection without storage or
- * .amp/local/runtime.md wiring.
+ * Falsifiable claim: runtime entity records from a {@link RuntimeSemanticEntitySource}
+ * convert to projection-ready formatted text via formatParsedRuntimeEntityForProjection
+ * without storage or .amp/local/runtime.md wiring.
  *
  * Scope validation ownership:
  * - schema.ts (Zod): payload-internal scope/project_ref symmetry.
@@ -32,7 +32,6 @@ import {
   type LeaningAttachmentSkip,
 } from "./leaning-attachments.js";
 import {
-  InMemoryRuntimeSemanticEntitySource,
   type RuntimeFormatterRegistryKind,
   type RuntimeSemanticEntityRecord,
   type RuntimeSemanticEntitySource,
@@ -44,7 +43,15 @@ import {
 } from "./record-envelope-alignment.js";
 
 export type { RuntimeFormatterRegistryKind, RuntimeSemanticEntityRecord, RuntimeSemanticEntitySource };
-export { InMemoryRuntimeSemanticEntitySource };
+
+/** In-memory RuntimeSemanticEntitySource for tests and offline projection wiring. */
+export class InMemoryRuntimeSemanticEntitySource implements RuntimeSemanticEntitySource {
+  constructor(private readonly entities: readonly RuntimeSemanticEntityRecord[]) {}
+
+  listEntities(): readonly RuntimeSemanticEntityRecord[] {
+    return this.entities;
+  }
+}
 
 export type RuntimeProjectionTargetSection = "globalRuntime" | "projectRuntime";
 

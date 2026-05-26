@@ -77,15 +77,18 @@ export type {
 } from "./formatter-registry.js";
 
 export type {
+  RuntimeFormatterRegistryKind,
+  RuntimeSemanticEntityRecord,
+  RuntimeSemanticEntitySource,
+} from "./entity-record.js";
+
+export type {
   MaterializeRuntimeProjectionFromSourceOptions,
   MaterializeRuntimeProjectionFromSourceResult,
-  RuntimeFormatterRegistryKind,
   RuntimeProjectionMaterializationSkip,
   RuntimeProjectionMaterializationSkipReason,
   RuntimeProjectionMaterializedItem,
   RuntimeProjectionTargetSection,
-  RuntimeSemanticEntityRecord,
-  RuntimeSemanticEntitySource,
 } from "./projection-source.js";
 
 export type { RuntimeSemanticEntityReader } from "./storage-source.js";
