@@ -34,6 +34,10 @@ export {
   resolveRuntimeSemanticEntitySection,
 } from "./projection-source.js";
 
+export {
+  RuntimeSemanticStorageEntitySource,
+} from "./storage-source.js";
+
 export type {
   FormatterEntityByKind,
   FormatterOptionsByKind,
@@ -60,6 +64,8 @@ export type {
   RuntimeSemanticEntityRecord,
   RuntimeSemanticEntitySource,
 } from "./projection-source.js";
+
+export type { RuntimeSemanticEntityReader } from "./storage-source.js";
 
 export type {
   FormatEpisodicFrameOptions,
