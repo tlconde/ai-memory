@@ -384,7 +384,7 @@ describe("materializeRuntimeProjectionFromSource", () => {
     assert.equal(result.skipped[0]?.reason, "missing_record_project_ref");
   });
 
-  it("keeps non-projectable entities failing safely through the formatter boundary", () => {
+  it("keeps non-projectable entities failing safely before formatter invocation", () => {
     const source = new InMemoryRuntimeSemanticEntitySource([
       record({
         id: "dormant-1",
@@ -429,5 +429,150 @@ describe("materializeRuntimeProjectionFromSource", () => {
     assert.equal(result.skipped.length, 1);
     assert.equal(result.skipped[0]?.reason, "not_projectable");
     assert.equal(result.skipped[0]?.kind, "dormant-snapshot");
+  });
+
+  it("does not attach leanings across different project_ref envelopes", () => {
+    const withoutLeaning = formatRuntimeEntityForProjection("unresolved-decision", OPEN_DECISION);
+    assert.equal(withoutLeaning.ok, true);
+
+    const source = new InMemoryRuntimeSemanticEntitySource([
+      record({
+        id: "dec-1",
+        kind: "unresolved-decision",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: OPEN_DECISION,
+      }),
+      record({
+        id: "lean-other-project",
+        kind: "current-decision-leaning",
+        scope: "project",
+        project_ref: "other-project",
+        payload: CURRENT_LEANING,
+      }),
+    ]);
+
+    const result = materializeRuntimeProjectionFromSource(source, {
+      projectRef: PROJECT_REF,
+    });
+
+    assert.equal(result.items.length, 1);
+    assert.equal(result.skipped.length, 1);
+    assert.equal(result.skipped[0]?.reason, "sub_entity_envelope_mismatch");
+    if (withoutLeaning.ok) {
+      assert.deepEqual(result.items[0]?.formatted, withoutLeaning.formatted);
+    }
+  });
+
+  it("does not attach leanings across user/project scope envelope mismatch", () => {
+    const source = new InMemoryRuntimeSemanticEntitySource([
+      record({
+        id: "dec-1",
+        kind: "unresolved-decision",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: OPEN_DECISION,
+      }),
+      record({
+        id: "lean-user-scope",
+        kind: "current-decision-leaning",
+        scope: "user",
+        payload: CURRENT_LEANING,
+      }),
+    ]);
+
+    const result = materializeRuntimeProjectionFromSource(source, {
+      projectRef: PROJECT_REF,
+    });
+
+    assert.equal(result.items.length, 1);
+    assert.equal(result.skipped.length, 1);
+    assert.equal(result.skipped[0]?.reason, "sub_entity_envelope_mismatch");
+    assert.doesNotMatch(result.items[0]?.text ?? "", /Current leaning/i);
+  });
+
+  it("does not treat invalid parent decisions as parents via record.id fallback", () => {
+    const source = new InMemoryRuntimeSemanticEntitySource([
+      record({
+        id: "dec-bad",
+        kind: "unresolved-decision",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: { id: "dec-bad" },
+      }),
+      record({
+        id: "lean-for-dec-bad",
+        kind: "current-decision-leaning",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: {
+          ...CURRENT_LEANING,
+          decision_id: "dec-bad",
+        },
+      }),
+    ]);
+
+    const result = materializeRuntimeProjectionFromSource(source, {
+      projectRef: PROJECT_REF,
+    });
+
+    assert.equal(result.items.length, 0);
+    assert.equal(result.skipped.length, 2);
+    assert.deepEqual(
+      result.skipped.map((entry) => entry.recordId),
+      ["dec-bad", "lean-for-dec-bad"],
+    );
+    assert.equal(result.skipped[0]?.reason, "invalid_input");
+    assert.equal(result.skipped[1]?.reason, "orphan_sub_entity");
+  });
+
+  it("emits skip audit entries in source record order", () => {
+    const source = new InMemoryRuntimeSemanticEntitySource([
+      record({
+        id: "pref-ok",
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: { ...ACTIVE_PREFERENCE, id: "pref-ok" },
+      }),
+      record({
+        id: "dec-invalid",
+        kind: "unresolved-decision",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: { id: "dec-invalid" },
+      }),
+      record({
+        id: "lean-orphan",
+        kind: "current-decision-leaning",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: {
+          ...CURRENT_LEANING,
+          decision_id: "missing-parent",
+        },
+      }),
+      record({
+        id: "rej-1",
+        kind: "rejected-signal-log",
+        scope: "project",
+        project_ref: PROJECT_REF,
+        payload: REJECTED_SIGNAL,
+      }),
+    ]);
+
+    const result = materializeRuntimeProjectionFromSource(source, {
+      projectRef: PROJECT_REF,
+    });
+
+    assert.equal(result.items.length, 1);
+    assert.equal(result.items[0]?.id, "pref-ok");
+    assert.deepEqual(
+      result.skipped.map((entry) => entry.recordId),
+      ["dec-invalid", "lean-orphan", "rej-1"],
+    );
+    assert.deepEqual(
+      result.skipped.map((entry) => entry.reason),
+      ["invalid_input", "orphan_sub_entity", "not_projectable"],
+    );
   });
 });

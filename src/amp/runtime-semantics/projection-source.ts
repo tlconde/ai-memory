@@ -4,6 +4,12 @@
  * Falsifiable claim: in-memory runtime entity records convert to projection-
  * ready formatted text via formatRuntimeEntityForProjection without storage or
  * .amp/local/runtime.md wiring.
+ *
+ * Scope validation ownership:
+ * - schema.ts (Zod): payload-internal scope/project_ref symmetry.
+ * - projection-source (this module): record envelope ↔ parsed payload alignment
+ *   and record envelope ↔ materialization projectRef section routing.
+ * - formatter-registry: projectability/renderability and format-time policy.
  */
 
 import type { ScopeKind } from "../core/frame-schema.js";
@@ -12,6 +18,7 @@ import {
   isProjectableFormatterKind,
   parseRuntimeEntityAtBoundary,
   type FormatRuntimeEntityProjectionFailureReason,
+  type FormatterEntityByKind,
   type FormatterRegistryKind,
   type ProjectableFormatterKind,
 } from "./formatter-registry.js";
@@ -61,6 +68,7 @@ export type RuntimeProjectionMaterializationSkipReason =
   | "record_payload_project_ref_mismatch"
   | "missing_record_project_ref"
   | "orphan_sub_entity"
+  | "sub_entity_envelope_mismatch"
   | "invalid_sub_entity"
   | "empty_format";
 
@@ -80,6 +88,26 @@ export interface MaterializeRuntimeProjectionFromSourceResult {
   skipped: RuntimeProjectionMaterializationSkip[];
 }
 
+interface PayloadScopeMetadata {
+  scope?: ScopeKind;
+  project_ref?: string;
+}
+
+interface ParsedRuntimeSemanticEntityRecord {
+  record: RuntimeSemanticEntityRecord;
+  parseResult:
+    | { success: false; error: string }
+    | { success: true; value: FormatterEntityByKind[FormatterRegistryKind] };
+  payloadScope: PayloadScopeMetadata;
+  envelopeSkip?: RuntimeProjectionMaterializationSkip;
+  section?: RuntimeProjectionTargetSection;
+}
+
+interface LeaningAttachmentIndex {
+  byDecisionId: Map<string, CurrentDecisionLeaning>;
+  skipsByRecordId: Map<string, RuntimeProjectionMaterializationSkip>;
+}
+
 /** Resolve which runtime projection section an entity belongs in for a project. */
 export function resolveRuntimeSemanticEntitySection(
   record: Pick<RuntimeSemanticEntityRecord, "scope" | "project_ref">,
@@ -97,37 +125,57 @@ export function resolveRuntimeSemanticEntitySection(
   return undefined;
 }
 
-interface ParsedPayloadScopeMetadata {
-  scope?: ScopeKind;
-  project_ref?: string;
-}
-
-function extractPayloadScopeMetadata(parsed: unknown): ParsedPayloadScopeMetadata {
-  if (typeof parsed !== "object" || parsed === null) {
-    return {};
+function extractPayloadScopeMetadata(
+  kind: FormatterRegistryKind,
+  parsed: FormatterEntityByKind[FormatterRegistryKind],
+): PayloadScopeMetadata {
+  switch (kind) {
+    case "unresolved-decision": {
+      const entity = parsed as FormatterEntityByKind["unresolved-decision"];
+      return { scope: entity.scope };
+    }
+    case "runtime-preference-candidate": {
+      const entity = parsed as FormatterEntityByKind["runtime-preference-candidate"];
+      return {
+        scope: entity.scope,
+        project_ref: entity.project_ref,
+      };
+    }
+    case "runtime-crystal-candidate": {
+      const entity = parsed as FormatterEntityByKind["runtime-crystal-candidate"];
+      return {
+        scope: entity.scope,
+        project_ref: entity.project_ref,
+      };
+    }
+    case "rejected-signal-log": {
+      const entity = parsed as FormatterEntityByKind["rejected-signal-log"];
+      return { scope: entity.scope };
+    }
+    case "episodic-frame": {
+      const entity = parsed as FormatterEntityByKind["episodic-frame"];
+      return {
+        scope: entity.scope,
+        project_ref: entity.project_ref,
+      };
+    }
+    case "harness-operational-state": {
+      const entity = parsed as FormatterEntityByKind["harness-operational-state"];
+      return { project_ref: entity.project_ref };
+    }
+    case "current-decision-leaning":
+    case "dormant-snapshot":
+      return {};
+    default: {
+      const _exhaustive: never = kind;
+      throw new Error(`Unhandled formatter registry kind: ${String(_exhaustive)}`);
+    }
   }
-
-  const candidate = parsed as { scope?: unknown; project_ref?: unknown };
-  const metadata: ParsedPayloadScopeMetadata = {};
-
-  if (
-    candidate.scope === "project" ||
-    candidate.scope === "user" ||
-    candidate.scope === "universal"
-  ) {
-    metadata.scope = candidate.scope;
-  }
-
-  if (typeof candidate.project_ref === "string" && candidate.project_ref.length > 0) {
-    metadata.project_ref = candidate.project_ref;
-  }
-
-  return metadata;
 }
 
 function validateRecordPayloadAlignment(
   record: RuntimeSemanticEntityRecord,
-  payload: ParsedPayloadScopeMetadata,
+  payload: PayloadScopeMetadata,
 ): RuntimeProjectionMaterializationSkip | undefined {
   if (payload.scope !== undefined && payload.scope !== record.scope) {
     return {
@@ -163,106 +211,135 @@ function validateRecordPayloadAlignment(
   return undefined;
 }
 
-interface DecisionLeaningIndex {
-  byDecisionId: Map<string, CurrentDecisionLeaning>;
-  orphanLeanings: RuntimeProjectionMaterializationSkip[];
-}
-
-function indexDecisionLeanings(
-  records: readonly RuntimeSemanticEntityRecord[],
-): DecisionLeaningIndex {
-  const byDecisionId = new Map<string, CurrentDecisionLeaning>();
-  const orphanLeanings: RuntimeProjectionMaterializationSkip[] = [];
-
-  for (const record of records) {
-    if (record.kind !== "current-decision-leaning") {
-      continue;
-    }
-
-    const parsed = parseRuntimeEntityAtBoundary("current-decision-leaning", record.payload);
-    if (!parsed.success) {
-      orphanLeanings.push({
-        recordId: record.id,
-        kind: record.kind,
-        reason: "invalid_sub_entity",
-        message: parsed.error,
-      });
-      continue;
-    }
-
-    byDecisionId.set(parsed.value.decision_id, parsed.value);
-  }
-
-  return { byDecisionId, orphanLeanings };
-}
-
-function resolveDecisionId(record: RuntimeSemanticEntityRecord): string | undefined {
-  if (record.kind !== "unresolved-decision") {
-    return undefined;
-  }
-
-  const parsed = parseRuntimeEntityAtBoundary("unresolved-decision", record.payload);
-  if (!parsed.success) {
-    return record.id;
-  }
-
-  return parsed.value.id;
-}
-
-function formatRecordForProjection(
+function resolveEnvelopeSkip(
   record: RuntimeSemanticEntityRecord,
-  leaningByDecisionId: Map<string, CurrentDecisionLeaning>,
-): ReturnType<typeof formatRuntimeEntityForProjection> {
-  if (record.kind === "unresolved-decision") {
-    const decisionId = resolveDecisionId(record);
-    const currentLeaning =
-      decisionId === undefined ? undefined : leaningByDecisionId.get(decisionId);
-
-    return formatRuntimeEntityForProjection("unresolved-decision", record.payload, {
-      currentLeaning,
-    });
+  payloadScope: PayloadScopeMetadata,
+  projectRef: string,
+): RuntimeProjectionMaterializationSkip | undefined {
+  const alignmentSkip = validateRecordPayloadAlignment(record, payloadScope);
+  if (alignmentSkip !== undefined) {
+    return alignmentSkip;
   }
 
-  return formatRuntimeEntityForProjection(record.kind, record.payload);
+  if (resolveRuntimeSemanticEntitySection(record, projectRef) === undefined) {
+    return {
+      recordId: record.id,
+      kind: record.kind,
+      reason: "scope_mismatch",
+      message: `Entity scope ${record.scope} does not match projectRef ${projectRef}`,
+    };
+  }
+
+  return undefined;
 }
 
-function collectOrphanLeanings(
+function parseRuntimeSemanticEntityRecords(
   records: readonly RuntimeSemanticEntityRecord[],
-  leaningIndex: DecisionLeaningIndex,
-): RuntimeProjectionMaterializationSkip[] {
-  const parentDecisionIds = new Set<string>();
-  for (const record of records) {
-    if (record.kind !== "unresolved-decision") {
-      continue;
+  projectRef: string,
+): ParsedRuntimeSemanticEntityRecord[] {
+  return records.map((record) => {
+    const parseResult = parseRuntimeEntityAtBoundary(record.kind, record.payload);
+    if (!parseResult.success) {
+      return {
+        record,
+        parseResult,
+        payloadScope: {},
+      };
     }
-    const decisionId = resolveDecisionId(record);
-    if (decisionId !== undefined) {
-      parentDecisionIds.add(decisionId);
-    }
+
+    const payloadScope = extractPayloadScopeMetadata(record.kind, parseResult.value);
+    const envelopeSkip = resolveEnvelopeSkip(record, payloadScope, projectRef);
+    const section =
+      envelopeSkip === undefined
+        ? resolveRuntimeSemanticEntitySection(record, projectRef)
+        : undefined;
+
+    return {
+      record,
+      parseResult,
+      payloadScope,
+      envelopeSkip,
+      section,
+    };
+  });
+}
+
+function recordEnvelopesCompatible(
+  parent: RuntimeSemanticEntityRecord,
+  child: RuntimeSemanticEntityRecord,
+): boolean {
+  if (parent.scope !== child.scope) {
+    return false;
   }
 
-  const orphanSkips: RuntimeProjectionMaterializationSkip[] = [...leaningIndex.orphanLeanings];
-  for (const record of records) {
-    if (record.kind !== "current-decision-leaning") {
+  if (parent.scope === "project") {
+    return parent.project_ref === child.project_ref;
+  }
+
+  return true;
+}
+
+function buildLeaningAttachmentIndex(
+  parsedRecords: readonly ParsedRuntimeSemanticEntityRecord[],
+): LeaningAttachmentIndex {
+  const parentDecisionsById = new Map<string, ParsedRuntimeSemanticEntityRecord>();
+
+  for (const parsed of parsedRecords) {
+    if (parsed.record.kind !== "unresolved-decision") {
+      continue;
+    }
+    if (!parsed.parseResult.success || parsed.envelopeSkip !== undefined) {
       continue;
     }
 
-    const parsed = parseRuntimeEntityAtBoundary("current-decision-leaning", record.payload);
-    if (!parsed.success) {
+    const decision = parsed.parseResult.value as FormatterEntityByKind["unresolved-decision"];
+    parentDecisionsById.set(decision.id, parsed);
+  }
+
+  const byDecisionId = new Map<string, CurrentDecisionLeaning>();
+  const skipsByRecordId = new Map<string, RuntimeProjectionMaterializationSkip>();
+
+  for (const parsed of parsedRecords) {
+    if (parsed.record.kind !== "current-decision-leaning") {
       continue;
     }
 
-    if (!parentDecisionIds.has(parsed.value.decision_id)) {
-      orphanSkips.push({
-        recordId: record.id,
-        kind: record.kind,
-        reason: "orphan_sub_entity",
-        message: `No parent unresolved-decision for decision_id ${parsed.value.decision_id}`,
+    if (!parsed.parseResult.success) {
+      skipsByRecordId.set(parsed.record.id, {
+        recordId: parsed.record.id,
+        kind: parsed.record.kind,
+        reason: "invalid_sub_entity",
+        message: parsed.parseResult.error,
       });
+      continue;
     }
+
+    const leaning = parsed.parseResult.value as FormatterEntityByKind["current-decision-leaning"];
+    const parent = parentDecisionsById.get(leaning.decision_id);
+    if (parent === undefined) {
+      skipsByRecordId.set(parsed.record.id, {
+        recordId: parsed.record.id,
+        kind: parsed.record.kind,
+        reason: "orphan_sub_entity",
+        message: `No parent unresolved-decision for decision_id ${leaning.decision_id}`,
+      });
+      continue;
+    }
+
+    if (!recordEnvelopesCompatible(parent.record, parsed.record)) {
+      skipsByRecordId.set(parsed.record.id, {
+        recordId: parsed.record.id,
+        kind: parsed.record.kind,
+        reason: "sub_entity_envelope_mismatch",
+        message: `Leaning envelope scope=${parsed.record.scope} project_ref=${parsed.record.project_ref ?? "(missing)"} is incompatible with parent decision envelope scope=${parent.record.scope} project_ref=${parent.record.project_ref ?? "(missing)"}`,
+      });
+      continue;
+    }
+
+    byDecisionId.set(leaning.decision_id, leaning);
   }
 
-  return orphanSkips;
+  return { byDecisionId, skipsByRecordId };
 }
 
 /** Materialize projection-ready runtime text blocks from a typed entity source. */
@@ -270,40 +347,42 @@ export function materializeRuntimeProjectionFromSource(
   source: RuntimeSemanticEntitySource,
   options: MaterializeRuntimeProjectionFromSourceOptions,
 ): MaterializeRuntimeProjectionFromSourceResult {
-  const records = source.listEntities();
-  const leaningIndex = indexDecisionLeanings(records);
-  const orphanSkips = collectOrphanLeanings(records, leaningIndex);
+  const parsedRecords = parseRuntimeSemanticEntityRecords(
+    source.listEntities(),
+    options.projectRef,
+  );
+  const leaningIndex = buildLeaningAttachmentIndex(parsedRecords);
 
   const items: RuntimeProjectionMaterializedItem[] = [];
-  const skipped: RuntimeProjectionMaterializationSkip[] = [...orphanSkips];
+  const skipped: RuntimeProjectionMaterializationSkip[] = [];
 
-  for (const record of records) {
+  for (const parsed of parsedRecords) {
+    const { record } = parsed;
+
     if (record.kind === "current-decision-leaning") {
+      const leaningSkip = leaningIndex.skipsByRecordId.get(record.id);
+      if (leaningSkip !== undefined) {
+        skipped.push(leaningSkip);
+      }
       continue;
     }
 
-    const parsed = parseRuntimeEntityAtBoundary(record.kind, record.payload);
-    if (!parsed.success) {
+    if (!parsed.parseResult.success) {
       skipped.push({
         recordId: record.id,
         kind: record.kind,
         reason: "invalid_input",
-        message: parsed.error,
+        message: parsed.parseResult.error,
       });
       continue;
     }
 
-    const alignmentSkip = validateRecordPayloadAlignment(
-      record,
-      extractPayloadScopeMetadata(parsed.value),
-    );
-    if (alignmentSkip !== undefined) {
-      skipped.push(alignmentSkip);
+    if (parsed.envelopeSkip !== undefined) {
+      skipped.push(parsed.envelopeSkip);
       continue;
     }
 
-    const section = resolveRuntimeSemanticEntitySection(record, options.projectRef);
-    if (section === undefined) {
+    if (parsed.section === undefined) {
       skipped.push({
         recordId: record.id,
         kind: record.kind,
@@ -313,7 +392,34 @@ export function materializeRuntimeProjectionFromSource(
       continue;
     }
 
-    const formattedResult = formatRecordForProjection(record, leaningIndex.byDecisionId);
+    if (!isProjectableFormatterKind(record.kind)) {
+      skipped.push({
+        recordId: record.id,
+        kind: record.kind,
+        reason: "not_projectable",
+        message: `${record.kind} is not projectable`,
+      });
+      continue;
+    }
+
+    const formatOptions =
+      record.kind === "unresolved-decision"
+        ? {
+            currentLeaning: leaningIndex.byDecisionId.get(
+              (parsed.parseResult.value as FormatterEntityByKind["unresolved-decision"]).id,
+            ),
+          }
+        : undefined;
+
+    const formattedResult =
+      record.kind === "unresolved-decision"
+        ? formatRuntimeEntityForProjection(
+            "unresolved-decision",
+            record.payload,
+            formatOptions,
+          )
+        : formatRuntimeEntityForProjection(record.kind, record.payload);
+
     if (!formattedResult.ok) {
       skipped.push({
         recordId: record.id,
@@ -334,20 +440,10 @@ export function materializeRuntimeProjectionFromSource(
       continue;
     }
 
-    if (!isProjectableFormatterKind(record.kind)) {
-      skipped.push({
-        recordId: record.id,
-        kind: record.kind,
-        reason: "not_projectable",
-        message: `${record.kind} is not projectable`,
-      });
-      continue;
-    }
-
     items.push({
       id: record.id,
       kind: record.kind,
-      section,
+      section: parsed.section,
       formatted: formattedResult.formatted,
       text: joinRuntimeProjectionLines(formattedResult.formatted.lines),
     });
