@@ -37,6 +37,12 @@ export {
 export { validateRuntimeSemanticEntityForStorage } from "./storage-validation.js";
 
 export {
+  parseRuntimeSemanticEntityRecordFromUnknown,
+  runtimeSemanticEntityRecordIdFromUnknown,
+  safeParseRuntimeSemanticEntityRecordFromUnknown,
+} from "./entity-record-parse.js";
+
+export {
   RuntimeSemanticStorageEntitySource,
   RuntimeStoreSemanticEntityReader,
 } from "./storage-source.js";
@@ -79,6 +85,11 @@ export type {
   RuntimeSemanticEntityWriteFailureReason,
   RuntimeSemanticEntityWriteResult,
 } from "./storage-validation.js";
+
+export type {
+  RuntimeSemanticEntityRecordParseFailureReason,
+  RuntimeSemanticEntityRecordParseResult,
+} from "./entity-record-parse.js";
 
 export type {
   FormatEpisodicFrameOptions,

@@ -15,15 +15,20 @@ import { readFile as fsReadFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { projectConfigPath } from "../config/paths.js";
-import type { RuntimeSemanticEntityRecord } from "../runtime-semantics/entity-record.js";
+import type { RuntimeSemanticEntityRecordParseFailureReason } from "../runtime-semantics/entity-record-parse.js";
+import {
+  runtimeSemanticEntityRecordIdFromUnknown,
+  safeParseRuntimeSemanticEntityRecordFromUnknown,
+} from "../runtime-semantics/entity-record-parse.js";
 import type { RuntimeSemanticEntityWriteFailureReason } from "../runtime-semantics/storage-validation.js";
 import { writeRuntimeSemanticEntity } from "../runtime-semantics/storage-writer.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
+import type { RuntimeSemanticEntityRecord } from "../runtime-semantics/entity-record.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
 
 export type AmpRuntimeSeedRecordFailureReason =
-  | RuntimeSemanticEntityWriteFailureReason
-  | "invalid_record_shape";
+  | RuntimeSemanticEntityRecordParseFailureReason
+  | Extract<RuntimeSemanticEntityWriteFailureReason, "duplicate_id">;
 
 export type AmpRuntimeSeedItemResult =
   | { id: string; ok: true }
@@ -52,32 +57,6 @@ export interface AmpRuntimeSeedResult {
   results: AmpRuntimeSeedItemResult[];
   ok: boolean;
   error?: string;
-}
-
-function recordIdFromUnknown(value: unknown, index: number): string {
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { id?: unknown }).id === "string"
-  ) {
-    return (value as { id: string }).id;
-  }
-  return `record[${index}]`;
-}
-
-function isRuntimeSemanticEntityRecordShape(
-  value: unknown,
-): value is RuntimeSemanticEntityRecord {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.kind === "string" &&
-    typeof candidate.scope === "string" &&
-    "payload" in candidate
-  );
 }
 
 function parseSeedRecordsFromJson(
@@ -191,25 +170,25 @@ export async function runAmpRuntimeSeed(
 
   try {
     for (const [index, candidate] of parsed.records.entries()) {
-      const id = recordIdFromUnknown(candidate, index);
-
-      if (!isRuntimeSemanticEntityRecordShape(candidate)) {
+      const parseResult = safeParseRuntimeSemanticEntityRecordFromUnknown(candidate);
+      if (!parseResult.ok) {
         results.push({
-          id,
+          id:
+            parseResult.id ??
+            runtimeSemanticEntityRecordIdFromUnknown(candidate, index),
           ok: false,
-          reason: "invalid_record_shape",
-          message:
-            "Record must include string id, kind, scope, and a payload field.",
+          reason: parseResult.reason,
+          message: parseResult.message,
         });
         continue;
       }
 
-      const writeResult = writeEntity(runtime, candidate);
+      const writeResult = writeEntity(runtime, parseResult.record);
       if (writeResult.ok) {
-        results.push({ id: candidate.id, ok: true });
+        results.push({ id: parseResult.record.id, ok: true });
       } else {
         results.push({
-          id: candidate.id,
+          id: parseResult.record.id,
           ok: false,
           reason: writeResult.reason,
           message: writeResult.message,
