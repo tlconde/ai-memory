@@ -10,11 +10,9 @@
  * - projection render source: read + materialize seeded entities.
  */
 
-import { existsSync } from "node:fs";
 import { readFile as fsReadFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { projectConfigPath } from "../config/paths.js";
 import type { RuntimeSemanticEntityRecordParseFailureReason } from "../runtime-semantics/entity-record-parse.js";
 import {
   runtimeSemanticEntityRecordIdFromUnknown,
@@ -24,7 +22,10 @@ import type { RuntimeSemanticEntityWriteFailureReason } from "../runtime-semanti
 import { writeRuntimeSemanticEntity } from "../runtime-semantics/storage-writer.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import type { RuntimeSemanticEntityRecord } from "../runtime-semantics/entity-record.js";
-import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
+import {
+  resolveAmpRuntimeCliBootstrap,
+  withAmpRuntimeCliStore,
+} from "./runtime-cli-bootstrap.js";
 
 export type AmpRuntimeSeedRecordFailureReason =
   | RuntimeSemanticEntityRecordParseFailureReason
@@ -98,43 +99,25 @@ export function parseAmpRuntimeSeedFileContent(
 export async function runAmpRuntimeSeed(
   options: AmpRuntimeSeedOptions,
 ): Promise<AmpRuntimeSeedResult> {
-  const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const file = resolve(options.file);
   const env = options.env ?? process.env;
   const readFile = options.deps?.readFile ?? ((path: string) => fsReadFile(path, "utf8"));
-  const openStore = options.deps?.openRuntimeStore ?? openRuntimeStore;
   const writeEntity = options.deps?.writeEntity ?? writeRuntimeSemanticEntity;
 
-  const configPath = projectConfigPath(projectRoot, { env });
-  if (!existsSync(configPath)) {
+  const bootstrap = resolveAmpRuntimeCliBootstrap({
+    projectRoot: options.projectRoot,
+    env,
+    platform: options.platform,
+    homedir: options.homedir,
+  });
+  if (!bootstrap.ok) {
     return {
-      projectRoot,
-      runtimeDbPath: "",
+      projectRoot: bootstrap.projectRoot,
+      runtimeDbPath: bootstrap.runtimeDbPath,
       file,
       results: [],
       ok: false,
-      error: `Project AMP config not found at ${configPath}. Run \`ai-memory amp init\` first.`,
-    };
-  }
-
-  let runtimeDbPath: string;
-  try {
-    const context = resolveCliProjectContext({
-      projectRoot,
-      env,
-      platform: options.platform,
-      homedir: options.homedir,
-    });
-    runtimeDbPath = context.runtimeDbPath;
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    return {
-      projectRoot,
-      runtimeDbPath: "",
-      file,
-      results: [],
-      ok: false,
-      error: `AMP config discovery failed: ${message}`,
+      error: bootstrap.error,
     };
   }
 
@@ -144,8 +127,8 @@ export async function runAmpRuntimeSeed(
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     return {
-      projectRoot,
-      runtimeDbPath,
+      projectRoot: bootstrap.projectRoot,
+      runtimeDbPath: bootstrap.runtimeDbPath,
       file,
       results: [],
       ok: false,
@@ -156,8 +139,8 @@ export async function runAmpRuntimeSeed(
   const parsed = parseAmpRuntimeSeedFileContent(raw);
   if (!parsed.ok) {
     return {
-      projectRoot,
-      runtimeDbPath,
+      projectRoot: bootstrap.projectRoot,
+      runtimeDbPath: bootstrap.runtimeDbPath,
       file,
       results: [],
       ok: false,
@@ -165,43 +148,46 @@ export async function runAmpRuntimeSeed(
     };
   }
 
-  const runtime = openStore(runtimeDbPath);
-  const results: AmpRuntimeSeedItemResult[] = [];
+  const results = withAmpRuntimeCliStore(
+    bootstrap,
+    { deps: { openRuntimeStore: options.deps?.openRuntimeStore } },
+    (runtime) => {
+      const seedResults: AmpRuntimeSeedItemResult[] = [];
 
-  try {
-    for (const [index, candidate] of parsed.records.entries()) {
-      const parseResult = safeParseRuntimeSemanticEntityRecordFromUnknown(candidate);
-      if (!parseResult.ok) {
-        results.push({
-          id:
-            parseResult.id ??
-            runtimeSemanticEntityRecordIdFromUnknown(candidate, index),
-          ok: false,
-          reason: parseResult.reason,
-          message: parseResult.message,
-        });
-        continue;
+      for (const [index, candidate] of parsed.records.entries()) {
+        const parseResult = safeParseRuntimeSemanticEntityRecordFromUnknown(candidate);
+        if (!parseResult.ok) {
+          seedResults.push({
+            id:
+              parseResult.id ??
+              runtimeSemanticEntityRecordIdFromUnknown(candidate, index),
+            ok: false,
+            reason: parseResult.reason,
+            message: parseResult.message,
+          });
+          continue;
+        }
+
+        const writeResult = writeEntity(runtime, parseResult.record);
+        if (writeResult.ok) {
+          seedResults.push({ id: parseResult.record.id, ok: true });
+        } else {
+          seedResults.push({
+            id: parseResult.record.id,
+            ok: false,
+            reason: writeResult.reason,
+            message: writeResult.message,
+          });
+        }
       }
 
-      const writeResult = writeEntity(runtime, parseResult.record);
-      if (writeResult.ok) {
-        results.push({ id: parseResult.record.id, ok: true });
-      } else {
-        results.push({
-          id: parseResult.record.id,
-          ok: false,
-          reason: writeResult.reason,
-          message: writeResult.message,
-        });
-      }
-    }
-  } finally {
-    runtime.close();
-  }
+      return seedResults;
+    },
+  );
 
   return {
-    projectRoot,
-    runtimeDbPath,
+    projectRoot: bootstrap.projectRoot,
+    runtimeDbPath: bootstrap.runtimeDbPath,
     file,
     results,
     ok: results.every((entry) => entry.ok),

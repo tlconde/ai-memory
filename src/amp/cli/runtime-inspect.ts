@@ -10,10 +10,8 @@
  * - safeParseRuntimeSemanticEntityRecordFromUnknown: envelope + semantic validation.
  */
 
-import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { projectConfigPath } from "../config/paths.js";
 import type { RuntimeSemanticEntityRecord } from "../runtime-semantics/entity-record.js";
 import {
   safeParseRuntimeSemanticEntityRecordFromUnknown,
@@ -31,7 +29,10 @@ import {
   type RuntimeSemanticEntityReader,
 } from "../runtime-semantics/storage-source.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
-import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
+import {
+  resolveAmpRuntimeCliBootstrap,
+  withAmpRuntimeCliStore,
+} from "./runtime-cli-bootstrap.js";
 
 export interface AmpRuntimeInspectOptions {
   projectRoot?: string;
@@ -119,60 +120,43 @@ export function runAmpRuntimeInspect(
     entity = options.entity;
   }
 
-  const configPath = projectConfigPath(projectRoot, { env });
-  if (!existsSync(configPath)) {
+  const bootstrap = resolveAmpRuntimeCliBootstrap({
+    projectRoot: options.projectRoot,
+    env,
+    platform: options.platform,
+    homedir: options.homedir,
+  });
+  if (!bootstrap.ok) {
     return {
-      projectRoot,
+      projectRoot: bootstrap.projectRoot,
       storageWired: false,
       ok: false,
-      error: `Project AMP config not found at ${configPath}. Run \`ai-memory amp init\` first.`,
+      error: bootstrap.error,
       records: [],
     };
   }
 
-  let runtimeDbPath: string;
-  try {
-    const context = resolveCliProjectContext({
-      projectRoot,
-      env,
-      platform: options.platform,
-      homedir: options.homedir,
-    });
-    runtimeDbPath = context.runtimeDbPath;
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    return {
-      projectRoot,
-      storageWired: false,
-      ok: false,
-      error: `AMP config discovery failed: ${message}`,
-      records: [],
-    };
-  }
-
-  const openStore = options.deps?.openRuntimeStore ?? openRuntimeStore;
   const createReader =
     options.deps?.createReader ??
     ((runtime: RuntimeStore) => new RuntimeStoreSemanticEntityReader(runtime));
 
-  const runtime = openStore(runtimeDbPath);
-  let records: AmpRuntimeInspectRecordEntry[] = [];
+  const records = withAmpRuntimeCliStore(
+    bootstrap,
+    { deps: { openRuntimeStore: options.deps?.openRuntimeStore } },
+    (runtime) => {
+      const persisted = createReader(runtime).readEntities();
+      const filtered =
+        entity === undefined
+          ? persisted
+          : persisted.filter((record) => record.kind === entity);
 
-  try {
-    const persisted = createReader(runtime).readEntities();
-    const filtered =
-      entity === undefined
-        ? persisted
-        : persisted.filter((record) => record.kind === entity);
-
-    records = filtered.map(toInspectRecordEntry);
-  } finally {
-    runtime.close();
-  }
+      return filtered.map(toInspectRecordEntry);
+    },
+  );
 
   return {
-    projectRoot,
-    runtimeDbPath,
+    projectRoot: bootstrap.projectRoot,
+    runtimeDbPath: bootstrap.runtimeDbPath,
     entity,
     entitySchemaName: entity ? runtimeEntitySchemaNameForKind(entity) : undefined,
     storageWired: true,
