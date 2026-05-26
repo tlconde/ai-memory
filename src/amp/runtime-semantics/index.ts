@@ -14,6 +14,25 @@ export {
   joinRuntimeProjectionLines,
 } from "./format-projection.js";
 
+export {
+  FORMATTER_REGISTRY_KINDS,
+  getFormatterRegistryEntry,
+  isFormatterRegistryKind,
+  isProjectableFormatterKind,
+  resolveFormatterRegistryEntry,
+  RUNTIME_FORMATTER_PROJECTION_ELIGIBILITY,
+  RUNTIME_FORMATTER_REGISTRY,
+} from "./formatter-registry.js";
+
+export type {
+  FormatterRegistryKind,
+  FormatterRegistrySchemaName,
+  FormatterSubEntityMetadata,
+  ProjectionEligibility,
+  RuntimeFormatterRegistryEntry,
+  SensitivityPolicy,
+} from "./formatter-registry.js";
+
 export type {
   FormatEpisodicFrameOptions,
   FormatHarnessOperationalOptions,
