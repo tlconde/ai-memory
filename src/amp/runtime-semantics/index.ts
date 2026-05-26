@@ -53,13 +53,39 @@ export {
 
 export {
   createRuntimeSemanticCaptureFacade,
+  type CaptureRejectedRuntimeSignalFailureReason,
+  type CaptureRejectedRuntimeSignalResult,
   type CaptureRuntimeCorrectionFailureReason,
   type CaptureRuntimeCorrectionResult,
   type ExplicitRuntimeCorrectionCaptureInput,
+  type FilteredRuntimeCaptureInput,
+  type FilteredRuntimeCaptureResult,
+  type RuntimeRejectedCaptureInput,
   type RuntimeSemanticCaptureFacade,
   type RuntimeSemanticCaptureFacadeDeps,
   type RuntimeSemanticCaptureWriteResult,
 } from "./capture-facade.js";
+
+export {
+  RUNTIME_CAPTURE_REDACTED_EXCERPT_MAX_CHARS,
+  RUNTIME_CAPTURE_REJECTION_REASON_CODES,
+  RUNTIME_CAPTURE_VERBATIM_MAX_CHARS,
+  computeRuntimeCaptureSourceHash,
+  evaluateRuntimeCaptureExclusionFilter,
+  redactRuntimeCaptureExcerpt,
+  type RuntimeCaptureAcceptedSignal,
+  type RuntimeCaptureExclusionFilterResult,
+  type RuntimeCaptureExclusionHint,
+  type RuntimeCaptureRejectionAudit,
+  type RuntimeCaptureRejectionReasonCode,
+  type RuntimeCaptureSignalInput,
+} from "./capture-exclusion-filter.js";
+
+export {
+  REJECTED_SIGNAL_DEFAULT_RECORD_ID_PREFIX,
+  defaultRejectedSignalRecordId,
+  mapRejectedRuntimeCaptureToEntityRecord,
+} from "./capture-rejected-signal-mapper.js";
 
 export type {
   FormatterEntityByKind,

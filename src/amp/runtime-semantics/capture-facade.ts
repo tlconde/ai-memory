@@ -7,6 +7,7 @@
  *
  * Boundary ownership:
  * - capture-correction: explicit correction mapping + validated write.
+ * - capture-rejected-signal: exclusion audit mapping + validated write.
  * - storage-writer: generic validated typed entity write.
  * - provenance-validation: facade-only production gate for traceable writes.
  * - capture-facade (this module): single internal entry point for supported captures.
@@ -23,16 +24,34 @@ import {
   type RuntimeSemanticCaptureEntityWriteResult,
   type CaptureRuntimeCorrectionDeps,
 } from "./capture-correction.js";
+import {
+  captureRejectedRuntimeSignal,
+  filterAndCaptureRejectedRuntimeSignal,
+  type CaptureRejectedRuntimeSignalFailureReason,
+  type CaptureRejectedRuntimeSignalResult,
+  type FilteredRuntimeCaptureDeps,
+  type FilteredRuntimeCaptureInput,
+  type FilteredRuntimeCaptureResult,
+  type RuntimeRejectedCaptureInput,
+} from "./capture-rejected-signal.js";
 import type { RuntimeSemanticEntityRecord } from "./entity-record.js";
 import { validateRuntimeSemanticEntityWriteProvenance } from "./provenance-validation.js";
 import { writeRuntimeSemanticEntity } from "./storage-writer.js";
 
-export interface RuntimeSemanticCaptureFacadeDeps extends CaptureRuntimeCorrectionDeps {}
+export interface RuntimeSemanticCaptureFacadeDeps
+  extends CaptureRuntimeCorrectionDeps,
+    FilteredRuntimeCaptureDeps {}
 
 export interface RuntimeSemanticCaptureFacade {
   captureExplicitCorrection(
     input: ExplicitRuntimeCorrectionCaptureInput,
   ): CaptureRuntimeCorrectionResult;
+  captureRejectedSignalAudit(
+    input: RuntimeRejectedCaptureInput,
+  ): CaptureRejectedRuntimeSignalResult;
+  filterAndCaptureRejectedSignal(
+    input: FilteredRuntimeCaptureInput,
+  ): FilteredRuntimeCaptureResult;
   writeValidatedEntity(
     record: RuntimeSemanticEntityRecord,
   ): RuntimeSemanticCaptureWriteResult;
@@ -47,9 +66,14 @@ export type RuntimeSemanticCaptureWriteResult =
     };
 
 export type {
+  CaptureRejectedRuntimeSignalFailureReason,
+  CaptureRejectedRuntimeSignalResult,
   CaptureRuntimeCorrectionFailureReason,
   CaptureRuntimeCorrectionResult,
   ExplicitRuntimeCorrectionCaptureInput,
+  FilteredRuntimeCaptureInput,
+  FilteredRuntimeCaptureResult,
+  RuntimeRejectedCaptureInput,
   RuntimeSemanticCaptureEntityWriteFailureReason,
 };
 
@@ -81,6 +105,16 @@ export function createRuntimeSemanticCaptureFacade(
   return {
     captureExplicitCorrection(input) {
       return captureRuntimeCorrection(runtime, input, {
+        writeEntity: writeEntityWithFacadeContract,
+      });
+    },
+    captureRejectedSignalAudit(input) {
+      return captureRejectedRuntimeSignal(runtime, input, {
+        writeEntity: writeEntityWithFacadeContract,
+      });
+    },
+    filterAndCaptureRejectedSignal(input) {
+      return filterAndCaptureRejectedRuntimeSignal(runtime, input, {
         writeEntity: writeEntityWithFacadeContract,
       });
     },

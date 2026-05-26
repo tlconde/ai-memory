@@ -164,4 +164,61 @@ describe("createRuntimeSemanticCaptureFacade", () => {
     }
   });
 
+  it("persists rejected-signal audit rows through the facade writer path", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-capture-facade-rejected-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+
+    try {
+      const facade = createRuntimeSemanticCaptureFacade(runtime);
+      const filtered = facade.filterAndCaptureRejectedSignal({
+        content: "Bearer super-secret-token-value-should-not-persist",
+        sourceSurface: "test",
+        scope: "user",
+        timestamp: FIXTURE_ISO,
+        recordId: "rej-facade-1",
+        rejectedSignalId: "capture-reject:facade",
+      });
+
+      assert.deepEqual(filtered, {
+        ok: false,
+        rejected: true,
+        recordId: "rej-facade-1",
+        reason_code: "credentials_or_secrets",
+      });
+      assert.equal(runtime.queueList().length, 0);
+
+      const stored = runtime.semanticEntityList()[0];
+      assert.equal(stored?.kind, "rejected-signal-log");
+      assert.doesNotMatch(JSON.stringify(stored?.payload), /super-secret-token-value-should-not-persist/);
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("writes pre-mapped rejected audit rows via captureRejectedSignalAudit", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-capture-facade-rejected-direct-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+
+    try {
+      const facade = createRuntimeSemanticCaptureFacade(runtime);
+      const result = facade.captureRejectedSignalAudit({
+        recordId: "rej-facade-direct",
+        rejectedSignalId: "capture-reject:direct",
+        timestamp: FIXTURE_ISO,
+        reasonCode: "telemetry_without_semantic_content",
+        sourceSurface: "test",
+        scope: "user",
+        sourceHash: "sha256:feedface",
+        redactedExcerpt: "metrics-only",
+      });
+
+      assert.deepEqual(result, { ok: true, recordId: "rej-facade-direct" });
+      assert.deepEqual(runtime.semanticEntityList().map((row) => row.id), ["rej-facade-direct"]);
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
 });
