@@ -22,6 +22,7 @@ import {
   type ProjectionMaterializationPlan,
   type ProjectionSource,
 } from "../projection/index.js";
+import type { RuntimeSemanticEntitySource } from "../runtime-semantics/projection-source.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import {
   collectGbrainPreflightChecks,
@@ -54,6 +55,11 @@ export interface CreateProjectionRenderSourceOptions {
   strictGbrainPreflight?: boolean;
   spawnFn?: GbrainPreflightSpawnFn;
   deps?: ProjectionSourceFactoryDeps;
+  /**
+   * Test/DI only: typed runtime semantics wired into local projection source.
+   * Omitted preserves queue-only local projection output.
+   */
+  runtimeSemanticSource?: RuntimeSemanticEntitySource;
 }
 
 type ResolveGbrainProjectionAdapterResult =
@@ -138,7 +144,8 @@ function createRuntimeBackedProjectionSource<T extends ProjectionSource>(
 export function createProjectionRenderSource(
   options: CreateProjectionRenderSourceOptions
 ): ResolvedProjectionRenderSource {
-  const { sourceKind, projectRef, runtimeDbPath, knowledgeStore, env, deps } = options;
+  const { sourceKind, projectRef, runtimeDbPath, knowledgeStore, env, deps, runtimeSemanticSource } =
+    options;
   const openStore = deps?.openRuntimeStore ?? openRuntimeStore;
 
   if (sourceKind === "placeholder") {
@@ -183,6 +190,7 @@ export function createProjectionRenderSource(
         knowledge: knowledgeResult.store,
         runtime,
         projectRef,
+        runtimeSemanticSource,
       })
   );
 }
