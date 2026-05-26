@@ -7,6 +7,7 @@
 
 import type { KnowledgeStore } from "../substrate/storage/knowledge-store.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
+import type { RuntimeSemanticEntitySource } from "../runtime-semantics/projection-source.js";
 import { buildProjectionDocuments } from "./build-documents.js";
 import type { ProjectionDocument } from "./schema.js";
 import type { ProjectionSource, ProjectionSourceLoadOptions } from "./source.js";
@@ -16,6 +17,8 @@ export interface LocalProjectionSourceOptions {
   runtime: RuntimeStore;
   projectRef?: string;
   generatedAt?: string;
+  /** Optional typed runtime semantics; omitted preserves queue-only projection output. */
+  runtimeSemanticSource?: RuntimeSemanticEntitySource;
 }
 
 export type { ProjectionStoreKind } from "./build-documents.js";
@@ -40,6 +43,7 @@ export class LocalProjectionSource implements ProjectionSource {
       projectRef,
       generatedAt: this.options.generatedAt,
       revisionPrefix: "local",
+      runtimeSemanticSource: this.options.runtimeSemanticSource,
     });
   }
 }
