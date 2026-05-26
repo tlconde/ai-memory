@@ -10,6 +10,7 @@
  * - projection-source (this module): record envelope ↔ parsed payload alignment
  *   and record envelope ↔ materialization projectRef section routing.
  * - formatter-registry: projectability/renderability and format-time policy.
+ * - leaning-attachments: parent decision ↔ current-decision-leaning join policy.
  */
 
 import type { ScopeKind } from "../core/frame-schema.js";
@@ -26,7 +27,11 @@ import {
   joinRuntimeProjectionLines,
   type RuntimeProjectionFormat,
 } from "./format-projection.js";
-import type { CurrentDecisionLeaning } from "./schema.js";
+import {
+  buildLeaningAttachmentIndex,
+  type LeaningAttachmentParsedRecord,
+  type LeaningAttachmentSkip,
+} from "./leaning-attachments.js";
 
 export type RuntimeFormatterRegistryKind = FormatterRegistryKind;
 
@@ -63,15 +68,11 @@ export interface RuntimeProjectionMaterializedItem {
 
 export type RuntimeProjectionMaterializationSkipReason =
   | FormatRuntimeEntityProjectionFailureReason
+  | LeaningAttachmentSkip["reason"]
   | "scope_mismatch"
   | "record_payload_scope_mismatch"
   | "record_payload_project_ref_mismatch"
   | "missing_record_project_ref"
-  | "orphan_sub_entity"
-  | "sub_entity_envelope_mismatch"
-  | "duplicate_parent_entity"
-  | "duplicate_sub_entity"
-  | "invalid_sub_entity"
   | "empty_format";
 
 export interface RuntimeProjectionMaterializationSkip {
@@ -103,16 +104,6 @@ interface ParsedRuntimeSemanticEntityRecord {
   payloadScope: PayloadScopeMetadata;
   envelopeSkip?: RuntimeProjectionMaterializationSkip;
   section?: RuntimeProjectionTargetSection;
-}
-
-interface LeaningAttachmentCandidate {
-  recordId: string;
-  leaning: CurrentDecisionLeaning;
-}
-
-interface LeaningAttachmentIndex {
-  byDecisionId: Map<string, CurrentDecisionLeaning>;
-  skipsByRecordId: Map<string, RuntimeProjectionMaterializationSkip>;
 }
 
 /** Resolve which runtime projection section an entity belongs in for a project. */
@@ -271,121 +262,14 @@ function parseRuntimeSemanticEntityRecords(
   });
 }
 
-function recordEnvelopesCompatible(
-  parent: RuntimeSemanticEntityRecord,
-  child: RuntimeSemanticEntityRecord,
-): boolean {
-  if (parent.scope !== child.scope) {
-    return false;
-  }
-
-  if (parent.scope === "project") {
-    return parent.project_ref === child.project_ref;
-  }
-
-  return true;
-}
-
-function buildLeaningAttachmentIndex(
-  parsedRecords: readonly ParsedRuntimeSemanticEntityRecord[],
-): LeaningAttachmentIndex {
-  const parentCandidatesById = new Map<string, ParsedRuntimeSemanticEntityRecord[]>();
-  const skipsByRecordId = new Map<string, RuntimeProjectionMaterializationSkip>();
-
-  for (const parsed of parsedRecords) {
-    if (parsed.record.kind !== "unresolved-decision") {
-      continue;
-    }
-    if (!parsed.parseResult.success || parsed.envelopeSkip !== undefined) {
-      continue;
-    }
-
-    const decision = parsed.parseResult.value as FormatterEntityByKind["unresolved-decision"];
-    const candidates = parentCandidatesById.get(decision.id) ?? [];
-    candidates.push(parsed);
-    parentCandidatesById.set(decision.id, candidates);
-  }
-
-  const parentDecisionsById = new Map<string, ParsedRuntimeSemanticEntityRecord>();
-  for (const [decisionId, candidates] of parentCandidatesById) {
-    if (candidates.length > 1) {
-      for (const candidate of candidates) {
-        skipsByRecordId.set(candidate.record.id, {
-          recordId: candidate.record.id,
-          kind: candidate.record.kind,
-          reason: "duplicate_parent_entity",
-          message: `Multiple unresolved-decision records share payload id ${decisionId}`,
-        });
-      }
-      continue;
-    }
-
-    parentDecisionsById.set(decisionId, candidates[0]!);
-  }
-
-  const compatibleCandidatesByDecisionId = new Map<string, LeaningAttachmentCandidate[]>();
-
-  for (const parsed of parsedRecords) {
-    if (parsed.record.kind !== "current-decision-leaning") {
-      continue;
-    }
-
-    if (!parsed.parseResult.success) {
-      skipsByRecordId.set(parsed.record.id, {
-        recordId: parsed.record.id,
-        kind: parsed.record.kind,
-        reason: "invalid_sub_entity",
-        message: parsed.parseResult.error,
-      });
-      continue;
-    }
-
-    const leaning = parsed.parseResult.value as FormatterEntityByKind["current-decision-leaning"];
-    const parent = parentDecisionsById.get(leaning.decision_id);
-    if (parent === undefined) {
-      skipsByRecordId.set(parsed.record.id, {
-        recordId: parsed.record.id,
-        kind: parsed.record.kind,
-        reason: "orphan_sub_entity",
-        message: `No parent unresolved-decision for decision_id ${leaning.decision_id}`,
-      });
-      continue;
-    }
-
-    if (!recordEnvelopesCompatible(parent.record, parsed.record)) {
-      skipsByRecordId.set(parsed.record.id, {
-        recordId: parsed.record.id,
-        kind: parsed.record.kind,
-        reason: "sub_entity_envelope_mismatch",
-        message: `Leaning envelope scope=${parsed.record.scope} project_ref=${parsed.record.project_ref ?? "(missing)"} is incompatible with parent decision envelope scope=${parent.record.scope} project_ref=${parent.record.project_ref ?? "(missing)"}`,
-      });
-      continue;
-    }
-
-    const candidates = compatibleCandidatesByDecisionId.get(leaning.decision_id) ?? [];
-    candidates.push({ recordId: parsed.record.id, leaning });
-    compatibleCandidatesByDecisionId.set(leaning.decision_id, candidates);
-  }
-
-  const byDecisionId = new Map<string, CurrentDecisionLeaning>();
-
-  for (const [decisionId, candidates] of compatibleCandidatesByDecisionId) {
-    if (candidates.length > 1) {
-      for (const candidate of candidates) {
-        skipsByRecordId.set(candidate.recordId, {
-          recordId: candidate.recordId,
-          kind: "current-decision-leaning",
-          reason: "duplicate_sub_entity",
-          message: `Multiple compatible current-decision-leaning records for decision_id ${decisionId}`,
-        });
-      }
-      continue;
-    }
-
-    byDecisionId.set(decisionId, candidates[0]!.leaning);
-  }
-
-  return { byDecisionId, skipsByRecordId };
+function toLeaningAttachmentInput(
+  parsed: ParsedRuntimeSemanticEntityRecord,
+): LeaningAttachmentParsedRecord {
+  return {
+    record: parsed.record,
+    parseResult: parsed.parseResult,
+    hasEnvelopeSkip: parsed.envelopeSkip !== undefined,
+  };
 }
 
 /** Materialize projection-ready runtime text blocks from a typed entity source. */
@@ -397,7 +281,9 @@ export function materializeRuntimeProjectionFromSource(
     source.listEntities(),
     options.projectRef,
   );
-  const leaningIndex = buildLeaningAttachmentIndex(parsedRecords);
+  const leaningIndex = buildLeaningAttachmentIndex(
+    parsedRecords.map(toLeaningAttachmentInput),
+  );
 
   const items: RuntimeProjectionMaterializedItem[] = [];
   const skipped: RuntimeProjectionMaterializationSkip[] = [];
