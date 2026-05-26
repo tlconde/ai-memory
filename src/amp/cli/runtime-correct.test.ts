@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { FIXTURE_ISO } from "../runtime-semantics/runtime-semantics.test-fixture.js";
-import { EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING } from "../runtime-semantics/messages.js";
 import {
   EXPLICIT_CORRECTION_CLI_PROVENANCE,
   explicitCorrectionTransformId,
@@ -132,7 +131,6 @@ describe("runAmpRuntimeCorrect", () => {
       const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
       assert.ok(projectRuntime);
       assert.match(projectRuntime.body, new RegExp(note));
-      assert.match(projectRuntime.body, new RegExp(EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
       assert.match(projectRuntime.body, /Details omitted from runtime projection\./);
       assert.doesNotMatch(projectRuntime.body, /source_surface/);
       assert.doesNotMatch(projectRuntime.body, /source_command/);

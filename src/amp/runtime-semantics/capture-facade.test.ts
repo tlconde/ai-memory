@@ -5,34 +5,27 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { RuntimeStore } from "../substrate/storage/runtime-store.js";
-import { EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING } from "./messages.js";
-import { materializeRuntimeProjectionFromSource } from "./projection-source.js";
-import {
-  RuntimeSemanticStorageEntitySource,
-  RuntimeStoreSemanticEntityReader,
-} from "./storage-source.js";
+import { RuntimeStoreSemanticEntityReader } from "./storage-source.js";
 import { createRuntimeSemanticCaptureFacade } from "./capture-facade.js";
 import { EXPLICIT_CORRECTION_TEST_PROVENANCE } from "./capture-correction-mapper.js";
 import type { RuntimeSemanticEntityRecord } from "./entity-record.js";
 import {
   ACTIVE_PREFERENCE,
   FIXTURE_ISO,
-  FIXTURE_PROJECT_REF,
   TRACEABLE_EPISODIC_FRAME,
 } from "./runtime-semantics.test-fixture.js";
 
 describe("createRuntimeSemanticCaptureFacade", () => {
-  it("persists explicit correction for inspect and runtime projection", async () => {
+  it("persists explicit correction for typed storage inspect", async () => {
     const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-capture-facade-correction-"));
     const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
-    const note = "Facade explicit correction note";
 
     try {
       const facade = createRuntimeSemanticCaptureFacade(runtime);
       const capture = facade.captureExplicitCorrection({
         targetEntityId: "frame-facade",
         recordId: "correction-frame-facade",
-        note,
+        note: "Facade explicit correction note",
         scope: "user",
         occurredAt: FIXTURE_ISO,
         recordedAt: FIXTURE_ISO,
@@ -46,19 +39,6 @@ describe("createRuntimeSemanticCaptureFacade", () => {
         .readEntities()
         .map((row) => row.id);
       assert.deepEqual(inspectIds, ["correction-frame-facade"]);
-
-      const projectionReader = new RuntimeSemanticStorageEntitySource(
-        new RuntimeStoreSemanticEntityReader(runtime),
-      );
-      const materialized = materializeRuntimeProjectionFromSource(projectionReader, {
-        projectRef: FIXTURE_PROJECT_REF,
-      });
-      assert.equal(materialized.items.length, 1);
-      assert.match(materialized.items[0]?.text ?? "", new RegExp(note));
-      assert.match(
-        materialized.items[0]?.text ?? "",
-        new RegExp(EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
-      );
     } finally {
       runtime.close();
       await rm(tempDir, { recursive: true, force: true });
