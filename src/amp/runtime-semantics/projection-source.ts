@@ -7,16 +7,14 @@
  *
  * Scope validation ownership:
  * - schema.ts (Zod): payload-internal scope/project_ref symmetry.
- * - projection-source (this module): record envelope ↔ parsed payload alignment
- *   and record envelope ↔ materialization projectRef section routing.
+ * - record-envelope-alignment: record envelope ↔ parsed payload alignment.
+ * - projection-source (this module): materialization projectRef section routing.
  * - formatter-registry: projectability/renderability and format-time policy.
  * - leaning-attachments: parent decision ↔ current-decision-leaning join policy.
  */
 
-import { ScopeKindSchema, type ScopeKind } from "../core/frame-schema.js";
 import {
   formatParsedRuntimeEntityForProjection,
-  isFormatterRegistryKind,
   isProjectableFormatterKind,
   parseRuntimeEntityAtBoundary,
   type FormatRuntimeEntityProjectionFailureReason,
@@ -33,29 +31,20 @@ import {
   type LeaningAttachmentParsedRecord,
   type LeaningAttachmentSkip,
 } from "./leaning-attachments.js";
+import {
+  InMemoryRuntimeSemanticEntitySource,
+  type RuntimeFormatterRegistryKind,
+  type RuntimeSemanticEntityRecord,
+  type RuntimeSemanticEntitySource,
+} from "./entity-record.js";
+import {
+  extractPayloadScopeMetadata,
+  type PayloadScopeMetadata,
+  validateRecordPayloadAlignment,
+} from "./record-envelope-alignment.js";
 
-export type RuntimeFormatterRegistryKind = FormatterRegistryKind;
-
-export interface RuntimeSemanticEntityRecord {
-  id: string;
-  kind: RuntimeFormatterRegistryKind;
-  scope: ScopeKind;
-  project_ref?: string;
-  payload: unknown;
-  observed_at?: string;
-}
-
-export interface RuntimeSemanticEntitySource {
-  listEntities(): readonly RuntimeSemanticEntityRecord[];
-}
-
-export class InMemoryRuntimeSemanticEntitySource implements RuntimeSemanticEntitySource {
-  constructor(private readonly entities: readonly RuntimeSemanticEntityRecord[]) {}
-
-  listEntities(): readonly RuntimeSemanticEntityRecord[] {
-    return this.entities;
-  }
-}
+export type { RuntimeFormatterRegistryKind, RuntimeSemanticEntityRecord, RuntimeSemanticEntitySource };
+export { InMemoryRuntimeSemanticEntitySource };
 
 export type RuntimeProjectionTargetSection = "globalRuntime" | "projectRuntime";
 
@@ -92,11 +81,6 @@ export interface MaterializeRuntimeProjectionFromSourceResult {
   skipped: RuntimeProjectionMaterializationSkip[];
 }
 
-interface PayloadScopeMetadata {
-  scope?: ScopeKind;
-  project_ref?: string;
-}
-
 interface ParsedRuntimeSemanticEntityRecord {
   record: RuntimeSemanticEntityRecord;
   parseResult:
@@ -122,159 +106,6 @@ export function resolveRuntimeSemanticEntitySection(
     return "globalRuntime";
   }
   return undefined;
-}
-
-function extractPayloadScopeMetadata(
-  kind: FormatterRegistryKind,
-  parsed: FormatterEntityByKind[FormatterRegistryKind],
-): PayloadScopeMetadata {
-  switch (kind) {
-    case "unresolved-decision": {
-      const entity = parsed as FormatterEntityByKind["unresolved-decision"];
-      return { scope: entity.scope };
-    }
-    case "runtime-preference-candidate": {
-      const entity = parsed as FormatterEntityByKind["runtime-preference-candidate"];
-      return {
-        scope: entity.scope,
-        project_ref: entity.project_ref,
-      };
-    }
-    case "runtime-crystal-candidate": {
-      const entity = parsed as FormatterEntityByKind["runtime-crystal-candidate"];
-      return {
-        scope: entity.scope,
-        project_ref: entity.project_ref,
-      };
-    }
-    case "rejected-signal-log": {
-      const entity = parsed as FormatterEntityByKind["rejected-signal-log"];
-      return { scope: entity.scope };
-    }
-    case "episodic-frame": {
-      const entity = parsed as FormatterEntityByKind["episodic-frame"];
-      return {
-        scope: entity.scope,
-        project_ref: entity.project_ref,
-      };
-    }
-    case "harness-operational-state": {
-      const entity = parsed as FormatterEntityByKind["harness-operational-state"];
-      return { project_ref: entity.project_ref };
-    }
-    case "current-decision-leaning":
-    case "dormant-snapshot":
-      return {};
-    default: {
-      const _exhaustive: never = kind;
-      throw new Error(`Unhandled formatter registry kind: ${String(_exhaustive)}`);
-    }
-  }
-}
-
-type RecordPayloadAlignmentSkipReason =
-  | "missing_record_project_ref"
-  | "record_payload_scope_mismatch"
-  | "record_payload_project_ref_mismatch";
-
-interface RecordPayloadAlignmentSkip {
-  recordId: string;
-  kind: RuntimeFormatterRegistryKind;
-  reason: RecordPayloadAlignmentSkipReason;
-  message: string;
-}
-
-function validateRecordPayloadAlignment(
-  record: RuntimeSemanticEntityRecord,
-  payload: PayloadScopeMetadata,
-): RecordPayloadAlignmentSkip | undefined {
-  if (payload.scope !== undefined && payload.scope !== record.scope) {
-    return {
-      recordId: record.id,
-      kind: record.kind,
-      reason: "record_payload_scope_mismatch",
-      message: `Record scope ${record.scope} differs from payload scope ${payload.scope}`,
-    };
-  }
-
-  if (
-    payload.project_ref !== undefined &&
-    payload.project_ref !== record.project_ref
-  ) {
-    return {
-      recordId: record.id,
-      kind: record.kind,
-      reason: "record_payload_project_ref_mismatch",
-      message: `Record project_ref ${record.project_ref ?? "(missing)"} differs from payload project_ref ${payload.project_ref}`,
-    };
-  }
-
-  const effectiveScope = payload.scope ?? record.scope;
-  if (effectiveScope === "project" && record.project_ref === undefined) {
-    return {
-      recordId: record.id,
-      kind: record.kind,
-      reason: "missing_record_project_ref",
-      message: "Project-scoped entity requires record.project_ref",
-    };
-  }
-
-  return undefined;
-}
-
-export type RuntimeSemanticEntityWriteFailureReason =
-  | FormatRuntimeEntityProjectionFailureReason
-  | "invalid_scope"
-  | "missing_record_project_ref"
-  | "record_payload_scope_mismatch"
-  | "record_payload_project_ref_mismatch"
-  | "duplicate_id";
-
-export type RuntimeSemanticEntityWriteResult =
-  | { ok: true }
-  | { ok: false; reason: RuntimeSemanticEntityWriteFailureReason; message: string };
-
-/** Validate a typed runtime semantic record before persistence (RUNTIME-14). */
-export function validateRuntimeSemanticEntityForStorage(
-  record: RuntimeSemanticEntityRecord
-): RuntimeSemanticEntityWriteResult {
-  const scopeResult = ScopeKindSchema.safeParse(record.scope);
-  if (!scopeResult.success) {
-    return {
-      ok: false,
-      reason: "invalid_scope",
-      message: `Invalid record scope: ${record.scope}`,
-    };
-  }
-
-  if (!isFormatterRegistryKind(record.kind)) {
-    return {
-      ok: false,
-      reason: "unknown_kind",
-      message: `Unknown formatter registry kind: ${record.kind}`,
-    };
-  }
-
-  const parseResult = parseRuntimeEntityAtBoundary(record.kind, record.payload);
-  if (!parseResult.success) {
-    return {
-      ok: false,
-      reason: "invalid_input",
-      message: parseResult.error,
-    };
-  }
-
-  const payloadScope = extractPayloadScopeMetadata(record.kind, parseResult.value);
-  const alignmentSkip = validateRecordPayloadAlignment(record, payloadScope);
-  if (alignmentSkip !== undefined) {
-    return {
-      ok: false,
-      reason: alignmentSkip.reason,
-      message: alignmentSkip.message,
-    };
-  }
-
-  return { ok: true };
 }
 
 function resolveEnvelopeSkip(

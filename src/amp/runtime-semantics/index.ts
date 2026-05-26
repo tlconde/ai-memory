@@ -32,8 +32,9 @@ export {
   InMemoryRuntimeSemanticEntitySource,
   materializeRuntimeProjectionFromSource,
   resolveRuntimeSemanticEntitySection,
-  validateRuntimeSemanticEntityForStorage,
 } from "./projection-source.js";
+
+export { validateRuntimeSemanticEntityForStorage } from "./storage-validation.js";
 
 export {
   RuntimeSemanticStorageEntitySource,
@@ -77,7 +78,7 @@ export type { RuntimeSemanticEntityReader } from "./storage-source.js";
 export type {
   RuntimeSemanticEntityWriteFailureReason,
   RuntimeSemanticEntityWriteResult,
-} from "./projection-source.js";
+} from "./storage-validation.js";
 
 export type {
   FormatEpisodicFrameOptions,

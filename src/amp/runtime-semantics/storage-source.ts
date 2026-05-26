@@ -13,28 +13,12 @@
  * - materializeRuntimeProjectionFromSource: parse, validate, and format records.
  */
 
-import type { ScopeKind } from "../core/frame-schema.js";
-import type { RuntimeSemanticEntityRow } from "../substrate/storage/runtime-semantic-entity.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import type {
   RuntimeSemanticEntityRecord,
   RuntimeSemanticEntitySource,
-  RuntimeFormatterRegistryKind,
-} from "./projection-source.js";
-
-/** Maps storage rows to projection records; materialization validates kind/scope/payload. */
-function rowToRuntimeSemanticEntityRecord(
-  row: RuntimeSemanticEntityRow
-): RuntimeSemanticEntityRecord {
-  return {
-    id: row.id,
-    kind: row.kind as RuntimeFormatterRegistryKind,
-    scope: row.scope as ScopeKind,
-    ...(row.project_ref ? { project_ref: row.project_ref } : {}),
-    payload: row.payload,
-    ...(row.observed_at ? { observed_at: row.observed_at } : {}),
-  };
-}
+} from "./entity-record.js";
+import { rowToRuntimeSemanticEntityRecord } from "./storage-mapper.js";
 
 /** Read-only storage boundary for typed runtime semantic entity records. Sync read only; async deferred to storage wiring. */
 export interface RuntimeSemanticEntityReader {

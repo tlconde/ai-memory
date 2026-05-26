@@ -6,18 +6,18 @@
  * local projection reader path.
  *
  * Boundary ownership:
- * - validateRuntimeSemanticEntityForStorage: registry parse + envelope alignment.
+ * - storage-validation: registry parse + envelope alignment.
  * - RuntimeStoreSemanticEntityWriter: preferred production write path.
  * - RuntimeStore.semanticEntityInsert: low-level append only (call after validation).
  */
 
-import type { RuntimeSemanticEntityRow } from "../substrate/storage/runtime-semantic-entity.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
+import type { RuntimeSemanticEntityRecord } from "./entity-record.js";
+import { recordToRow } from "./storage-mapper.js";
 import {
   validateRuntimeSemanticEntityForStorage,
-  type RuntimeSemanticEntityRecord,
   type RuntimeSemanticEntityWriteResult,
-} from "./projection-source.js";
+} from "./storage-validation.js";
 
 function isDuplicateKeyError(error: unknown): boolean {
   return (
@@ -26,17 +26,6 @@ function isDuplicateKeyError(error: unknown): boolean {
     "code" in error &&
     (error as { code: string }).code === "SQLITE_CONSTRAINT_UNIQUE"
   );
-}
-
-function recordToRow(record: RuntimeSemanticEntityRecord): RuntimeSemanticEntityRow {
-  return {
-    id: record.id,
-    kind: record.kind,
-    scope: record.scope,
-    ...(record.project_ref ? { project_ref: record.project_ref } : {}),
-    payload: record.payload,
-    ...(record.observed_at ? { observed_at: record.observed_at } : {}),
-  };
 }
 
 /** Preferred write boundary for typed runtime semantic entities. */
