@@ -13,6 +13,7 @@ import {
 } from "./capture-correction-mapper.js";
 import {
   writeRuntimeSemanticEntity,
+  writeRuntimeSemanticEntityWithRecordId,
 } from "./storage-writer.js";
 import type { RuntimeSemanticEntityWriteFailureReason } from "./storage-validation.js";
 
@@ -40,12 +41,7 @@ export function captureRuntimeCorrection(
   }
 
   const writeEntity = deps.writeEntity ?? writeRuntimeSemanticEntity;
-  const writeResult = writeEntity(runtime, mapped.record);
-  if (!writeResult.ok) {
-    return writeResult;
-  }
-
-  return { ok: true, recordId: mapped.record.id };
+  return writeRuntimeSemanticEntityWithRecordId(runtime, mapped.record, writeEntity);
 }
 
 export type { ExplicitRuntimeCorrectionCaptureInput } from "./capture-correction-mapper.js";

@@ -9,10 +9,10 @@
 import { resolve } from "node:path";
 
 import {
-  captureRuntimeCorrection,
-  type CaptureRuntimeCorrectionDeps,
+  createRuntimeSemanticCaptureFacade,
   type CaptureRuntimeCorrectionFailureReason,
-} from "../runtime-semantics/capture-correction.js";
+  type RuntimeSemanticCaptureFacadeDeps,
+} from "../runtime-semantics/capture-facade.js";
 import {
   defaultExplicitCorrectionRecordId,
   deterministicCorrectionTimestamp,
@@ -83,7 +83,7 @@ export interface AmpRuntimeCorrectOptions {
   homedir?: () => string;
   deps?: {
     openRuntimeStore?: (dbPath: string) => RuntimeStore;
-    writeEntity?: CaptureRuntimeCorrectionDeps["writeEntity"];
+    writeEntity?: RuntimeSemanticCaptureFacadeDeps["writeEntity"];
   };
 }
 
@@ -159,19 +159,17 @@ export function runAmpRuntimeCorrect(options: AmpRuntimeCorrectOptions): AmpRunt
     bootstrap,
     { deps: { openRuntimeStore: options.deps?.openRuntimeStore } },
     (runtime) =>
-      captureRuntimeCorrection(
-        runtime,
-        {
-          targetEntityId: options.id,
-          recordId,
-          note: options.note,
-          scope: inferredScope,
-          projectRef,
-          occurredAt,
-          recordedAt,
-        },
-        { writeEntity: options.deps?.writeEntity },
-      ),
+      createRuntimeSemanticCaptureFacade(runtime, {
+        writeEntity: options.deps?.writeEntity,
+      }).captureExplicitCorrection({
+        targetEntityId: options.id,
+        recordId,
+        note: options.note,
+        scope: inferredScope,
+        projectRef,
+        occurredAt,
+        recordedAt,
+      }),
   );
 
   if (!captureResult.ok) {

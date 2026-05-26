@@ -49,6 +49,17 @@ export {
   RuntimeStoreSemanticEntityWriter,
   writeRuntimeSemanticEntity,
 } from "./storage-writer.js";
+// Low-level write helpers above; prefer createRuntimeSemanticCaptureFacade for production writers.
+
+export {
+  createRuntimeSemanticCaptureFacade,
+  type CaptureRuntimeCorrectionFailureReason,
+  type CaptureRuntimeCorrectionResult,
+  type ExplicitRuntimeCorrectionCaptureInput,
+  type RuntimeSemanticCaptureFacade,
+  type RuntimeSemanticCaptureFacadeDeps,
+  type RuntimeSemanticCaptureWriteResult,
+} from "./capture-facade.js";
 
 export type {
   FormatterEntityByKind,

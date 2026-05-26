@@ -6,7 +6,8 @@
  *
  * Boundary ownership:
  * - runtime-seed (this module): file parse, batch orchestration, result reporting.
- * - writeRuntimeSemanticEntity: validation + persistence gate.
+ * - capture-facade: single internal entry point for supported captures.
+ * - writeRuntimeSemanticEntity: low-level validation + persistence gate.
  * - projection render source: read + materialize seeded entities.
  */
 
@@ -19,7 +20,10 @@ import {
   safeParseRuntimeSemanticEntityRecordFromUnknown,
 } from "../runtime-semantics/entity-record-parse.js";
 import type { RuntimeSemanticEntityWriteFailureReason } from "../runtime-semantics/storage-validation.js";
-import { writeRuntimeSemanticEntity } from "../runtime-semantics/storage-writer.js";
+import {
+  createRuntimeSemanticCaptureFacade,
+  type RuntimeSemanticCaptureFacadeDeps,
+} from "../runtime-semantics/capture-facade.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import type { RuntimeSemanticEntityRecord } from "../runtime-semantics/entity-record.js";
 import {
@@ -44,10 +48,7 @@ export interface AmpRuntimeSeedOptions {
   deps?: {
     readFile?: (path: string) => Promise<string>;
     openRuntimeStore?: (dbPath: string) => RuntimeStore;
-    writeEntity?: (
-      runtime: RuntimeStore,
-      record: RuntimeSemanticEntityRecord,
-    ) => ReturnType<typeof writeRuntimeSemanticEntity>;
+    writeEntity?: RuntimeSemanticCaptureFacadeDeps["writeEntity"];
   };
 }
 
@@ -102,7 +103,6 @@ export async function runAmpRuntimeSeed(
   const file = resolve(options.file);
   const env = options.env ?? process.env;
   const readFile = options.deps?.readFile ?? ((path: string) => fsReadFile(path, "utf8"));
-  const writeEntity = options.deps?.writeEntity ?? writeRuntimeSemanticEntity;
 
   const bootstrap = resolveAmpRuntimeCliBootstrap({
     projectRoot: options.projectRoot,
@@ -152,6 +152,9 @@ export async function runAmpRuntimeSeed(
     bootstrap,
     { deps: { openRuntimeStore: options.deps?.openRuntimeStore } },
     (runtime) => {
+      const facade = createRuntimeSemanticCaptureFacade(runtime, {
+        writeEntity: options.deps?.writeEntity,
+      });
       const seedResults: AmpRuntimeSeedItemResult[] = [];
 
       for (const [index, candidate] of parsed.records.entries()) {
@@ -168,7 +171,7 @@ export async function runAmpRuntimeSeed(
           continue;
         }
 
-        const writeResult = writeEntity(runtime, parseResult.record);
+        const writeResult = facade.writeValidatedEntity(parseResult.record);
         if (writeResult.ok) {
           seedResults.push({ id: parseResult.record.id, ok: true });
         } else {
