@@ -37,6 +37,11 @@ import {
   runAmpRuntimeStatus,
   writeAmpRuntimeCliResult,
 } from "./runtime.js";
+import {
+  formatAmpRuntimeSeedJson,
+  formatAmpRuntimeSeedReport,
+  runAmpRuntimeSeed,
+} from "./runtime-seed.js";
 import { confirmLiveGbrainWriteFromCliOptions } from "./live-gbrain-safety.js";
 
 export const AMP_CLI_SHELL_VERSION = "1.0.0";
@@ -374,13 +379,37 @@ export function registerAmpCommands(
       }
     );
 
+  runtime
+    .command("seed")
+    .description(
+      "Experimental operator command — seed typed runtime semantic entities from JSON (testing/local only)"
+    )
+    .requiredOption("--file <path>", "JSON file with one entity record or an array of records")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--json", "Emit JSON instead of human-readable report")
+    .action(async (opts: { file: string; projectRoot?: string; json?: boolean }) => {
+      const result = await runAmpRuntimeSeed({
+        projectRoot: opts.projectRoot,
+        file: opts.file,
+      });
+      writeAmpRuntimeCliResult({
+        result,
+        json: opts.json,
+        formatJson: formatAmpRuntimeSeedJson,
+        formatReport: formatAmpRuntimeSeedReport,
+      });
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+    });
+
   amp
     .command("status")
     .description("Show AMP CLI shell status")
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local when AMP_KNOWLEDGE_BACKEND=in-memory; gbrain read-only source with --source gbrain), runtime status/inspect/correct (schema stubs; storage not wired), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local when AMP_KNOWLEDGE_BACKEND=in-memory; gbrain read-only source with --source gbrain), runtime status/inspect/correct (schema stubs; storage not wired), runtime seed (experimental operator JSON seeding), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
       );
     });
 
