@@ -20,6 +20,8 @@ The facade lives in `src/amp/runtime-semantics/capture-facade.ts` and is bound t
 ```ts
 createRuntimeSemanticCaptureFacade(runtime, deps?) → {
   captureExplicitCorrection(input): CaptureRuntimeCorrectionResult
+  captureRejectedSignalAudit(input): CaptureRejectedRuntimeSignalResult
+  filterAndCaptureRejectedSignal(input): FilteredRuntimeCaptureResult
   writeValidatedEntity(record): RuntimeSemanticCaptureWriteResult
 }
 ```
@@ -27,6 +29,8 @@ createRuntimeSemanticCaptureFacade(runtime, deps?) → {
 | Method | Delegates to | Use when |
 |--------|--------------|----------|
 | `captureExplicitCorrection` | `captureRuntimeCorrection` → `writeRuntimeSemanticEntity` | Operator explicit corrections (RUNTIME-23) |
+| `captureRejectedSignalAudit` | `captureRejectedRuntimeSignal` | Pre-mapped rejected-signal audit rows (RUNTIME-06) |
+| `filterAndCaptureRejectedSignal` | `filterAndCaptureRejectedRuntimeSignal` | Evaluate exclusion + persist audit on reject (RUNTIME-06) |
 | `writeValidatedEntity` | `writeRuntimeSemanticEntity` | Generic typed entity persistence (seed, future consolidation writers) |
 
 Both methods:
@@ -112,6 +116,24 @@ Same as explicit correction contract (RUNTIME-25):
 - No gbrain writes
 
 The facade is a **structural** hook only; it does not expand supported capture types beyond explicit correction + generic validated write.
+
+---
+
+## Capture exclusion (RUNTIME-06 / RUNTIME-06-FIX)
+
+`filterAndCaptureRejectedSignal` evaluates Topic 1.I exclusion heuristics and persists `rejected-signal-log` audit rows for excluded content. Result contract uses an explicit status discriminant:
+
+| `status` | Meaning |
+|----------|---------|
+| `accepted` | Signal passed exclusion; no audit row written |
+| `rejected_audited` | Signal excluded; audit row persisted (`recordId`, `reason_code`) |
+| `rejected_audit_failed` | Signal excluded but audit persistence failed (`reason`, `message`) |
+
+Use `isFilteredRuntimeCaptureAccepted(result)` when callers only proceed on capture-eligible signals.
+
+### `exclusionHint` trust boundary
+
+`RuntimeCaptureSignalInput.exclusionHint` is a **trusted upstream classifier boundary**. When set, the filter rejects immediately with that reason code without re-running content heuristics. Only dedicated classifiers in the capture pipeline (secret/PII detectors, harness classifiers) may supply hints. Untrusted callers must not use hints to force rejection of benign content.
 
 ---
 

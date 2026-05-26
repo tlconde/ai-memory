@@ -180,8 +180,7 @@ describe("createRuntimeSemanticCaptureFacade", () => {
       });
 
       assert.deepEqual(filtered, {
-        ok: false,
-        rejected: true,
+        status: "rejected_audited",
         recordId: "rej-facade-1",
         reason_code: "credentials_or_secrets",
       });
@@ -190,6 +189,30 @@ describe("createRuntimeSemanticCaptureFacade", () => {
       const stored = runtime.semanticEntityList()[0];
       assert.equal(stored?.kind, "rejected-signal-log");
       assert.doesNotMatch(JSON.stringify(stored?.payload), /super-secret-token-value-should-not-persist/);
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns rejected_audit_failed through the facade when audit persistence fails", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-capture-facade-audit-failed-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+
+    try {
+      const facade = createRuntimeSemanticCaptureFacade(runtime);
+      const result = facade.filterAndCaptureRejectedSignal({
+        content: "Bearer facade-audit-failure-token",
+        sourceSurface: "test",
+        scope: "project",
+        timestamp: FIXTURE_ISO,
+      });
+
+      assert.equal(result.status, "rejected_audit_failed");
+      if (result.status === "rejected_audit_failed") {
+        assert.equal(result.reason, "missing_project_ref");
+      }
+      assert.deepEqual(runtime.semanticEntityList(), []);
     } finally {
       runtime.close();
       await rm(tempDir, { recursive: true, force: true });

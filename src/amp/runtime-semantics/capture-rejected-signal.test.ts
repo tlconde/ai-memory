@@ -13,6 +13,7 @@ import { RuntimeStoreSemanticEntityReader } from "./storage-source.js";
 import {
   captureRejectedRuntimeSignal,
   filterAndCaptureRejectedRuntimeSignal,
+  isFilteredRuntimeCaptureAccepted,
 } from "./capture-rejected-signal.js";
 import { FIXTURE_ISO, FIXTURE_PROJECT_REF } from "./runtime-semantics.test-fixture.js";
 
@@ -68,10 +69,9 @@ describe("filterAndCaptureRejectedRuntimeSignal", () => {
         timestamp: FIXTURE_ISO,
       });
 
-      assert.equal(result.ok, true);
-      if (result.ok) {
-        assert.match(result.accepted.source_hash, /^sha256:/);
-      }
+      assert.equal(result.status, "accepted");
+      assert.ok(isFilteredRuntimeCaptureAccepted(result));
+      assert.match(result.accepted.source_hash, /^sha256:/);
       assert.deepEqual(runtime.semanticEntityList(), []);
     } finally {
       runtime.close();
@@ -91,8 +91,8 @@ describe("filterAndCaptureRejectedRuntimeSignal", () => {
         timestamp: FIXTURE_ISO,
       });
 
-      assert.equal(result.ok, false);
-      if (!result.ok && result.rejected) {
+      assert.equal(result.status, "rejected_audited");
+      if (result.status === "rejected_audited") {
         assert.match(result.recordId, /^rejected-signal:capture-reject:/);
         assert.equal(result.reason_code, "credentials_or_secrets");
       }
@@ -119,8 +119,7 @@ describe("filterAndCaptureRejectedRuntimeSignal", () => {
       });
 
       assert.deepEqual(result, {
-        ok: false,
-        rejected: true,
+        status: "rejected_audited",
         recordId: "rej-filter-secret",
         reason_code: "credentials_or_secrets",
       });
@@ -139,6 +138,29 @@ describe("filterAndCaptureRejectedRuntimeSignal", () => {
       assert.equal(materialized.items.length, 0);
       assert.equal(materialized.skipped.length, 1);
       assert.equal(materialized.skipped[0]?.reason, "not_projectable");
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns rejected_audit_failed when audit persistence fails", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-filter-audit-failed-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+
+    try {
+      const result = filterAndCaptureRejectedRuntimeSignal(runtime, {
+        content: "Bearer secret-token-for-failed-audit",
+        sourceSurface: "test",
+        scope: "project",
+        timestamp: FIXTURE_ISO,
+      });
+
+      assert.equal(result.status, "rejected_audit_failed");
+      if (result.status === "rejected_audit_failed") {
+        assert.equal(result.reason, "missing_project_ref");
+      }
+      assert.deepEqual(runtime.semanticEntityList(), []);
     } finally {
       runtime.close();
       await rm(tempDir, { recursive: true, force: true });

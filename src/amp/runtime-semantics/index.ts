@@ -60,6 +60,7 @@ export {
   type ExplicitRuntimeCorrectionCaptureInput,
   type FilteredRuntimeCaptureInput,
   type FilteredRuntimeCaptureResult,
+  type FilteredRuntimeCaptureStatus,
   type RuntimeRejectedCaptureInput,
   type RuntimeSemanticCaptureFacade,
   type RuntimeSemanticCaptureFacadeDeps,
@@ -80,6 +81,10 @@ export {
   type RuntimeCaptureRejectionReasonCode,
   type RuntimeCaptureSignalInput,
 } from "./capture-exclusion-filter.js";
+
+export {
+  isFilteredRuntimeCaptureAccepted,
+} from "./capture-rejected-signal.js";
 
 export {
   REJECTED_SIGNAL_DEFAULT_RECORD_ID_PREFIX,

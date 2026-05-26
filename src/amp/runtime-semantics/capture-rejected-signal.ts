@@ -59,20 +59,30 @@ export function captureRejectedRuntimeSignal(
   return { ok: true, recordId: mapped.record.id };
 }
 
+export type FilteredRuntimeCaptureStatus =
+  | "accepted"
+  | "rejected_audited"
+  | "rejected_audit_failed";
+
 export type FilteredRuntimeCaptureResult =
-  | { ok: true; accepted: RuntimeCaptureAcceptedSignal }
+  | { status: "accepted"; accepted: RuntimeCaptureAcceptedSignal }
   | {
-      ok: false;
-      rejected: true;
+      status: "rejected_audited";
       recordId: string;
       reason_code: RuntimeCaptureRejectionReasonCode;
     }
   | {
-      ok: false;
-      rejected: false;
+      status: "rejected_audit_failed";
       reason: CaptureRejectedRuntimeSignalFailureReason;
       message: string;
     };
+
+/** Narrow helper for callers that only proceed on capture-eligible signals. */
+export function isFilteredRuntimeCaptureAccepted(
+  result: FilteredRuntimeCaptureResult,
+): result is Extract<FilteredRuntimeCaptureResult, { status: "accepted" }> {
+  return result.status === "accepted";
+}
 
 export interface FilteredRuntimeCaptureInput extends RuntimeCaptureSignalInput {
   recordId?: string;
@@ -105,7 +115,7 @@ export function filterAndCaptureRejectedRuntimeSignal(
 ): FilteredRuntimeCaptureResult {
   const filterResult = evaluateRuntimeCaptureExclusionFilter(input);
   if (filterResult.ok) {
-    return { ok: true, accepted: filterResult.accepted };
+    return { status: "accepted", accepted: filterResult.accepted };
   }
 
   const { recordId, rejectedSignalId } = rejectionIdsFromAudit(input, filterResult);
@@ -127,16 +137,14 @@ export function filterAndCaptureRejectedRuntimeSignal(
 
   if (!captureResult.ok) {
     return {
-      ok: false,
-      rejected: false,
+      status: "rejected_audit_failed",
       reason: captureResult.reason,
       message: captureResult.message,
     };
   }
 
   return {
-    ok: false,
-    rejected: true,
+    status: "rejected_audited",
     recordId: captureResult.recordId,
     reason_code: filterResult.rejected.reason_code,
   };

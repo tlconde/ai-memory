@@ -43,7 +43,12 @@ export interface RuntimeCaptureSignalInput {
   sourceSurface: string;
   scope: ScopeKind;
   projectRef?: string;
-  /** Optional upstream classifier hint; honored when it maps to a known reason code. */
+  /**
+   * Trusted upstream classifier boundary: when set, the filter rejects immediately with
+   * this reason code without re-running content heuristics. Only pass hints from
+   * classifiers the capture pipeline trusts (e.g. dedicated secret/PII detectors).
+   * Untrusted callers must not use hints to force rejection of benign content.
+   */
   exclusionHint?: RuntimeCaptureExclusionHint;
   /**
    * When provided and the signal passes exclusion, echoed in the accept result as a
@@ -181,6 +186,7 @@ function detectExclusionReason(
   content: string,
   hint?: RuntimeCaptureExclusionHint,
 ): RuntimeCaptureRejectionReasonCode | undefined {
+  // Trusted-boundary fast path: upstream classifiers may supply a reason directly.
   if (hint !== undefined) {
     return hint;
   }

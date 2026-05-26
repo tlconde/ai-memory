@@ -32,6 +32,7 @@ import {
   type FilteredRuntimeCaptureDeps,
   type FilteredRuntimeCaptureInput,
   type FilteredRuntimeCaptureResult,
+  type FilteredRuntimeCaptureStatus,
   type RuntimeRejectedCaptureInput,
 } from "./capture-rejected-signal.js";
 import type { RuntimeSemanticEntityRecord } from "./entity-record.js";
@@ -73,6 +74,7 @@ export type {
   ExplicitRuntimeCorrectionCaptureInput,
   FilteredRuntimeCaptureInput,
   FilteredRuntimeCaptureResult,
+  FilteredRuntimeCaptureStatus,
   RuntimeRejectedCaptureInput,
   RuntimeSemanticCaptureEntityWriteFailureReason,
 };
