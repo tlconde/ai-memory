@@ -260,6 +260,21 @@ describe("formatUnresolvedDecisionForRuntime", () => {
     assert.doesNotMatch(text, /Options:/);
     assert.equal(formatted!.activeInstruction, false);
   });
+
+  it("warns when selected_option_id is not in options", () => {
+    const formatted = formatUnresolvedDecisionForRuntime({
+      ...OPEN_DECISION,
+      status: "decided",
+      selected_option_id: "opt-missing",
+    });
+    assert.ok(formatted);
+    const text = textOf(formatted);
+    assert.match(text, /incomplete/i);
+    assert.match(text, /selected_option_id not in options/i);
+    assert.doesNotMatch(text, /Selected:/);
+    assert.doesNotMatch(text, /opt-missing/);
+    assert.equal(formatted!.activeInstruction, false);
+  });
 });
 
 describe("formatRuntimePreferenceCandidateForRuntime", () => {
@@ -479,6 +494,24 @@ describe("formatEpisodicFrameForRuntime", () => {
     assert.match(text, /metadata only/i);
     assert.doesNotMatch(text, /secret-token/);
     assert.doesNotMatch(text, /Contains secret-token in summary/);
+  });
+
+  it("keeps secret_redacted frames metadata-only even with includeSensitive", () => {
+    const formatted = formatEpisodicFrameForRuntime(
+      {
+        ...ACTIVE_EPISODIC_FRAME,
+        sensitivity: "secret_redacted",
+        summary: "Secret summary must never leak",
+        details: { token: "secret-token" },
+      },
+      { includeSensitive: true },
+    );
+    assert.ok(formatted);
+    const text = textOf(formatted);
+    assert.match(text, /metadata only/i);
+    assert.match(text, /secret_redacted/i);
+    assert.doesNotMatch(text, /Secret summary must never leak/);
+    assert.doesNotMatch(text, /secret-token/);
   });
 
   it("renders sensitive frames as metadata-only by default", () => {

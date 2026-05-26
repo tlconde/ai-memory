@@ -169,13 +169,24 @@ export function formatUnresolvedDecisionForRuntime(
       const selected = decision.options.find(
         (option) => option.id === decision.selected_option_id,
       );
+      if (!selected) {
+        return {
+          lines: [
+            "Decision (incomplete)",
+            formatScopeLine(decision.scope),
+            decision.question,
+            "Status: Decided (incomplete — selected_option_id not in options)",
+          ],
+          activeInstruction: false,
+        };
+      }
       return {
         lines: [
           "Decision (resolved)",
           formatScopeLine(decision.scope),
           decision.question,
           "Status: Decided",
-          `Selected: ${selected?.label ?? decision.selected_option_id}`,
+          `Selected: ${selected.label}`,
         ],
         activeInstruction: false,
       };
@@ -294,13 +305,20 @@ export function formatRuntimeCrystalCandidateForRuntime(
   }
 }
 
-function formatHarnessActionableLines(state: HarnessOperationalState): string[] {
-  const lines: string[] = [
+function formatHarnessHeaderLines(
+  state: HarnessOperationalState,
+  statusLine: string,
+): string[] {
+  return [
     "Harness operational state",
     ...(state.project_ref ? [formatScopeLine("project", state.project_ref)] : []),
     `Harness: ${state.harness}`,
-    `Status: ${state.status}`,
+    statusLine,
   ];
+}
+
+function formatHarnessActionableLines(state: HarnessOperationalState): string[] {
+  const lines = formatHarnessHeaderLines(state, `Status: ${state.status}`);
 
   if (state.cwd) {
     lines.push(`cwd: ${state.cwd}`);
@@ -343,12 +361,7 @@ export function formatHarnessOperationalStateForRuntime(
         return null;
       }
       return {
-        lines: [
-          "Harness operational state",
-          ...(state.project_ref ? [formatScopeLine("project", state.project_ref)] : []),
-          `Harness: ${state.harness}`,
-          "Status: closed (inactive)",
-        ],
+        lines: formatHarnessHeaderLines(state, "Status: closed (inactive)"),
         activeInstruction: false,
       };
     case "active":
@@ -371,26 +384,20 @@ function formatActiveEpisodicFrame(
   frame: EpisodicFrame,
   options: FormatEpisodicFrameOptions,
 ): RuntimeProjectionFormat {
-  switch (frame.sensitivity) {
-    case "secret_redacted":
-      return formatEpisodicMetadataOnly(
-        frame,
-        "Episodic frame (metadata only)",
-        "[secret_redacted: summary and details omitted from runtime projection]",
-      );
-    case "sensitive":
-      if (options.includeSensitive !== true) {
-        return formatEpisodicMetadataOnly(
-          frame,
-          "Episodic frame (metadata only)",
-          "[sensitive: summary and details omitted from runtime projection]",
-        );
-      }
-      break;
-    case "normal":
-      break;
-    default:
-      assertNever(frame.sensitivity);
+  if (frame.sensitivity === "secret_redacted") {
+    return formatEpisodicMetadataOnly(
+      frame,
+      "Episodic frame (metadata only)",
+      "[secret_redacted: summary and details omitted from runtime projection]",
+    );
+  }
+
+  if (frame.sensitivity === "sensitive" && options.includeSensitive !== true) {
+    return formatEpisodicMetadataOnly(
+      frame,
+      "Episodic frame (metadata only)",
+      "[sensitive: summary and details omitted from runtime projection]",
+    );
   }
 
   const lines: string[] = [
