@@ -16,6 +16,7 @@ import {
 import {
   defaultExplicitCorrectionRecordId,
   deterministicCorrectionTimestamp,
+  EXPLICIT_CORRECTION_CLI_PROVENANCE,
 } from "../runtime-semantics/capture-correction-mapper.js";
 import { RUNTIME_STATUS_LOCAL_STORAGE_NOTE } from "../runtime-semantics/messages.js";
 import {
@@ -169,6 +170,7 @@ export function runAmpRuntimeCorrect(options: AmpRuntimeCorrectOptions): AmpRunt
         projectRef,
         occurredAt,
         recordedAt,
+        provenance: EXPLICIT_CORRECTION_CLI_PROVENANCE,
       }),
   );
 

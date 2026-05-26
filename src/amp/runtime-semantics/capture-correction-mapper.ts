@@ -18,6 +18,30 @@ import type { EpisodicFrame, EpisodicVisibility } from "./schema.js";
 /** Default typed record id prefix for one explicit correction per target entity. */
 export const EXPLICIT_CORRECTION_DEFAULT_RECORD_ID_PREFIX = "explicit-correction:";
 
+export const EXPLICIT_CORRECTION_CAPTURE_PATH = "explicit_operator_correction";
+
+export const EXPLICIT_CORRECTION_CLI_SOURCE_COMMAND = "amp runtime correct";
+
+/** Supported explicit correction capture surfaces (stored in payload details). */
+export type ExplicitCorrectionSourceSurface = "cli" | "test" | "future_capture";
+
+export interface ExplicitRuntimeCorrectionCaptureProvenance {
+  sourceSurface: ExplicitCorrectionSourceSurface;
+  sourceCommand?: string;
+}
+
+/** Stable CLI provenance marker for `amp runtime correct`. */
+export const EXPLICIT_CORRECTION_CLI_PROVENANCE: ExplicitRuntimeCorrectionCaptureProvenance = {
+  sourceSurface: "cli",
+  sourceCommand: EXPLICIT_CORRECTION_CLI_SOURCE_COMMAND,
+};
+
+/** Stable test provenance marker for runtime-semantics unit/integration tests. */
+export const EXPLICIT_CORRECTION_TEST_PROVENANCE: ExplicitRuntimeCorrectionCaptureProvenance = {
+  sourceSurface: "test",
+  sourceCommand: "runtime-semantics.test",
+};
+
 export interface ExplicitRuntimeCorrectionCaptureInput {
   /** Runtime semantic entity id being corrected. */
   targetEntityId: string;
@@ -29,7 +53,10 @@ export interface ExplicitRuntimeCorrectionCaptureInput {
   projectRef?: string;
   occurredAt: string;
   recordedAt: string;
+  /** External signal ids for consolidation correlation (preferred over operator-note ids). */
   sourceSignalIds?: readonly string[];
+  /** Deterministic capture provenance (surface, command). */
+  provenance: ExplicitRuntimeCorrectionCaptureProvenance;
 }
 
 export type ExplicitRuntimeCorrectionMapFailureReason =
@@ -59,6 +86,30 @@ function visibilityForScope(scope: ScopeKind): EpisodicVisibility {
   }
 }
 
+/** Stable transform_id marker for explicit correction capture provenance. */
+export function explicitCorrectionTransformId(
+  sourceSurface: ExplicitCorrectionSourceSurface,
+): string {
+  return `explicit-correction:${sourceSurface}`;
+}
+
+function buildExplicitCorrectionDetails(
+  input: ExplicitRuntimeCorrectionCaptureInput,
+): Record<string, unknown> {
+  const details: Record<string, unknown> = {
+    target_entity_id: input.targetEntityId,
+    correction_of: input.targetEntityId,
+    capture_path: EXPLICIT_CORRECTION_CAPTURE_PATH,
+    source_surface: input.provenance.sourceSurface,
+  };
+
+  if (input.provenance.sourceCommand) {
+    details.source_command = input.provenance.sourceCommand;
+  }
+
+  return details;
+}
+
 /** Map explicit correction capture input to a typed runtime semantic entity record. */
 export function mapExplicitRuntimeCorrectionToEntityRecord(
   input: ExplicitRuntimeCorrectionCaptureInput,
@@ -85,11 +136,7 @@ export function mapExplicitRuntimeCorrectionToEntityRecord(
     id: input.recordId,
     event_type: "correction",
     summary: note,
-    details: {
-      target_entity_id: input.targetEntityId,
-      correction_of: input.targetEntityId,
-      capture_path: "explicit_operator_correction",
-    },
+    details: buildExplicitCorrectionDetails(input),
     tags: [],
     scope: input.scope,
     ...(projectRef ? { project_ref: projectRef } : {}),
@@ -99,7 +146,9 @@ export function mapExplicitRuntimeCorrectionToEntityRecord(
     source_signals: [...(input.sourceSignalIds ?? [])],
     related_entities: {},
     evidence_refs: [],
-    provenance: {},
+    provenance: {
+      transform_id: explicitCorrectionTransformId(input.provenance.sourceSurface),
+    },
     confidence: "high",
     source: "user_explicit",
     sensitivity: "normal",

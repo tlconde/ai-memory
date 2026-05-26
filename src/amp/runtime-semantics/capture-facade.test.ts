@@ -12,6 +12,7 @@ import {
   RuntimeStoreSemanticEntityReader,
 } from "./storage-source.js";
 import { createRuntimeSemanticCaptureFacade } from "./capture-facade.js";
+import { EXPLICIT_CORRECTION_TEST_PROVENANCE } from "./capture-correction-mapper.js";
 import type { RuntimeSemanticEntityRecord } from "./entity-record.js";
 import {
   ACTIVE_PREFERENCE,
@@ -34,6 +35,7 @@ describe("createRuntimeSemanticCaptureFacade", () => {
         scope: "user",
         occurredAt: FIXTURE_ISO,
         recordedAt: FIXTURE_ISO,
+        provenance: EXPLICIT_CORRECTION_TEST_PROVENANCE,
       });
 
       assert.deepEqual(capture, { ok: true, recordId: "correction-frame-facade" });
@@ -75,6 +77,7 @@ describe("createRuntimeSemanticCaptureFacade", () => {
         scope: "user",
         occurredAt: FIXTURE_ISO,
         recordedAt: FIXTURE_ISO,
+        provenance: EXPLICIT_CORRECTION_TEST_PROVENANCE,
       });
 
       assert.equal(result.ok, false);

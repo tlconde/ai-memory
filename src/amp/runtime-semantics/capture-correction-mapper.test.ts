@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 
 import { FIXTURE_ISO, FIXTURE_PROJECT_REF } from "./runtime-semantics.test-fixture.js";
 import {
+  EXPLICIT_CORRECTION_CLI_PROVENANCE,
+  EXPLICIT_CORRECTION_TEST_PROVENANCE,
+  explicitCorrectionTransformId,
   mapExplicitRuntimeCorrectionToEntityRecord,
   type ExplicitRuntimeCorrectionCaptureInput,
 } from "./capture-correction-mapper.js";
@@ -14,6 +17,7 @@ const BASE_INPUT: ExplicitRuntimeCorrectionCaptureInput = {
   scope: "user",
   occurredAt: FIXTURE_ISO,
   recordedAt: FIXTURE_ISO,
+  provenance: EXPLICIT_CORRECTION_TEST_PROVENANCE,
 };
 
 describe("mapExplicitRuntimeCorrectionToEntityRecord", () => {
@@ -36,6 +40,11 @@ describe("mapExplicitRuntimeCorrectionToEntityRecord", () => {
       target_entity_id: "frame-123",
       correction_of: "frame-123",
       capture_path: "explicit_operator_correction",
+      source_surface: "test",
+      source_command: "runtime-semantics.test",
+    });
+    assert.deepEqual(result.record.payload.provenance, {
+      transform_id: explicitCorrectionTransformId("test"),
     });
   });
 
@@ -76,5 +85,52 @@ describe("mapExplicitRuntimeCorrectionToEntityRecord", () => {
     if (!result.ok) {
       assert.equal(result.reason, "invalid_note");
     }
+  });
+
+  it("maps optional provenance into details, provenance.transform_id, and source_signals", () => {
+    const result = mapExplicitRuntimeCorrectionToEntityRecord({
+      ...BASE_INPUT,
+      sourceSignalIds: ["signal-correction-1"],
+      provenance: {
+        sourceSurface: "test",
+        sourceCommand: "capture-correction-mapper.test",
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) {
+      return;
+    }
+
+    assert.deepEqual(result.record.payload.source_signals, ["signal-correction-1"]);
+    assert.deepEqual(result.record.payload.provenance, {
+      transform_id: explicitCorrectionTransformId("test"),
+    });
+    assert.deepEqual(result.record.payload.details, {
+      target_entity_id: "frame-123",
+      correction_of: "frame-123",
+      capture_path: "explicit_operator_correction",
+      source_surface: "test",
+      source_command: "capture-correction-mapper.test",
+    });
+  });
+
+  it("uses the stable CLI provenance marker shape", () => {
+    const result = mapExplicitRuntimeCorrectionToEntityRecord({
+      ...BASE_INPUT,
+      provenance: EXPLICIT_CORRECTION_CLI_PROVENANCE,
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) {
+      return;
+    }
+
+    assert.equal(
+      result.record.payload.provenance.transform_id,
+      explicitCorrectionTransformId("cli"),
+    );
+    assert.equal(result.record.payload.details?.source_surface, "cli");
+    assert.equal(result.record.payload.details?.source_command, "amp runtime correct");
   });
 });

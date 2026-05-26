@@ -6,10 +6,14 @@ import { join } from "node:path";
 
 import { FIXTURE_ISO } from "../runtime-semantics/runtime-semantics.test-fixture.js";
 import { EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING } from "../runtime-semantics/messages.js";
+import {
+  EXPLICIT_CORRECTION_CLI_PROVENANCE,
+  explicitCorrectionTransformId,
+} from "../runtime-semantics/capture-correction-mapper.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
 import { runAmpInit } from "./init.js";
 import { createProjectionRenderSource } from "./projection-source.js";
-import { runAmpRuntimeInspect } from "./runtime-inspect.js";
+import { runAmpRuntimeInspect, formatAmpRuntimeInspectJson } from "./runtime-inspect.js";
 import {
   formatAmpRuntimeCorrectReport,
   runAmpRuntimeCorrect,
@@ -77,6 +81,23 @@ describe("runAmpRuntimeCorrect", () => {
     assert.match(text, /correction-frame-123/);
     assert.match(text, /Reclassify as correction_event/);
     assert.match(text, /OK Runtime correction captured/);
+
+    const payload = inspect.records[0]?.payload as {
+      details?: Record<string, unknown>;
+      provenance?: { transform_id?: string };
+      source_signals?: string[];
+    };
+    assert.equal(payload.details?.source_surface, EXPLICIT_CORRECTION_CLI_PROVENANCE.sourceSurface);
+    assert.equal(payload.details?.source_command, EXPLICIT_CORRECTION_CLI_PROVENANCE.sourceCommand);
+    assert.equal(
+      payload.provenance?.transform_id,
+      explicitCorrectionTransformId("cli"),
+    );
+
+    const inspectJson = JSON.parse(formatAmpRuntimeInspectJson(inspect)) as {
+      records: Array<{ payload: typeof payload }>;
+    };
+    assert.equal(inspectJson.records[0]?.payload.details?.source_surface, "cli");
   });
 
   it("surfaces explicit corrections in local runtime projection output", async () => {
@@ -112,6 +133,13 @@ describe("runAmpRuntimeCorrect", () => {
       assert.ok(projectRuntime);
       assert.match(projectRuntime.body, new RegExp(note));
       assert.match(projectRuntime.body, new RegExp(EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+      assert.match(projectRuntime.body, /Details omitted from runtime projection\./);
+      assert.doesNotMatch(projectRuntime.body, /source_surface/);
+      assert.doesNotMatch(projectRuntime.body, /source_command/);
+      assert.match(
+        projectRuntime.body,
+        new RegExp(explicitCorrectionTransformId("cli").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+      );
     } finally {
       resolved.cleanup();
     }

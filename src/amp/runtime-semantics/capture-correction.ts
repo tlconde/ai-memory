@@ -44,4 +44,8 @@ export function captureRuntimeCorrection(
   return writeRuntimeSemanticEntityWithRecordId(runtime, mapped.record, writeEntity);
 }
 
-export type { ExplicitRuntimeCorrectionCaptureInput } from "./capture-correction-mapper.js";
+export type {
+  ExplicitCorrectionSourceSurface,
+  ExplicitRuntimeCorrectionCaptureInput,
+  ExplicitRuntimeCorrectionCaptureProvenance,
+} from "./capture-correction-mapper.js";

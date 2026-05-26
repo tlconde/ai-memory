@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import { FIXTURE_ISO, FIXTURE_PROJECT_REF } from "./runtime-semantics.test-fixture.js";
+import { EXPLICIT_CORRECTION_TEST_PROVENANCE } from "./capture-correction-mapper.js";
 import { captureRuntimeCorrection } from "./capture-correction.js";
 import { RuntimeStoreSemanticEntityReader } from "./storage-source.js";
 
@@ -21,6 +22,7 @@ describe("captureRuntimeCorrection", () => {
         scope: "user",
         occurredAt: FIXTURE_ISO,
         recordedAt: FIXTURE_ISO,
+        provenance: EXPLICIT_CORRECTION_TEST_PROVENANCE,
       });
 
       assert.deepEqual(result, { ok: true, recordId: "correction-frame-123" });
@@ -46,6 +48,7 @@ describe("captureRuntimeCorrection", () => {
         scope: "project",
         occurredAt: FIXTURE_ISO,
         recordedAt: FIXTURE_ISO,
+        provenance: EXPLICIT_CORRECTION_TEST_PROVENANCE,
       });
 
       assert.equal(result.ok, false);
@@ -72,6 +75,7 @@ describe("captureRuntimeCorrection", () => {
         projectRef: FIXTURE_PROJECT_REF,
         occurredAt: FIXTURE_ISO,
         recordedAt: FIXTURE_ISO,
+        provenance: EXPLICIT_CORRECTION_TEST_PROVENANCE,
       };
 
       assert.equal(captureRuntimeCorrection(runtime, input).ok, true);

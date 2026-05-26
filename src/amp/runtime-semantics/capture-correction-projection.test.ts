@@ -11,6 +11,7 @@ import { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import { captureRuntimeCorrection } from "./capture-correction.js";
 import {
   defaultExplicitCorrectionRecordId,
+  EXPLICIT_CORRECTION_TEST_PROVENANCE,
 } from "./capture-correction-mapper.js";
 import {
   EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING,
@@ -46,6 +47,7 @@ describe("captureRuntimeCorrection projection coverage", () => {
         scope: "user",
         occurredAt: FIXTURE_ISO,
         recordedAt: FIXTURE_ISO,
+        provenance: EXPLICIT_CORRECTION_TEST_PROVENANCE,
       });
       assert.equal(capture.ok, true);
 
@@ -88,6 +90,7 @@ describe("captureRuntimeCorrection projection coverage", () => {
         projectRef: FIXTURE_PROJECT_REF,
         occurredAt: FIXTURE_ISO,
         recordedAt: FIXTURE_ISO,
+        provenance: EXPLICIT_CORRECTION_TEST_PROVENANCE,
       });
       assert.equal(capture.ok, true);
 
@@ -125,6 +128,7 @@ describe("captureRuntimeCorrection projection coverage", () => {
         scope: "user",
         occurredAt: FIXTURE_ISO,
         recordedAt: FIXTURE_ISO,
+        provenance: EXPLICIT_CORRECTION_TEST_PROVENANCE,
       });
 
       const reader = new RuntimeSemanticStorageEntitySource(
@@ -164,6 +168,7 @@ describe("captureRuntimeCorrection projection coverage", () => {
         scope: "user",
         occurredAt: FIXTURE_ISO,
         recordedAt: FIXTURE_ISO,
+        provenance: EXPLICIT_CORRECTION_TEST_PROVENANCE,
       });
       assert.equal(first.ok, true);
 
@@ -174,6 +179,7 @@ describe("captureRuntimeCorrection projection coverage", () => {
         scope: "user",
         occurredAt: FIXTURE_ISO,
         recordedAt: FIXTURE_ISO,
+        provenance: EXPLICIT_CORRECTION_TEST_PROVENANCE,
       });
       assert.equal(duplicate.ok, false);
       if (!duplicate.ok) {
