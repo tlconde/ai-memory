@@ -434,6 +434,41 @@ export const DormantSnapshotSchema = z
 
 export type DormantSnapshot = z.infer<typeof DormantSnapshotSchema>;
 
+export const RUNTIME_ENTITY_REGISTRY = [
+  { kind: "unresolved-decision", schemaName: "UnresolvedDecision" },
+  { kind: "runtime-preference-candidate", schemaName: "RuntimePreferenceCandidate" },
+  { kind: "runtime-crystal-candidate", schemaName: "RuntimeCrystalCandidate" },
+  { kind: "harness-operational-state", schemaName: "HarnessOperationalState" },
+  { kind: "rejected-signal-log", schemaName: "RejectedSignalLog" },
+  { kind: "episodic-frame", schemaName: "EpisodicFrame" },
+  { kind: "dormant-snapshot", schemaName: "DormantSnapshot" },
+] as const;
+
+export type RuntimeEntityKind = (typeof RUNTIME_ENTITY_REGISTRY)[number]["kind"];
+export type RuntimeEntitySchemaName = (typeof RUNTIME_ENTITY_REGISTRY)[number]["schemaName"];
+
+export const RUNTIME_ENTITY_KINDS = RUNTIME_ENTITY_REGISTRY.map(
+  (entry) => entry.kind,
+) as RuntimeEntityKind[];
+
+export const RUNTIME_ENTITY_SCHEMA_NAMES = RUNTIME_ENTITY_REGISTRY.map(
+  (entry) => entry.schemaName,
+) as RuntimeEntitySchemaName[];
+
+const RUNTIME_ENTITY_SCHEMA_BY_KIND = Object.fromEntries(
+  RUNTIME_ENTITY_REGISTRY.map((entry) => [entry.kind, entry.schemaName]),
+) as Record<RuntimeEntityKind, RuntimeEntitySchemaName>;
+
+/** True when `value` is a supported runtime entity kind slug for CLI inspect. */
+export function isRuntimeEntityKind(value: string): value is RuntimeEntityKind {
+  return Object.hasOwn(RUNTIME_ENTITY_SCHEMA_BY_KIND, value);
+}
+
+/** Resolve the PascalCase schema name for a runtime entity kind slug. */
+export function runtimeEntitySchemaNameForKind(kind: RuntimeEntityKind): RuntimeEntitySchemaName {
+  return RUNTIME_ENTITY_SCHEMA_BY_KIND[kind];
+}
+
 export type RuntimeEntityParseResult<T> =
   | { success: true; value: T }
   | { success: false; error: string; issues?: z.ZodIssue[] };

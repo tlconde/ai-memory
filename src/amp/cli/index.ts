@@ -26,6 +26,16 @@ import {
   runAmpProjectionRender,
 } from "./projection.js";
 import { formatAmpRetrieveMessages, runAmpRetrieve } from "./retrieve.js";
+import {
+  formatAmpRuntimeCorrectJson,
+  formatAmpRuntimeCorrectReport,
+  formatAmpRuntimeInspectJson,
+  formatAmpRuntimeInspectReport,
+  formatAmpRuntimeStatusReport,
+  runAmpRuntimeCorrect,
+  runAmpRuntimeInspect,
+  runAmpRuntimeStatus,
+} from "./runtime.js";
 import { confirmLiveGbrainWriteFromCliOptions } from "./live-gbrain-safety.js";
 
 export const AMP_CLI_SHELL_VERSION = "1.0.0";
@@ -43,7 +53,7 @@ export function registerAmpCommands(
   const amp = options.atRoot
     ? program
     : program.command("amp").description(
-        "Agent Memory Protocol (AMP) substrate — init, doctor, capture, consolidate, retrieve, propagate, projection, agent setup"
+        "Agent Memory Protocol (AMP) substrate — init, doctor, capture, consolidate, retrieve, propagate, projection, runtime, agent setup"
       );
 
   amp
@@ -298,13 +308,80 @@ export function registerAmpCommands(
       }
     );
 
+  const runtime = amp
+    .command("runtime")
+    .description("Runtime semantics inspection and correction (local-only stubs)");
+
+  runtime
+    .command("status")
+    .description("Report runtime semantics feature status and supported entity schemas")
+    .action(() => {
+      const result = runAmpRuntimeStatus();
+      for (const line of formatAmpRuntimeStatusReport(result)) {
+        process.stdout.write(`${line}\n`);
+      }
+    });
+
+  runtime
+    .command("inspect")
+    .description("Inspect runtime semantic state (read-only stub until storage is wired)")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--entity <kind>", "Runtime entity kind slug (e.g. episodic-frame)")
+    .option("--json", "Emit JSON instead of human-readable report")
+    .action((opts: { projectRoot?: string; entity?: string; json?: boolean }) => {
+      const result = runAmpRuntimeInspect({
+        projectRoot: opts.projectRoot,
+        entity: opts.entity,
+      });
+      if (opts.json) {
+        process.stdout.write(`${formatAmpRuntimeInspectJson(result)}\n`);
+      } else {
+        for (const line of formatAmpRuntimeInspectReport(result)) {
+          process.stdout.write(`${line}\n`);
+        }
+      }
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+    });
+
+  runtime
+    .command("correct")
+    .description("Explicit runtime correction/reclassify stub (not wired yet)")
+    .requiredOption("--id <id>", "Runtime entity id to correct")
+    .requiredOption("--note <text>", "Operator note describing the correction intent")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--json", "Emit JSON instead of human-readable report")
+    .action(
+      (opts: {
+        id: string;
+        note: string;
+        projectRoot?: string;
+        json?: boolean;
+      }) => {
+        const result = runAmpRuntimeCorrect({
+          projectRoot: opts.projectRoot,
+          id: opts.id,
+          note: opts.note,
+        });
+        if (opts.json) {
+          process.stdout.write(`${formatAmpRuntimeCorrectJson(result)}\n`);
+        } else {
+          for (const line of formatAmpRuntimeCorrectReport(result)) {
+            process.stdout.write(`${line}\n`);
+          }
+        }
+        process.exitCode = 1;
+      }
+    );
+
   amp
     .command("status")
     .description("Show AMP CLI shell status")
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local when AMP_KNOWLEDGE_BACKEND=in-memory; gbrain read-only source with --source gbrain), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local when AMP_KNOWLEDGE_BACKEND=in-memory; gbrain read-only source with --source gbrain), runtime status/inspect/correct (schema stubs; storage not wired), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
       );
     });
 
