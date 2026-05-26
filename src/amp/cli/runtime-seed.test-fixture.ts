@@ -3,26 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { runAmpInit } from "./init.js";
-
-const ISO = "2026-05-26T12:00:00.000Z";
-
-export const ACTIVE_PREFERENCE = {
-  id: "pref-1",
-  statement: "Keep responses short today",
-  mode: "time_bounded" as const,
-  scope: "user" as const,
-  context: {},
-  status: "active" as const,
-  expires_at: ISO,
-  first_observed_at: ISO,
-  last_observed_at: ISO,
-  source_signal_ids: ["signal-3"],
-  confidence: "medium" as const,
-  promotion_evidence: {
-    repetition_count: 0,
-    independent_sessions: 0,
-  },
-};
+export { ACTIVE_PREFERENCE } from "../runtime-semantics/runtime-semantics.test-fixture.js";
 
 export interface RuntimeSeedTestHarness {
   tempRoot: string;

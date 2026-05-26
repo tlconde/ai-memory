@@ -16,33 +16,11 @@ import {
   type RuntimeSemanticEntityReader,
 } from "./storage-source.js";
 import { writeRuntimeSemanticEntity } from "./storage-writer.js";
-
-const ISO = "2026-05-26T12:00:00.000Z";
-const PROJECT_REF = "ai-memory";
-
-const ACTIVE_PREFERENCE = {
-  id: "pref-1",
-  statement: "Keep responses short today",
-  mode: "time_bounded" as const,
-  scope: "user" as const,
-  context: {},
-  status: "active" as const,
-  expires_at: ISO,
-  first_observed_at: ISO,
-  last_observed_at: ISO,
-  source_signal_ids: ["signal-3"],
-  confidence: "medium" as const,
-  promotion_evidence: {
-    repetition_count: 0,
-    independent_sessions: 0,
-  },
-};
-
-function record(
-  overrides: RuntimeSemanticEntityRecord,
-): RuntimeSemanticEntityRecord {
-  return overrides;
-}
+import {
+  ACTIVE_PREFERENCE,
+  FIXTURE_ISO,
+  FIXTURE_PROJECT_REF,
+} from "./runtime-semantics.test-fixture.js";
 
 class StubRuntimeSemanticEntityReader implements RuntimeSemanticEntityReader {
   readonly readCalls: number[] = [];
@@ -58,12 +36,12 @@ class StubRuntimeSemanticEntityReader implements RuntimeSemanticEntityReader {
 describe("RuntimeSemanticStorageEntitySource", () => {
   it("returns entity records from the reader", () => {
     const entities = [
-      record({
+      {
         id: "pref-1",
         kind: "runtime-preference-candidate",
         scope: "user",
         payload: ACTIVE_PREFERENCE,
-      }),
+      },
     ];
     const reader = new StubRuntimeSemanticEntityReader(entities);
     const source = new RuntimeSemanticStorageEntitySource(reader);
@@ -74,12 +52,12 @@ describe("RuntimeSemanticStorageEntitySource", () => {
 
   it("delegates listEntities on each call without caching or mutation", () => {
     const entities = [
-      record({
+      {
         id: "pref-1",
         kind: "runtime-preference-candidate",
         scope: "user",
         payload: ACTIVE_PREFERENCE,
-      }),
+      },
     ];
     const reader = new StubRuntimeSemanticEntityReader(entities);
     const source = new RuntimeSemanticStorageEntitySource(reader);
@@ -94,12 +72,12 @@ describe("RuntimeSemanticStorageEntitySource", () => {
 
   it("does not mutate entities returned by the reader", () => {
     const entities = [
-      record({
+      {
         id: "pref-1",
         kind: "runtime-preference-candidate",
         scope: "user",
         payload: ACTIVE_PREFERENCE,
-      }),
+      },
     ];
     const reader = new StubRuntimeSemanticEntityReader(entities);
     const source = new RuntimeSemanticStorageEntitySource(reader);
@@ -142,7 +120,7 @@ describe("RuntimeStoreSemanticEntityReader", () => {
       capturePreference(runtime, {
         content: "Queued preference signal — not a typed semantic entity row.",
         scope: "project",
-        projectRef: PROJECT_REF,
+        projectRef: FIXTURE_PROJECT_REF,
       });
       assert.equal(runtime.queueList().length, 1);
 
@@ -164,14 +142,14 @@ describe("RuntimeStoreSemanticEntityReader", () => {
         kind: "runtime-preference-candidate",
         scope: "user",
         payload: ACTIVE_PREFERENCE,
-        observed_at: ISO,
+        observed_at: FIXTURE_ISO,
       });
       runtime.semanticEntityInsert({
         id: "pref-a",
         kind: "runtime-preference-candidate",
         scope: "user",
         payload: { ...ACTIVE_PREFERENCE, id: "pref-a", statement: "Earlier preference." },
-        observed_at: ISO,
+        observed_at: FIXTURE_ISO,
       });
 
       const reader = new RuntimeStoreSemanticEntityReader(runtime);
@@ -196,7 +174,7 @@ describe("RuntimeStoreSemanticEntityReader", () => {
         id: "dec-bad",
         kind: "unresolved-decision",
         scope: "project",
-        project_ref: PROJECT_REF,
+        project_ref: FIXTURE_PROJECT_REF,
         payload: { id: "dec-bad" },
       });
 
@@ -204,7 +182,7 @@ describe("RuntimeStoreSemanticEntityReader", () => {
         new RuntimeStoreSemanticEntityReader(runtime)
       );
       const result = materializeRuntimeProjectionFromSource(source, {
-        projectRef: PROJECT_REF,
+        projectRef: FIXTURE_PROJECT_REF,
       });
 
       assert.equal(result.items.length, 0);
@@ -232,7 +210,7 @@ describe("RuntimeSemanticStorageEntitySource with RuntimeStoreSemanticEntityRead
       );
 
       const result = materializeRuntimeProjectionFromSource(source, {
-        projectRef: PROJECT_REF,
+        projectRef: FIXTURE_PROJECT_REF,
       });
 
       assert.equal(result.items.length, 0);
@@ -250,13 +228,13 @@ describe("RuntimeSemanticStorageEntitySource with RuntimeStoreSemanticEntityRead
       assert.equal(
         writeRuntimeSemanticEntity(
           runtime,
-          record({
+          {
             id: "pref-1",
             kind: "runtime-preference-candidate",
             scope: "user",
             payload: ACTIVE_PREFERENCE,
-            observed_at: ISO,
-          })
+            observed_at: FIXTURE_ISO,
+          }
         ).ok,
         true
       );
@@ -265,7 +243,7 @@ describe("RuntimeSemanticStorageEntitySource with RuntimeStoreSemanticEntityRead
         new RuntimeStoreSemanticEntityReader(runtime)
       );
       const result = materializeRuntimeProjectionFromSource(source, {
-        projectRef: PROJECT_REF,
+        projectRef: FIXTURE_PROJECT_REF,
       });
 
       assert.equal(result.items.length, 1);
@@ -281,17 +259,17 @@ describe("RuntimeSemanticStorageEntitySource with RuntimeStoreSemanticEntityRead
 describe("materializeRuntimeProjectionFromSource with storage-backed adapter", () => {
   it("materializes projection text from reader-backed entities", () => {
     const reader = new StubRuntimeSemanticEntityReader([
-      record({
+      {
         id: "pref-1",
         kind: "runtime-preference-candidate",
         scope: "user",
         payload: ACTIVE_PREFERENCE,
-      }),
+      },
     ]);
     const source = new RuntimeSemanticStorageEntitySource(reader);
 
     const result = materializeRuntimeProjectionFromSource(source, {
-      projectRef: PROJECT_REF,
+      projectRef: FIXTURE_PROJECT_REF,
     });
 
     assert.equal(result.items.length, 1);
@@ -302,18 +280,18 @@ describe("materializeRuntimeProjectionFromSource with storage-backed adapter", (
 
   it("fails closed on invalid reader records via existing skip report", () => {
     const reader = new StubRuntimeSemanticEntityReader([
-      record({
+      {
         id: "dec-bad",
         kind: "unresolved-decision",
         scope: "project",
-        project_ref: PROJECT_REF,
+        project_ref: FIXTURE_PROJECT_REF,
         payload: { id: "dec-bad" },
-      }),
+      },
     ]);
     const source = new RuntimeSemanticStorageEntitySource(reader);
 
     const result = materializeRuntimeProjectionFromSource(source, {
-      projectRef: PROJECT_REF,
+      projectRef: FIXTURE_PROJECT_REF,
     });
 
     assert.equal(result.items.length, 0);

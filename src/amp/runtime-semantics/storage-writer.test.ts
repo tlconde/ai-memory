@@ -18,63 +18,12 @@ import {
   RuntimeStoreSemanticEntityReader,
 } from "./storage-source.js";
 import { RuntimeStoreSemanticEntityWriter, writeRuntimeSemanticEntity } from "./storage-writer.js";
-
-const ISO = "2026-05-26T12:00:00.000Z";
-const PROJECT_REF = "ai-memory";
-
-const ACTIVE_PREFERENCE = {
-  id: "pref-1",
-  statement: "Keep responses short today",
-  mode: "time_bounded" as const,
-  scope: "user" as const,
-  context: {},
-  status: "active" as const,
-  expires_at: ISO,
-  first_observed_at: ISO,
-  last_observed_at: ISO,
-  source_signal_ids: ["signal-3"],
-  confidence: "medium" as const,
-  promotion_evidence: {
-    repetition_count: 0,
-    independent_sessions: 0,
-  },
-};
-
-const OPEN_DECISION = {
-  id: "dec-1",
-  question: "Which storage backend?",
-  status: "open" as const,
-  scope: "project" as const,
-  options: [
-    {
-      id: "opt-1",
-      label: "SQLite",
-      tradeoffs: ["local only"],
-      evidence_refs: ["evidence-1"],
-    },
-  ],
-  urgency: "medium" as const,
-  owner: "user" as const,
-  created_at: ISO,
-  last_touched_at: ISO,
-  provenance: ["signal-1"],
-};
-
-const REJECTED_SIGNAL = {
-  rejected_signal_id: "rej-1",
-  timestamp: ISO,
-  reason_code: "telemetry_without_semantic_content",
-  source_surface: "cursor",
-  scope: "project" as const,
-  redacted_excerpt: "token=secret-value-should-not-leak",
-  source_hash: "sha256:abc123",
-};
-
-function record(
-  overrides: RuntimeSemanticEntityRecord,
-): RuntimeSemanticEntityRecord {
-  return overrides;
-}
+import {
+  ACTIVE_PREFERENCE,
+  FIXTURE_PROJECT_REF,
+  OPEN_DECISION,
+  REJECTED_SIGNAL,
+} from "./runtime-semantics.test-fixture.js";
 
 describe("RuntimeStoreSemanticEntityWriter", () => {
   it("rejects unknown kinds before storage", async () => {
@@ -105,7 +54,7 @@ describe("RuntimeStoreSemanticEntityWriter", () => {
     try {
       const result = writeRuntimeSemanticEntity(
         runtime,
-        record({
+        {
           id: "pref-scope-mismatch",
           kind: "runtime-preference-candidate",
           scope: "user",
@@ -113,9 +62,9 @@ describe("RuntimeStoreSemanticEntityWriter", () => {
             ...ACTIVE_PREFERENCE,
             id: "pref-scope-mismatch",
             scope: "project",
-            project_ref: PROJECT_REF,
+            project_ref: FIXTURE_PROJECT_REF,
           },
-        })
+        }
       );
 
       assert.equal(result.ok, false);
@@ -135,13 +84,13 @@ describe("RuntimeStoreSemanticEntityWriter", () => {
     try {
       const result = writeRuntimeSemanticEntity(
         runtime,
-        record({
+        {
           id: "dec-bad",
           kind: "unresolved-decision",
           scope: "project",
-          project_ref: PROJECT_REF,
+          project_ref: FIXTURE_PROJECT_REF,
           payload: { id: "dec-bad" },
-        })
+        }
       );
 
       assert.equal(result.ok, false);
@@ -161,12 +110,12 @@ describe("RuntimeStoreSemanticEntityWriter", () => {
     try {
       const result = writeRuntimeSemanticEntity(
         runtime,
-        record({
+        {
           id: "dec-missing-ref",
           kind: "unresolved-decision",
           scope: "project",
           payload: OPEN_DECISION,
-        })
+        }
       );
 
       assert.equal(result.ok, false);
@@ -186,13 +135,13 @@ describe("RuntimeStoreSemanticEntityWriter", () => {
     try {
       const writeResult = writeRuntimeSemanticEntity(
         runtime,
-        record({
+        {
           id: "rej-1",
           kind: "rejected-signal-log",
           scope: "project",
-          project_ref: PROJECT_REF,
+          project_ref: FIXTURE_PROJECT_REF,
           payload: REJECTED_SIGNAL,
-        })
+        }
       );
       assert.equal(writeResult.ok, true);
 
@@ -202,7 +151,7 @@ describe("RuntimeStoreSemanticEntityWriter", () => {
         new RuntimeStoreSemanticEntityReader(runtime)
       );
       const materialized = materializeRuntimeProjectionFromSource(source, {
-        projectRef: PROJECT_REF,
+        projectRef: FIXTURE_PROJECT_REF,
       });
 
       assert.equal(materialized.items.length, 0);
@@ -220,28 +169,28 @@ describe("RuntimeStoreSemanticEntityWriter", () => {
     const writer = new RuntimeStoreSemanticEntityWriter(runtime);
     try {
       const first = writer.write(
-        record({
+        {
           id: "pref-a",
           kind: "runtime-preference-candidate",
           scope: "user",
           payload: { ...ACTIVE_PREFERENCE, id: "pref-a", statement: "First" },
-        })
+        }
       );
       const second = writer.write(
-        record({
+        {
           id: "pref-b",
           kind: "runtime-preference-candidate",
           scope: "user",
           payload: { ...ACTIVE_PREFERENCE, id: "pref-b", statement: "Second" },
-        })
+        }
       );
       const duplicate = writer.write(
-        record({
+        {
           id: "pref-a",
           kind: "runtime-preference-candidate",
           scope: "user",
           payload: { ...ACTIVE_PREFERENCE, id: "pref-a", statement: "Duplicate attempt" },
-        })
+        }
       );
 
       assert.equal(first.ok, true);
@@ -269,37 +218,37 @@ describe("RuntimeStoreSemanticEntityWriter", () => {
       assert.equal(
         writeRuntimeSemanticEntity(
           runtime,
-          record({
+          {
             id: "pref-1",
             kind: "runtime-preference-candidate",
             scope: "user",
             payload: ACTIVE_PREFERENCE,
-          })
+          }
         ).ok,
         true
       );
       assert.equal(
         writeRuntimeSemanticEntity(
           runtime,
-          record({
+          {
             id: "dec-1",
             kind: "unresolved-decision",
             scope: "project",
-            project_ref: PROJECT_REF,
+            project_ref: FIXTURE_PROJECT_REF,
             payload: OPEN_DECISION,
-          })
+          }
         ).ok,
         true
       );
       capturePreference(runtime, {
         content: "Queue row stays separate from typed table.",
         scope: "project",
-        projectRef: PROJECT_REF,
+        projectRef: FIXTURE_PROJECT_REF,
       });
 
       const resolved = createProjectionRenderSource({
         sourceKind: "local",
-        projectRef: PROJECT_REF,
+        projectRef: FIXTURE_PROJECT_REF,
         runtimeDbPath: join(tempDir, "runtime.db"),
         knowledgeStore: knowledge,
         env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "in-memory" },
@@ -307,7 +256,7 @@ describe("RuntimeStoreSemanticEntityWriter", () => {
       });
 
       assert.ok(!("error" in resolved));
-      const documents = resolved.source.loadProjectionDocuments({ projectRef: PROJECT_REF });
+      const documents = resolved.source.loadProjectionDocuments({ projectRef: FIXTURE_PROJECT_REF });
       const globalRuntime = documents.find((doc) => doc.metadata.kind === "global_runtime");
       const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
 

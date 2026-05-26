@@ -5,34 +5,12 @@ import {
   parseRuntimeSemanticEntityRecordFromUnknown,
   safeParseRuntimeSemanticEntityRecordFromUnknown,
 } from "./entity-record-parse.js";
-
-const ISO = "2026-05-26T12:00:00.000Z";
-const PROJECT_REF = "ai-memory";
-
-const ACTIVE_PREFERENCE = {
-  id: "pref-1",
-  statement: "Keep responses short today",
-  mode: "time_bounded" as const,
-  scope: "user" as const,
-  context: {},
-  status: "active" as const,
-  expires_at: ISO,
-  first_observed_at: ISO,
-  last_observed_at: ISO,
-  source_signal_ids: ["signal-3"],
-  confidence: "medium" as const,
-  promotion_evidence: {
-    repetition_count: 0,
-    independent_sessions: 0,
-  },
-};
-
-const VALID_RECORD = {
-  id: "pref-1",
-  kind: "runtime-preference-candidate",
-  scope: "user",
-  payload: ACTIVE_PREFERENCE,
-};
+import {
+  ACTIVE_PREFERENCE,
+  FIXTURE_ISO,
+  FIXTURE_PROJECT_REF,
+  VALID_ACTIVE_PREFERENCE_RECORD,
+} from "./runtime-semantics.test-fixture.js";
 
 describe("safeParseRuntimeSemanticEntityRecordFromUnknown", () => {
   it("rejects non-object input", () => {
@@ -91,7 +69,7 @@ describe("safeParseRuntimeSemanticEntityRecordFromUnknown", () => {
 
   it("rejects invalid optional fields", () => {
     const projectRefResult = safeParseRuntimeSemanticEntityRecordFromUnknown({
-      ...VALID_RECORD,
+      ...VALID_ACTIVE_PREFERENCE_RECORD,
       project_ref: 123,
     });
     assert.equal(projectRefResult.ok, false);
@@ -102,8 +80,8 @@ describe("safeParseRuntimeSemanticEntityRecordFromUnknown", () => {
     }
 
     const observedAtResult = safeParseRuntimeSemanticEntityRecordFromUnknown({
-      ...VALID_RECORD,
-      observed_at: { at: ISO },
+      ...VALID_ACTIVE_PREFERENCE_RECORD,
+      observed_at: { at: FIXTURE_ISO },
     });
     assert.equal(observedAtResult.ok, false);
     if (!observedAtResult.ok) {
@@ -114,16 +92,16 @@ describe("safeParseRuntimeSemanticEntityRecordFromUnknown", () => {
 
   it("accepts a valid record with optional fields", () => {
     const result = safeParseRuntimeSemanticEntityRecordFromUnknown({
-      ...VALID_RECORD,
-      project_ref: PROJECT_REF,
-      observed_at: ISO,
+      ...VALID_ACTIVE_PREFERENCE_RECORD,
+      project_ref: FIXTURE_PROJECT_REF,
+      observed_at: FIXTURE_ISO,
     });
 
     assert.equal(result.ok, true);
     if (result.ok) {
       assert.equal(result.record.id, "pref-1");
-      assert.equal(result.record.project_ref, PROJECT_REF);
-      assert.equal(result.record.observed_at, ISO);
+      assert.equal(result.record.project_ref, FIXTURE_PROJECT_REF);
+      assert.equal(result.record.observed_at, FIXTURE_ISO);
     }
   });
 
@@ -132,7 +110,7 @@ describe("safeParseRuntimeSemanticEntityRecordFromUnknown", () => {
       id: "dec-bad",
       kind: "unresolved-decision",
       scope: "project",
-      project_ref: PROJECT_REF,
+      project_ref: FIXTURE_PROJECT_REF,
       payload: { id: "dec-bad" },
     });
 
@@ -146,7 +124,7 @@ describe("safeParseRuntimeSemanticEntityRecordFromUnknown", () => {
 
 describe("parseRuntimeSemanticEntityRecordFromUnknown", () => {
   it("returns the parsed record on success", () => {
-    const record = parseRuntimeSemanticEntityRecordFromUnknown(VALID_RECORD);
+    const record = parseRuntimeSemanticEntityRecordFromUnknown(VALID_ACTIVE_PREFERENCE_RECORD);
     assert.equal(record.id, "pref-1");
     assert.equal(record.kind, "runtime-preference-candidate");
   });
