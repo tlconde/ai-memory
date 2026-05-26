@@ -27,6 +27,11 @@ import {
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import type { RuntimeSemanticEntityRecord } from "../runtime-semantics/entity-record.js";
 import {
+  appendRuntimeCliErrorBlock,
+  appendRuntimeDbPathLine,
+  formatRuntimeCliJson,
+} from "./runtime-cli-report.js";
+import {
   resolveAmpRuntimeCliBootstrap,
   withAmpRuntimeCliStore,
 } from "./runtime-cli-bootstrap.js";
@@ -94,6 +99,23 @@ export function parseAmpRuntimeSeedFileContent(
   }
 
   return parseSeedRecordsFromJson(parsed);
+}
+
+function formatSeedResultLine(entry: AmpRuntimeSeedItemResult): string {
+  return entry.ok
+    ? `  OK ${entry.id}`
+    : `  ERROR ${entry.id}: ${entry.reason} — ${entry.message}`;
+}
+
+function seedResultToJson(entry: AmpRuntimeSeedItemResult) {
+  return entry.ok
+    ? { id: entry.id, ok: true as const }
+    : {
+        id: entry.id,
+        ok: false as const,
+        reason: entry.reason,
+        message: entry.message,
+      };
 }
 
 /** Seed typed runtime semantic entities from a JSON file through the validated writer. */
@@ -205,25 +227,20 @@ export function formatAmpRuntimeSeedReport(result: AmpRuntimeSeedResult): string
     `  file: ${result.file}`,
   ];
 
-  if (result.runtimeDbPath) {
-    lines.push(`  runtime: ${result.runtimeDbPath}`);
-  }
+  appendRuntimeDbPathLine(lines, result.runtimeDbPath);
 
   lines.push("");
 
   if (result.error) {
-    lines.push(`  ERROR ${result.error}`);
-    lines.push("");
-    lines.push("ERROR Runtime seed did not complete.");
-    return lines;
+    return appendRuntimeCliErrorBlock(
+      lines,
+      result.error,
+      "ERROR Runtime seed did not complete.",
+    );
   }
 
   for (const entry of result.results) {
-    if (entry.ok) {
-      lines.push(`  OK ${entry.id}`);
-    } else {
-      lines.push(`  ERROR ${entry.id}: ${entry.reason} — ${entry.message}`);
-    }
+    lines.push(formatSeedResultLine(entry));
   }
 
   const succeeded = result.results.filter((entry) => entry.ok).length;
@@ -242,20 +259,12 @@ export function formatAmpRuntimeSeedReport(result: AmpRuntimeSeedResult): string
 
 /** JSON payload for `amp runtime seed --json`. */
 export function formatAmpRuntimeSeedJson(result: AmpRuntimeSeedResult): string {
-  return JSON.stringify(
-    {
-      ok: result.ok,
-      projectRoot: result.projectRoot,
-      runtimeDbPath: result.runtimeDbPath || null,
-      file: result.file,
-      error: result.error ?? null,
-      results: result.results.map((entry) =>
-        entry.ok
-          ? { id: entry.id, ok: true }
-          : { id: entry.id, ok: false, reason: entry.reason, message: entry.message }
-      ),
-    },
-    null,
-    2,
-  );
+  return formatRuntimeCliJson({
+    ok: result.ok,
+    projectRoot: result.projectRoot,
+    runtimeDbPath: result.runtimeDbPath || null,
+    file: result.file,
+    error: result.error ?? null,
+    results: result.results.map(seedResultToJson),
+  });
 }

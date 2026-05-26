@@ -30,6 +30,11 @@ import {
 } from "../runtime-semantics/storage-source.js";
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import {
+  appendRuntimeCliErrorBlock,
+  appendRuntimeDbPathLine,
+  formatRuntimeCliJson,
+} from "./runtime-cli-report.js";
+import {
   resolveAmpRuntimeCliBootstrap,
   withAmpRuntimeCliStore,
 } from "./runtime-cli-bootstrap.js";
@@ -93,6 +98,27 @@ function toInspectRecordEntry(
     ok: false,
     reason: parseResult.reason,
     message: parseResult.message,
+  };
+}
+
+function formatInspectRecordLine(entry: AmpRuntimeInspectRecordEntry): string {
+  return entry.ok
+    ? `  OK ${entry.id} (${entry.kind}, ${entry.scope})`
+    : `  SKIP ${entry.id} (${entry.kind}, ${entry.scope}): ${entry.reason} — ${entry.message}`;
+}
+
+function inspectRecordToJson(entry: AmpRuntimeInspectRecordEntry) {
+  return {
+    id: entry.id,
+    kind: entry.kind,
+    scope: entry.scope,
+    project_ref: entry.project_ref ?? null,
+    observed_at: entry.observed_at ?? null,
+    payload: entry.payload,
+    ok: entry.ok,
+    ...(entry.ok
+      ? {}
+      : { reason: entry.reason ?? null, message: entry.message ?? null }),
   };
 }
 
@@ -171,15 +197,14 @@ export function formatAmpRuntimeInspectReport(result: AmpRuntimeInspectResult): 
   ];
 
   if (result.error) {
-    lines.push(`  ERROR ${result.error}`);
-    lines.push("");
-    lines.push("ERROR Runtime inspect did not run.");
-    return lines;
+    return appendRuntimeCliErrorBlock(
+      lines,
+      result.error,
+      "ERROR Runtime inspect did not run.",
+    );
   }
 
-  if (result.runtimeDbPath) {
-    lines.push(`  runtime: ${result.runtimeDbPath}`);
-  }
+  appendRuntimeDbPathLine(lines, result.runtimeDbPath);
 
   if (result.entity) {
     lines.push(`  filter: ${result.entity} (${result.entitySchemaName})`);
@@ -191,15 +216,7 @@ export function formatAmpRuntimeInspectReport(result: AmpRuntimeInspectResult): 
     lines.push("  (no persisted typed runtime semantic entities)");
   } else {
     for (const entry of result.records) {
-      if (entry.ok) {
-        lines.push(
-          `  OK ${entry.id} (${entry.kind}, ${entry.scope})`,
-        );
-      } else {
-        lines.push(
-          `  SKIP ${entry.id} (${entry.kind}, ${entry.scope}): ${entry.reason} — ${entry.message}`,
-        );
-      }
+      lines.push(formatInspectRecordLine(entry));
     }
   }
 
@@ -216,40 +233,14 @@ export function formatAmpRuntimeInspectReport(result: AmpRuntimeInspectResult): 
 
 /** JSON payload for `amp runtime inspect --json`. */
 export function formatAmpRuntimeInspectJson(result: AmpRuntimeInspectResult): string {
-  return JSON.stringify(
-    {
-      ok: result.ok,
-      projectRoot: result.projectRoot,
-      runtimeDbPath: result.runtimeDbPath ?? null,
-      entity: result.entity ?? null,
-      entitySchemaName: result.entitySchemaName ?? null,
-      storageWired: result.storageWired,
-      error: result.error ?? null,
-      records: result.records.map((entry) =>
-        entry.ok
-          ? {
-              id: entry.id,
-              kind: entry.kind,
-              scope: entry.scope,
-              project_ref: entry.project_ref ?? null,
-              observed_at: entry.observed_at ?? null,
-              payload: entry.payload,
-              ok: true,
-            }
-          : {
-              id: entry.id,
-              kind: entry.kind,
-              scope: entry.scope,
-              project_ref: entry.project_ref ?? null,
-              observed_at: entry.observed_at ?? null,
-              payload: entry.payload,
-              ok: false,
-              reason: entry.reason ?? null,
-              message: entry.message ?? null,
-            }
-      ),
-    },
-    null,
-    2,
-  );
+  return formatRuntimeCliJson({
+    ok: result.ok,
+    projectRoot: result.projectRoot,
+    runtimeDbPath: result.runtimeDbPath ?? null,
+    entity: result.entity ?? null,
+    entitySchemaName: result.entitySchemaName ?? null,
+    storageWired: result.storageWired,
+    error: result.error ?? null,
+    records: result.records.map(inspectRecordToJson),
+  });
 }
