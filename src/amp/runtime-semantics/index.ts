@@ -5,6 +5,26 @@ export {
 } from "./messages.js";
 
 export {
+  formatEpisodicFrameForRuntime,
+  formatHarnessOperationalStateForRuntime,
+  formatRejectedSignalLogForRuntime,
+  formatRuntimeCrystalCandidateForRuntime,
+  formatRuntimePreferenceCandidateForRuntime,
+  formatUnresolvedDecisionForRuntime,
+  joinRuntimeProjectionLines,
+} from "./format-projection.js";
+
+export type {
+  FormatEpisodicFrameOptions,
+  FormatHarnessOperationalOptions,
+  FormatRejectedSignalLogOptions,
+  FormatRuntimeCrystalOptions,
+  FormatRuntimePreferenceOptions,
+  FormatUnresolvedDecisionOptions,
+  RuntimeProjectionFormat,
+} from "./format-projection.js";
+
+export {
   ContradictionScoreSchema,
   CurrentDecisionLeaningSchema,
   CurationModeSchema,
