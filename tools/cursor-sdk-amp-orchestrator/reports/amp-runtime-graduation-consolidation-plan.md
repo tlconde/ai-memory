@@ -561,6 +561,104 @@ After implementation, run /thermo-nuclear-code-quality-review and include the re
 
 ---
 
+## Composer Subagent Prompt 1
+
+Use this when running the implementation through Composer with subagents. The architecture in this report is already decided; subagents should gather facts, implement the narrow slice, and verify it. Do not ask subagents to redesign graduation semantics.
+
+```text
+Implement RUNTIME-GRAD-01: a pure runtime graduation planner.
+
+Use subagents as follows:
+
+1. Recon subagent
+   - Inspect only the existing runtime-semantics modules, `core/frame-schema.ts`, and relevant tests.
+   - Report the exact existing helpers/types to reuse for:
+     - `RuntimeSemanticEntityRecord`
+     - runtime entity parsing/validation
+     - record/payload envelope alignment
+     - Frame creation/validation
+   - Do not propose architecture changes beyond identifying reusable APIs.
+
+2. Implementation subagent
+   - Add `src/amp/runtime-semantics/graduation-planner.ts`.
+   - Add `src/amp/runtime-semantics/graduation-planner.test.ts`.
+   - Export the planner types/functions from `src/amp/runtime-semantics/index.ts`.
+   - Keep the planner pure:
+     - no CLI
+     - no KnowledgeStore writes
+     - no RuntimeStore mutation
+     - no gbrain
+     - no projection wiring
+     - no capture/consolidation wiring
+
+3. Test subagent
+   - Add focused tests for every rule category below.
+   - Verify generated frames pass Frame schema validation.
+   - Verify decision order follows input order.
+   - Verify summary counts.
+   - Verify the planner performs no writes/mutations by construction.
+
+4. Review subagent
+   - Review for scope creep, accidental persistence, schema drift, and fact-like promotion of uncertain runtime state.
+   - Confirm the implementation stays within this prompt and this report.
+
+Planner input:
+- `records: readonly RuntimeSemanticEntityRecord[]`
+- `generatedAt: string`
+- optional `projectRef?: string`
+
+Planner output:
+- `RuntimeGraduationPlan` with decisions in source order and summary counts.
+
+Rules:
+- Parse payloads through the existing runtime formatter/schema boundary.
+- Reuse existing record/payload envelope alignment and section/scope logic where appropriate.
+- RuntimePreferenceCandidate:
+  - active + explicit_confirmation_signal_id => `graduate` semantic Frame
+  - active + repetition_count >= 3 + independent_sessions >= 2 => `graduate` semantic Frame
+  - contradicted => `proposal_required`
+  - expired => `defer`
+  - promoted/abandoned => `skip`
+- UnresolvedDecision:
+  - decided + valid selected_option_id => `graduate` semantic Frame
+  - open => `defer`
+  - abandoned => `skip`
+  - decided with missing/orphan selected option => `proposal_required`
+- RuntimeCrystalCandidate:
+  - supported + low contradiction + at least one successful prediction + lineage => `proposal_required` for crystal promotion
+  - refuted/stale/promoted/abandoned => `skip` or `defer` according to safest semantics
+  - active => `defer`
+- RejectedSignalLog => `skip` audit_only
+- DormantSnapshot => `skip` retrieval_beacon_only
+- CurrentDecisionLeaning => `skip` sub_entity_only
+- HarnessOperationalState => `defer` unless clearly closed, then `defer` with episodic_mapper_not_implemented
+- EpisodicFrame => `defer` with episodic_mapper_not_implemented
+
+Frame mapping:
+- Use `createFrame` from `core/frame-schema.ts`
+- Preserve runtime entity id inside structured `content`
+- Use `source.surface = "amp-runtime-graduation"`
+- Use runtime timestamps for `created_at`
+- Use scope from runtime record
+- Use `curation_mode: "personal"`
+- Use `kind_provenance.default_basis` values from the graduation plan report
+
+Validation:
+- npm run typecheck
+- node --import tsx --test src/amp/runtime-semantics/graduation-planner.test.ts src/amp/runtime-semantics/*.test.ts
+- npm run amp:acceptance
+- git diff --check
+
+Final report:
+- Summarize files changed.
+- Include verification results.
+- Include subagent findings only when they changed implementation decisions.
+- Include residual risks.
+- After implementation, run /thermo-nuclear-code-quality-review and include the review output in the report.
+```
+
+---
+
 ## Thermo-Nuclear Review
 
 **Verdict:** approve plan, with one hard constraint.
@@ -577,4 +675,3 @@ The plan is deliberately conservative: it starts with a pure planner, not an app
 - consolidation/apply = later side-effectful write to knowledge store
 
 Keep that boundary loud in code comments and CLI copy.
-
