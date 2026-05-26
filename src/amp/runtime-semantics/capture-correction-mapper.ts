@@ -15,6 +15,9 @@ import type { ScopeKind } from "../core/frame-schema.js";
 import type { RuntimeSemanticEntityRecord } from "./entity-record.js";
 import type { EpisodicFrame, EpisodicVisibility } from "./schema.js";
 
+/** Default typed record id prefix for one explicit correction per target entity. */
+export const EXPLICIT_CORRECTION_DEFAULT_RECORD_ID_PREFIX = "explicit-correction:";
+
 export interface ExplicitRuntimeCorrectionCaptureInput {
   /** Runtime semantic entity id being corrected. */
   targetEntityId: string;
@@ -127,5 +130,5 @@ export function deterministicCorrectionTimestamp(key: string): string {
 
 /** Default typed record id for one explicit correction per target entity. */
 export function defaultExplicitCorrectionRecordId(targetEntityId: string): string {
-  return `explicit-correction:${targetEntityId}`;
+  return `${EXPLICIT_CORRECTION_DEFAULT_RECORD_ID_PREFIX}${targetEntityId}`;
 }

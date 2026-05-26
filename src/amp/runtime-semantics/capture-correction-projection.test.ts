@@ -13,6 +13,9 @@ import {
   defaultExplicitCorrectionRecordId,
 } from "./capture-correction-mapper.js";
 import {
+  EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING,
+} from "./messages.js";
+import {
   materializeRuntimeProjectionFromSource,
 } from "./projection-source.js";
 import { RuntimeSemanticStorageEntitySource, RuntimeStoreSemanticEntityReader } from "./storage-source.js";
@@ -63,7 +66,7 @@ describe("captureRuntimeCorrection projection coverage", () => {
       const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
 
       assert.match(globalRuntime?.body ?? "", new RegExp(note));
-      assert.match(globalRuntime?.body ?? "", /Episodic correction \(not durable truth\)/);
+      assert.match(globalRuntime?.body ?? "", new RegExp(EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
       assert.doesNotMatch(projectRuntime?.body ?? "", new RegExp(note));
     } finally {
       await resolvedCleanup(runtime, tempDir);
@@ -105,7 +108,7 @@ describe("captureRuntimeCorrection projection coverage", () => {
       const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
 
       assert.match(projectRuntime?.body ?? "", new RegExp(note));
-      assert.match(projectRuntime?.body ?? "", /Episodic correction \(not durable truth\)/);
+      assert.match(projectRuntime?.body ?? "", new RegExp(EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
       assert.doesNotMatch(globalRuntime?.body ?? "", new RegExp(note));
     } finally {
       await resolvedCleanup(runtime, tempDir);
@@ -135,7 +138,7 @@ describe("captureRuntimeCorrection projection coverage", () => {
       const item = result.items[0];
       assert.equal(item?.kind, "episodic-frame");
       assert.equal(item?.section, "globalRuntime");
-      assert.match(item?.text ?? "", /Episodic correction \(not durable truth\)/);
+      assert.match(item?.text ?? "", new RegExp(EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
       assert.match(item?.text ?? "", /Operator correction note/);
       assert.doesNotMatch(item?.text ?? "", /Working hypothesis/i);
       assert.doesNotMatch(item?.text ?? "", /Pending decision/i);

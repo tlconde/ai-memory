@@ -7,6 +7,10 @@
  */
 
 import type { ScopeKind } from "../core/frame-schema.js";
+import {
+  EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING,
+  EPISODIC_CORRECTION_METADATA_PROJECTION_HEADING,
+} from "./messages.js";
 import type {
   CurrentDecisionLeaning,
   EpisodicFrame,
@@ -126,8 +130,8 @@ function formatEpisodicFrameHeading(
   switch (frame.event_type) {
     case "correction":
       return metadataOnly
-        ? "Episodic correction (metadata only)"
-        : "Episodic correction (not durable truth)";
+        ? EPISODIC_CORRECTION_METADATA_PROJECTION_HEADING
+        : EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING;
     case "signal_observed":
     case "goal_event":
     case "decision_event":

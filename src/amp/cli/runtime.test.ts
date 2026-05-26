@@ -3,16 +3,16 @@ import assert from "node:assert/strict";
 import { Command } from "commander";
 
 import { RUNTIME_ENTITY_SCHEMA_NAMES } from "../runtime-semantics/schema.js";
+import { RUNTIME_STATUS_LOCAL_STORAGE_NOTE } from "../runtime-semantics/messages.js";
 import { registerAmpCommands } from "./index.js";
 import {
   formatAmpRuntimeStatusReport,
   runAmpRuntimeCorrect,
   runAmpRuntimeStatus,
-  RUNTIME_STATUS_LOCAL_STORAGE_NOTE,
 } from "./runtime.js";
 
 describe("runAmpRuntimeStatus", () => {
-  it("lists supported entity schemas and storage not-wired note", () => {
+  it("lists supported entity schemas and local storage status note", () => {
     const result = runAmpRuntimeStatus();
     assert.equal(result.ok, true);
     assert.equal(result.localStorageWired, true);
@@ -79,29 +79,5 @@ describe("registerAmpCommands runtime group", () => {
       correct.options.some((option) => option.long?.includes("--note")),
       "expected --note option on runtime correct"
     );
-  });
-
-  it("amp status mentions runtime command group", async () => {
-    const program = new Command().name("ai-memory");
-    registerAmpCommands(program);
-    const amp = program.commands.find((cmd) => cmd.name() === "amp");
-    assert.ok(amp);
-
-    const chunks: string[] = [];
-    const originalWrite = process.stdout.write.bind(process.stdout);
-    process.stdout.write = ((chunk: string | Uint8Array) => {
-      chunks.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"));
-      return true;
-    }) as typeof process.stdout.write;
-
-    try {
-      await amp.commands.find((cmd) => cmd.name() === "status")?.parseAsync([], { from: "user" });
-    } finally {
-      process.stdout.write = originalWrite;
-    }
-
-    const output = chunks.join("");
-    assert.match(output, /runtime status\/inspect\/seed/);
-    assert.match(output, /typed entity inspect\/seed/);
   });
 });

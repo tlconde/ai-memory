@@ -10,6 +10,7 @@ import {
   formatUnresolvedDecisionForRuntime,
   joinRuntimeProjectionLines,
 } from "./format-projection.js";
+import { EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING } from "./messages.js";
 
 const ISO = "2026-05-26T12:00:00.000Z";
 const ISO_EXPIRED = "2026-05-25T12:00:00.000Z";
@@ -461,7 +462,7 @@ describe("formatEpisodicFrameForRuntime", () => {
     const formatted = formatEpisodicFrameForRuntime(ACTIVE_EPISODIC_FRAME);
     assert.ok(formatted);
     const text = textOf(formatted);
-    assert.match(text, /Episodic correction \(not durable truth\)/);
+    assert.match(text, new RegExp(EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.match(text, /User corrected the storage approach/);
     assert.match(text, /Lineage/i);
     assert.match(text, /frame-v1/);

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { FIXTURE_ISO } from "../runtime-semantics/runtime-semantics.test-fixture.js";
+import { EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING } from "../runtime-semantics/messages.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
 import { runAmpInit } from "./init.js";
 import { createProjectionRenderSource } from "./projection-source.js";
@@ -110,7 +111,7 @@ describe("runAmpRuntimeCorrect", () => {
       const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
       assert.ok(projectRuntime);
       assert.match(projectRuntime.body, new RegExp(note));
-      assert.match(projectRuntime.body, /Episodic correction \(not durable truth\)/);
+      assert.match(projectRuntime.body, new RegExp(EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     } finally {
       resolved.cleanup();
     }
