@@ -62,16 +62,37 @@ function formatDecisionOptions(decision: UnresolvedDecision): string[] {
   });
 }
 
+function formatIncompleteDecidedLines(
+  decision: UnresolvedDecision,
+  reason: string,
+): string[] {
+  return [
+    "Decision (incomplete)",
+    formatScopeLine(decision.scope),
+    decision.question,
+    `Status: Decided (incomplete — ${reason})`,
+  ];
+}
+
 function formatCurrentLeaningSection(
   leaning: CurrentDecisionLeaning,
   decision: UnresolvedDecision,
 ): string[] {
-  const optionLabel =
-    decision.options.find((option) => option.id === leaning.option_id)?.label ??
-    leaning.option_id;
+  const matchedOption = decision.options.find(
+    (option) => option.id === leaning.option_id,
+  );
+  if (!matchedOption) {
+    return [
+      "Current leaning, not decided:",
+      "Current leaning references an option not listed on this decision.",
+      `- source_signal_id: ${leaning.source_signal_id}`,
+      `- observed_at: ${leaning.observed_at}`,
+      `- freshness: ${leaning.freshness}`,
+    ];
+  }
   return [
     "Current leaning, not decided:",
-    `- option: ${optionLabel}`,
+    `- option: ${matchedOption.label}`,
     `- source_signal_id: ${leaning.source_signal_id}`,
     `- observed_at: ${leaning.observed_at}`,
     `- freshness: ${leaning.freshness}`,
@@ -117,6 +138,23 @@ function formatEpisodicMetadataOnly(
   };
 }
 
+function formatOpenDecisionActiveInstruction(
+  decision: UnresolvedDecision,
+  options: FormatUnresolvedDecisionOptions,
+): boolean {
+  const leaning = options.currentLeaning;
+  if (!leaning || leaning.decision_id !== decision.id) {
+    return false;
+  }
+  if (leaning.freshness !== "fresh") {
+    return false;
+  }
+  const matchedOption = decision.options.find(
+    (option) => option.id === leaning.option_id,
+  );
+  return matchedOption !== undefined;
+}
+
 function formatOpenDecisionLines(
   decision: UnresolvedDecision,
   options: FormatUnresolvedDecisionOptions,
@@ -152,17 +190,15 @@ export function formatUnresolvedDecisionForRuntime(
     case "open":
       return {
         lines: formatOpenDecisionLines(decision, options),
-        activeInstruction: false,
+        activeInstruction: formatOpenDecisionActiveInstruction(decision, options),
       };
     case "decided": {
       if (!decision.selected_option_id) {
         return {
-          lines: [
-            "Decision (incomplete)",
-            formatScopeLine(decision.scope),
-            decision.question,
-            "Status: Decided (incomplete — selected_option_id missing)",
-          ],
+          lines: formatIncompleteDecidedLines(
+            decision,
+            "selected_option_id missing",
+          ),
           activeInstruction: false,
         };
       }
@@ -171,12 +207,10 @@ export function formatUnresolvedDecisionForRuntime(
       );
       if (!selected) {
         return {
-          lines: [
-            "Decision (incomplete)",
-            formatScopeLine(decision.scope),
-            decision.question,
-            "Status: Decided (incomplete — selected_option_id not in options)",
-          ],
+          lines: formatIncompleteDecidedLines(
+            decision,
+            "selected_option_id not in options",
+          ),
           activeInstruction: false,
         };
       }

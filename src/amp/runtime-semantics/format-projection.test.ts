@@ -213,6 +213,27 @@ describe("formatUnresolvedDecisionForRuntime", () => {
     assert.match(text, /signal-lean-1/);
     assert.ok(text.includes(ISO));
     assert.doesNotMatch(text, /Final decision/i);
+    assert.equal(formatted!.activeInstruction, true);
+  });
+
+  it("warns when leaning references an option not listed on the decision", () => {
+    const formatted = formatUnresolvedDecisionForRuntime(OPEN_DECISION, {
+      currentLeaning: {
+        ...CURRENT_LEANING,
+        option_id: "opt-missing",
+      },
+    });
+    assert.ok(formatted);
+    const text = textOf(formatted);
+    assert.match(
+      text,
+      /Current leaning references an option not listed on this decision\./,
+    );
+    assert.match(text, /signal-lean-1/);
+    assert.ok(text.includes(ISO));
+    assert.doesNotMatch(text, /opt-missing/);
+    assert.doesNotMatch(text, /- option:/);
+    assert.equal(formatted!.activeInstruction, false);
   });
 
   it("omits stale leaning by default", () => {
