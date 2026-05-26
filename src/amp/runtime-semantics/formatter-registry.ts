@@ -1,9 +1,10 @@
 /**
- * Typed runtime entity → formatter registry (RUNTIME-05).
+ * Typed runtime entity → formatter registry (RUNTIME-05 / RUNTIME-05-FIX).
  *
  * Falsifiable claim: every RUNTIME_ENTITY_REGISTRY kind and the
- * current-decision-leaning sub-entity resolve to schema, parse, projection
- * eligibility, and optional format helpers without storage wiring.
+ * current-decision-leaning sub-entity resolve to schema, parse, policy, and
+ * typed projection formatting via formatRuntimeEntityForProjection without
+ * storage wiring.
  */
 
 import type { z } from "zod";
@@ -26,14 +27,6 @@ import {
   DormantSnapshotSchema,
   EpisodicFrameSchema,
   HarnessOperationalStateSchema,
-  parseCurrentDecisionLeaning,
-  parseDormantSnapshot,
-  parseEpisodicFrame,
-  parseHarnessOperationalState,
-  parseRejectedSignalLog,
-  parseRuntimeCrystalCandidate,
-  parseRuntimePreferenceCandidate,
-  parseUnresolvedDecision,
   RejectedSignalLogSchema,
   RUNTIME_ENTITY_REGISTRY,
   RuntimeCrystalCandidateSchema,
@@ -79,182 +72,232 @@ export interface FormatterSubEntityMetadata {
   standaloneProjection: false;
 }
 
-export interface RuntimeFormatterRegistryEntry {
-  kind: FormatterRegistryKind;
-  schemaName: FormatterRegistrySchemaName;
-  schema: z.ZodType;
-  parse: (input: unknown) => unknown;
-  safeParse: (input: unknown) => RuntimeEntityParseResult<unknown>;
-  format?: (entity: unknown, options?: unknown) => RuntimeProjectionFormat | null;
+export interface FormatterEntityByKind {
+  "unresolved-decision": UnresolvedDecision;
+  "current-decision-leaning": CurrentDecisionLeaning;
+  "runtime-preference-candidate": RuntimePreferenceCandidate;
+  "runtime-crystal-candidate": RuntimeCrystalCandidate;
+  "harness-operational-state": HarnessOperationalState;
+  "rejected-signal-log": RejectedSignalLog;
+  "episodic-frame": EpisodicFrame;
+  "dormant-snapshot": DormantSnapshot;
+}
+
+export interface FormatterOptionsByKind {
+  "unresolved-decision": FormatUnresolvedDecisionOptions | undefined;
+  "current-decision-leaning": undefined;
+  "runtime-preference-candidate": FormatRuntimePreferenceOptions | undefined;
+  "runtime-crystal-candidate": undefined;
+  "harness-operational-state": FormatHarnessOperationalOptions | undefined;
+  "rejected-signal-log": undefined;
+  "episodic-frame": FormatEpisodicFrameOptions | undefined;
+  "dormant-snapshot": undefined;
+}
+
+export interface FormatterPolicy {
   projectionEligibility: ProjectionEligibility;
-  sensitivityPolicy?: SensitivityPolicy;
+  sensitivityPolicy: SensitivityPolicy;
   renderable: boolean;
   subEntity?: FormatterSubEntityMetadata;
 }
 
-function createRegistryEntry<TEntity, TOptions = undefined>(
-  entry: Omit<
-    RuntimeFormatterRegistryEntry,
-    "parse" | "safeParse" | "schema" | "format"
-  > & {
-    schema: z.ZodType<TEntity>;
-    parse: (input: unknown) => TEntity;
-    safeParse: (input: unknown) => RuntimeEntityParseResult<TEntity>;
-    format?: (entity: TEntity, options?: TOptions) => RuntimeProjectionFormat | null;
+export interface RuntimeFormatterRegistryEntry {
+  kind: FormatterRegistryKind;
+  schemaName: FormatterRegistrySchemaName;
+  schema: z.ZodType;
+  safeParse: (input: unknown) => RuntimeEntityParseResult<unknown>;
+  policy: FormatterPolicy;
+}
+
+export type FormatRuntimeEntityProjectionFailureReason =
+  | "unknown_kind"
+  | "not_projectable"
+  | "not_renderable"
+  | "invalid_input";
+
+export type FormatRuntimeEntityForProjectionResult =
+  | { ok: true; formatted: RuntimeProjectionFormat | null }
+  | {
+      ok: false;
+      error: string;
+      reason: FormatRuntimeEntityProjectionFailureReason;
+    };
+
+interface EntitySchemaBundle<K extends FormatterRegistryKind> {
+  schema: z.ZodType<FormatterEntityByKind[K]>;
+  safeParse: (input: unknown) => RuntimeEntityParseResult<FormatterEntityByKind[K]>;
+  format?: (
+    entity: FormatterEntityByKind[K],
+    options?: FormatterOptionsByKind[K],
+  ) => RuntimeProjectionFormat | null;
+}
+
+const DEFAULT_FORMATTER_POLICY = {
+  projectionEligibility: "both",
+  sensitivityPolicy: "none",
+  renderable: true,
+} as const satisfies FormatterPolicy;
+
+const FORMATTER_POLICY_BY_KIND = {
+  "unresolved-decision": DEFAULT_FORMATTER_POLICY,
+  "runtime-preference-candidate": DEFAULT_FORMATTER_POLICY,
+  "runtime-crystal-candidate": DEFAULT_FORMATTER_POLICY,
+  "harness-operational-state": DEFAULT_FORMATTER_POLICY,
+  "episodic-frame": {
+    projectionEligibility: "both",
+    sensitivityPolicy: "respect_episodic_sensitivity",
+    renderable: true,
   },
+  "rejected-signal-log": {
+    projectionEligibility: "never",
+    sensitivityPolicy: "audit_metadata_only",
+    renderable: true,
+  },
+  "dormant-snapshot": {
+    projectionEligibility: "never",
+    sensitivityPolicy: "none",
+    renderable: false,
+  },
+  "current-decision-leaning": {
+    projectionEligibility: "never",
+    sensitivityPolicy: "none",
+    renderable: false,
+    subEntity: {
+      parentKind: "unresolved-decision",
+      standaloneProjection: false,
+    },
+  },
+} as const satisfies Record<FormatterRegistryKind, FormatterPolicy>;
+
+const ENTITY_SCHEMA_BUNDLES = {
+  "unresolved-decision": {
+    schema: UnresolvedDecisionSchema,
+    safeParse: safeParseUnresolvedDecision,
+    format: formatUnresolvedDecisionForRuntime,
+  },
+  "runtime-preference-candidate": {
+    schema: RuntimePreferenceCandidateSchema,
+    safeParse: safeParseRuntimePreferenceCandidate,
+    format: formatRuntimePreferenceCandidateForRuntime,
+  },
+  "runtime-crystal-candidate": {
+    schema: RuntimeCrystalCandidateSchema,
+    safeParse: safeParseRuntimeCrystalCandidate,
+    format: formatRuntimeCrystalCandidateForRuntime,
+  },
+  "harness-operational-state": {
+    schema: HarnessOperationalStateSchema,
+    safeParse: safeParseHarnessOperationalState,
+    format: formatHarnessOperationalStateForRuntime,
+  },
+  "rejected-signal-log": {
+    schema: RejectedSignalLogSchema,
+    safeParse: safeParseRejectedSignalLog,
+    format: formatRejectedSignalLogForRuntime,
+  },
+  "episodic-frame": {
+    schema: EpisodicFrameSchema,
+    safeParse: safeParseEpisodicFrame,
+    format: formatEpisodicFrameForRuntime,
+  },
+  "dormant-snapshot": {
+    schema: DormantSnapshotSchema,
+    safeParse: safeParseDormantSnapshot,
+  },
+} as const satisfies {
+  [K in RuntimeEntityKind]: EntitySchemaBundle<K>;
+};
+
+const SUB_ENTITY_SCHEMA_BUNDLES = {
+  "current-decision-leaning": {
+    schemaName: "CurrentDecisionLeaning",
+    schema: CurrentDecisionLeaningSchema,
+    safeParse: safeParseCurrentDecisionLeaning,
+  },
+} as const satisfies {
+  [K in "current-decision-leaning"]: {
+    schemaName: "CurrentDecisionLeaning";
+    schema: z.ZodType<FormatterEntityByKind[K]>;
+    safeParse: (input: unknown) => RuntimeEntityParseResult<FormatterEntityByKind[K]>;
+  };
+};
+
+function buildRegistryEntry(
+  registryRow: (typeof RUNTIME_ENTITY_REGISTRY)[number],
 ): RuntimeFormatterRegistryEntry {
+  const kind = registryRow.kind;
+  const bundle = ENTITY_SCHEMA_BUNDLES[kind];
   return {
-    ...entry,
-    parse: entry.parse,
-    safeParse: entry.safeParse,
-    format: entry.format
-      ? (entity: unknown, options?: unknown) => {
-          const parsed = entry.safeParse(entity);
-          if (!parsed.success) {
-            return null;
-          }
-          return entry.format!(parsed.value, options as TOptions);
-        }
-      : undefined,
+    kind,
+    schemaName: registryRow.schemaName,
+    schema: bundle.schema,
+    safeParse: bundle.safeParse,
+    policy: FORMATTER_POLICY_BY_KIND[kind],
   };
 }
 
-const unresolvedDecisionEntry = createRegistryEntry({
-  kind: "unresolved-decision",
-  schemaName: "UnresolvedDecision",
-  schema: UnresolvedDecisionSchema,
-  parse: parseUnresolvedDecision,
-  safeParse: safeParseUnresolvedDecision,
-  format: (
-    entity: UnresolvedDecision,
-    options?: FormatUnresolvedDecisionOptions,
-  ) => formatUnresolvedDecisionForRuntime(entity, options),
-  projectionEligibility: "both",
-  sensitivityPolicy: "none",
-  renderable: true,
-});
+const entityRegistryEntries = RUNTIME_ENTITY_REGISTRY.map((row) => buildRegistryEntry(row));
 
-const currentDecisionLeaningEntry = createRegistryEntry({
+const subEntityRegistryEntry: RuntimeFormatterRegistryEntry = {
   kind: "current-decision-leaning",
-  schemaName: "CurrentDecisionLeaning",
-  schema: CurrentDecisionLeaningSchema,
-  parse: parseCurrentDecisionLeaning,
-  safeParse: safeParseCurrentDecisionLeaning,
-  projectionEligibility: "never",
-  sensitivityPolicy: "none",
-  renderable: false,
-  subEntity: {
-    parentKind: "unresolved-decision",
-    standaloneProjection: false,
-  },
-});
-
-const runtimePreferenceCandidateEntry = createRegistryEntry({
-  kind: "runtime-preference-candidate",
-  schemaName: "RuntimePreferenceCandidate",
-  schema: RuntimePreferenceCandidateSchema,
-  parse: parseRuntimePreferenceCandidate,
-  safeParse: safeParseRuntimePreferenceCandidate,
-  format: (
-    entity: RuntimePreferenceCandidate,
-    options?: FormatRuntimePreferenceOptions,
-  ) => formatRuntimePreferenceCandidateForRuntime(entity, options),
-  projectionEligibility: "both",
-  sensitivityPolicy: "none",
-  renderable: true,
-});
-
-const runtimeCrystalCandidateEntry = createRegistryEntry({
-  kind: "runtime-crystal-candidate",
-  schemaName: "RuntimeCrystalCandidate",
-  schema: RuntimeCrystalCandidateSchema,
-  parse: parseRuntimeCrystalCandidate,
-  safeParse: safeParseRuntimeCrystalCandidate,
-  format: (entity: RuntimeCrystalCandidate) =>
-    formatRuntimeCrystalCandidateForRuntime(entity),
-  projectionEligibility: "both",
-  sensitivityPolicy: "none",
-  renderable: true,
-});
-
-const harnessOperationalStateEntry = createRegistryEntry({
-  kind: "harness-operational-state",
-  schemaName: "HarnessOperationalState",
-  schema: HarnessOperationalStateSchema,
-  parse: parseHarnessOperationalState,
-  safeParse: safeParseHarnessOperationalState,
-  format: (
-    entity: HarnessOperationalState,
-    options?: FormatHarnessOperationalOptions,
-  ) => formatHarnessOperationalStateForRuntime(entity, options),
-  projectionEligibility: "both",
-  sensitivityPolicy: "none",
-  renderable: true,
-});
-
-const rejectedSignalLogEntry = createRegistryEntry({
-  kind: "rejected-signal-log",
-  schemaName: "RejectedSignalLog",
-  schema: RejectedSignalLogSchema,
-  parse: parseRejectedSignalLog,
-  safeParse: safeParseRejectedSignalLog,
-  format: (entity: RejectedSignalLog) => formatRejectedSignalLogForRuntime(entity),
-  projectionEligibility: "never",
-  sensitivityPolicy: "audit_metadata_only",
-  renderable: true,
-});
-
-const episodicFrameEntry = createRegistryEntry({
-  kind: "episodic-frame",
-  schemaName: "EpisodicFrame",
-  schema: EpisodicFrameSchema,
-  parse: parseEpisodicFrame,
-  safeParse: safeParseEpisodicFrame,
-  format: (entity: EpisodicFrame, options?: FormatEpisodicFrameOptions) =>
-    formatEpisodicFrameForRuntime(entity, options),
-  projectionEligibility: "both",
-  sensitivityPolicy: "respect_episodic_sensitivity",
-  renderable: true,
-});
-
-const dormantSnapshotEntry = createRegistryEntry({
-  kind: "dormant-snapshot",
-  schemaName: "DormantSnapshot",
-  schema: DormantSnapshotSchema,
-  parse: parseDormantSnapshot,
-  safeParse: safeParseDormantSnapshot,
-  projectionEligibility: "never",
-  sensitivityPolicy: "none",
-  renderable: false,
-});
+  schemaName: SUB_ENTITY_SCHEMA_BUNDLES["current-decision-leaning"].schemaName,
+  schema: SUB_ENTITY_SCHEMA_BUNDLES["current-decision-leaning"].schema,
+  safeParse: SUB_ENTITY_SCHEMA_BUNDLES["current-decision-leaning"].safeParse,
+  policy: FORMATTER_POLICY_BY_KIND["current-decision-leaning"],
+};
 
 export const RUNTIME_FORMATTER_REGISTRY = [
-  unresolvedDecisionEntry,
-  currentDecisionLeaningEntry,
-  runtimePreferenceCandidateEntry,
-  runtimeCrystalCandidateEntry,
-  harnessOperationalStateEntry,
-  rejectedSignalLogEntry,
-  episodicFrameEntry,
-  dormantSnapshotEntry,
+  ...entityRegistryEntries,
+  subEntityRegistryEntry,
 ] as const satisfies readonly RuntimeFormatterRegistryEntry[];
 
 /** Stable projection eligibility map keyed by formatter registry kind. */
 export const RUNTIME_FORMATTER_PROJECTION_ELIGIBILITY = Object.fromEntries(
-  RUNTIME_FORMATTER_REGISTRY.map((entry) => [entry.kind, entry.projectionEligibility]),
+  RUNTIME_FORMATTER_REGISTRY.map((entry) => [
+    entry.kind,
+    entry.policy.projectionEligibility,
+  ]),
 ) as Record<FormatterRegistryKind, ProjectionEligibility>;
 
 const FORMATTER_REGISTRY_BY_KIND = Object.fromEntries(
   RUNTIME_FORMATTER_REGISTRY.map((entry) => [entry.kind, entry]),
 ) as Record<FormatterRegistryKind, RuntimeFormatterRegistryEntry>;
 
-/** Compile-time guard: every RUNTIME_ENTITY_REGISTRY kind must have a registry entry. */
+export type ProjectableFormatterKind = {
+  [K in FormatterRegistryKind]: (typeof FORMATTER_POLICY_BY_KIND)[K]["projectionEligibility"] extends "never"
+    ? never
+    : (typeof FORMATTER_POLICY_BY_KIND)[K]["renderable"] extends false
+      ? never
+      : K;
+}[FormatterRegistryKind];
+
+/** Kinds that may appear in standalone runtime projection materialization. */
+export const PROJECTABLE_FORMATTER_KINDS = (
+  Object.keys(FORMATTER_POLICY_BY_KIND) as FormatterRegistryKind[]
+).filter(
+  (kind): kind is ProjectableFormatterKind =>
+    FORMATTER_POLICY_BY_KIND[kind].projectionEligibility !== "never" &&
+    FORMATTER_POLICY_BY_KIND[kind].renderable,
+);
+
+/** Compile-time guard: every RUNTIME_ENTITY_REGISTRY kind must have schema + policy. */
 type RuntimeRegistryKinds = (typeof RUNTIME_ENTITY_REGISTRY)[number]["kind"];
-type FormatterRegistryEntryKinds = (typeof RUNTIME_FORMATTER_REGISTRY)[number]["kind"];
-type AssertRuntimeKindsCovered = RuntimeRegistryKinds extends FormatterRegistryEntryKinds
+type PolicyMapKinds = keyof typeof FORMATTER_POLICY_BY_KIND;
+type SchemaBundleKinds = keyof typeof ENTITY_SCHEMA_BUNDLES;
+type AssertRuntimeKindsHavePolicy = RuntimeRegistryKinds extends PolicyMapKinds ? true : never;
+type AssertRuntimeKindsHaveSchema = RuntimeRegistryKinds extends SchemaBundleKinds ? true : never;
+type AssertProjectableKindsHaveFormat = ProjectableFormatterKind extends {
+  [K in ProjectableFormatterKind]: (typeof ENTITY_SCHEMA_BUNDLES)[K] extends {
+    format: unknown;
+  }
+    ? K
+    : never;
+}[ProjectableFormatterKind]
   ? true
   : never;
-const _runtimeKindsCovered: AssertRuntimeKindsCovered = true;
+const _runtimeKindsHavePolicy: AssertRuntimeKindsHavePolicy = true;
+const _runtimeKindsHaveSchema: AssertRuntimeKindsHaveSchema = true;
+const _projectableKindsHaveFormat: AssertProjectableKindsHaveFormat = true;
 
 export const FORMATTER_REGISTRY_KINDS = RUNTIME_FORMATTER_REGISTRY.map(
   (entry) => entry.kind,
@@ -263,6 +306,13 @@ export const FORMATTER_REGISTRY_KINDS = RUNTIME_FORMATTER_REGISTRY.map(
 /** True when `value` is a supported formatter registry kind slug. */
 export function isFormatterRegistryKind(value: string): value is FormatterRegistryKind {
   return Object.hasOwn(FORMATTER_REGISTRY_BY_KIND, value);
+}
+
+/** True when the kind may appear in standalone runtime projection materialization. */
+export function isProjectableFormatterKind(
+  kind: FormatterRegistryKind,
+): kind is ProjectableFormatterKind {
+  return PROJECTABLE_FORMATTER_KINDS.includes(kind as ProjectableFormatterKind);
 }
 
 /** Resolve a formatter registry entry or throw for unknown kinds. */
@@ -286,7 +336,136 @@ export function resolveFormatterRegistryEntry(
   return getFormatterRegistryEntry(kind);
 }
 
-/** True when the registry entry may appear in runtime projection materialization. */
-export function isProjectableFormatterKind(kind: FormatterRegistryKind): boolean {
-  return getFormatterRegistryEntry(kind).projectionEligibility !== "never";
+function formatParsedEntityForProjection(
+  kind: ProjectableFormatterKind,
+  entity: FormatterEntityByKind[ProjectableFormatterKind],
+  options?: unknown,
+): RuntimeProjectionFormat | null {
+  switch (kind) {
+    case "unresolved-decision":
+      return ENTITY_SCHEMA_BUNDLES[kind].format!(
+        entity as UnresolvedDecision,
+        options as FormatUnresolvedDecisionOptions | undefined,
+      );
+    case "runtime-preference-candidate":
+      return ENTITY_SCHEMA_BUNDLES[kind].format!(
+        entity as RuntimePreferenceCandidate,
+        options as FormatRuntimePreferenceOptions | undefined,
+      );
+    case "runtime-crystal-candidate":
+      return ENTITY_SCHEMA_BUNDLES[kind].format!(entity as RuntimeCrystalCandidate);
+    case "harness-operational-state":
+      return ENTITY_SCHEMA_BUNDLES[kind].format!(
+        entity as HarnessOperationalState,
+        options as FormatHarnessOperationalOptions | undefined,
+      );
+    case "episodic-frame":
+      return ENTITY_SCHEMA_BUNDLES[kind].format!(
+        entity as EpisodicFrame,
+        options as FormatEpisodicFrameOptions | undefined,
+      );
+    default: {
+      const _exhaustive: never = kind;
+      throw new Error(`Unhandled projectable formatter kind: ${String(_exhaustive)}`);
+    }
+  }
+}
+
+function formatRuntimeEntityForProjectionImpl(
+  kind: FormatterRegistryKind,
+  input: unknown,
+  options?: unknown,
+): FormatRuntimeEntityForProjectionResult {
+  if (!isFormatterRegistryKind(kind)) {
+    return {
+      ok: false,
+      error: `Unknown formatter registry kind: ${kind}`,
+      reason: "unknown_kind",
+    };
+  }
+
+  const entry = getFormatterRegistryEntry(kind);
+
+  if (entry.policy.projectionEligibility === "never") {
+    return {
+      ok: false,
+      error: `${kind} is not projectable`,
+      reason: "not_projectable",
+    };
+  }
+
+  if (!entry.policy.renderable) {
+    return {
+      ok: false,
+      error: `${kind} is not renderable for standalone projection`,
+      reason: "not_renderable",
+    };
+  }
+
+  const parsed = entry.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error,
+      reason: "invalid_input",
+    };
+  }
+
+  const formatted = formatParsedEntityForProjection(
+    kind as ProjectableFormatterKind,
+    parsed.value as FormatterEntityByKind[ProjectableFormatterKind],
+    options as FormatterOptionsByKind[ProjectableFormatterKind],
+  );
+
+  return { ok: true, formatted };
+}
+
+/** Format and validate a runtime entity for projection at the registry boundary. */
+export function formatRuntimeEntityForProjection(
+  kind: "unresolved-decision",
+  input: unknown,
+  options?: FormatUnresolvedDecisionOptions,
+): FormatRuntimeEntityForProjectionResult;
+export function formatRuntimeEntityForProjection(
+  kind: "runtime-preference-candidate",
+  input: unknown,
+  options?: FormatRuntimePreferenceOptions,
+): FormatRuntimeEntityForProjectionResult;
+export function formatRuntimeEntityForProjection(
+  kind: "runtime-crystal-candidate",
+  input: unknown,
+): FormatRuntimeEntityForProjectionResult;
+export function formatRuntimeEntityForProjection(
+  kind: "harness-operational-state",
+  input: unknown,
+  options?: FormatHarnessOperationalOptions,
+): FormatRuntimeEntityForProjectionResult;
+export function formatRuntimeEntityForProjection(
+  kind: "episodic-frame",
+  input: unknown,
+  options?: FormatEpisodicFrameOptions,
+): FormatRuntimeEntityForProjectionResult;
+export function formatRuntimeEntityForProjection(
+  kind: FormatterRegistryKind,
+  input: unknown,
+  options?: unknown,
+): FormatRuntimeEntityForProjectionResult;
+export function formatRuntimeEntityForProjection(
+  kind: FormatterRegistryKind,
+  input: unknown,
+  options?: unknown,
+): FormatRuntimeEntityForProjectionResult {
+  return formatRuntimeEntityForProjectionImpl(kind, input, options);
+}
+
+/** Boundary parse helper for untrusted runtime entity payloads. */
+export function parseRuntimeEntityAtBoundary<K extends FormatterRegistryKind>(
+  kind: K,
+  input: unknown,
+): RuntimeEntityParseResult<FormatterEntityByKind[K]> {
+  const parsed = getFormatterRegistryEntry(kind).safeParse(input);
+  if (!parsed.success) {
+    return parsed;
+  }
+  return { success: true, value: parsed.value as FormatterEntityByKind[K] };
 }

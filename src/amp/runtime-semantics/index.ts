@@ -16,19 +16,28 @@ export {
 
 export {
   FORMATTER_REGISTRY_KINDS,
+  formatRuntimeEntityForProjection,
   getFormatterRegistryEntry,
   isFormatterRegistryKind,
   isProjectableFormatterKind,
+  parseRuntimeEntityAtBoundary,
+  PROJECTABLE_FORMATTER_KINDS,
   resolveFormatterRegistryEntry,
   RUNTIME_FORMATTER_PROJECTION_ELIGIBILITY,
   RUNTIME_FORMATTER_REGISTRY,
 } from "./formatter-registry.js";
 
 export type {
+  FormatterEntityByKind,
+  FormatterOptionsByKind,
+  FormatterPolicy,
   FormatterRegistryKind,
   FormatterRegistrySchemaName,
   FormatterSubEntityMetadata,
+  FormatRuntimeEntityForProjectionResult,
+  FormatRuntimeEntityProjectionFailureReason,
   ProjectionEligibility,
+  ProjectableFormatterKind,
   RuntimeFormatterRegistryEntry,
   SensitivityPolicy,
 } from "./formatter-registry.js";

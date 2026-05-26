@@ -3,17 +3,24 @@ import assert from "node:assert/strict";
 
 import {
   formatEpisodicFrameForRuntime,
+  formatHarnessOperationalStateForRuntime,
+  formatRuntimeCrystalCandidateForRuntime,
+  formatRuntimePreferenceCandidateForRuntime,
   formatUnresolvedDecisionForRuntime,
   joinRuntimeProjectionLines,
 } from "./format-projection.js";
 import {
   FORMATTER_REGISTRY_KINDS,
+  formatRuntimeEntityForProjection,
   getFormatterRegistryEntry,
   isFormatterRegistryKind,
   isProjectableFormatterKind,
+  parseRuntimeEntityAtBoundary,
+  PROJECTABLE_FORMATTER_KINDS,
   resolveFormatterRegistryEntry,
   RUNTIME_FORMATTER_PROJECTION_ELIGIBILITY,
   RUNTIME_FORMATTER_REGISTRY,
+  type FormatterRegistryKind,
 } from "./formatter-registry.js";
 import { RUNTIME_ENTITY_REGISTRY } from "./schema.js";
 
@@ -37,6 +44,104 @@ const OPEN_DECISION = {
   created_at: ISO,
   last_touched_at: ISO,
   provenance: ["signal-1"],
+};
+
+const CURRENT_LEANING = {
+  decision_id: "dec-1",
+  option_id: "opt-1",
+  observed_at: ISO,
+  source_signal_id: "signal-lean-1",
+  freshness: "fresh" as const,
+};
+
+const REJECTED_SIGNAL = {
+  rejected_signal_id: "rej-1",
+  timestamp: ISO,
+  reason_code: "telemetry_without_semantic_content",
+  source_surface: "cursor",
+  scope: "project" as const,
+  redacted_excerpt: "token=secret-value-should-not-leak",
+  source_hash: "sha256:abc123",
+};
+
+const DORMANT_SNAPSHOT = {
+  frame_id: "frame-dormant-1",
+  snapshot_version: 1,
+  event_type: "correction" as const,
+  summary_compressed: "Compressed summary",
+  key_terms: ["storage"],
+  encoding_context: {
+    goal_ids: [],
+    session_ids: [],
+  },
+  related_entities_compressed: {
+    goal_ids: [],
+    decision_ids: [],
+    hypothesis_ids: [],
+  },
+  occurred_at: ISO,
+  dormancy_entered_at: ISO,
+  embedding: [0.1, 0.2],
+  source: "user_explicit" as const,
+  confidence_at_dormancy: "medium" as const,
+  activation_history: {
+    times_activated: 0,
+  },
+  generated_by: {
+    transform_id: "snap-v1",
+    cache_key: "cache-1",
+  },
+};
+
+const ACTIVE_PREFERENCE = {
+  id: "pref-1",
+  statement: "Keep responses short today",
+  mode: "time_bounded" as const,
+  scope: "user" as const,
+  context: {},
+  status: "active" as const,
+  expires_at: ISO,
+  first_observed_at: ISO,
+  last_observed_at: ISO,
+  source_signal_ids: ["signal-3"],
+  confidence: "medium" as const,
+  promotion_evidence: {
+    repetition_count: 0,
+    independent_sessions: 0,
+  },
+};
+
+const ACTIVE_CRYSTAL = {
+  id: "hyp-1",
+  claim: "Cursor works best for refactors in this repo",
+  status: "active" as const,
+  scope: "project" as const,
+  project_ref: "ai-memory",
+  related_goal_ids: [],
+  related_decision_ids: [],
+  supporting_evidence_refs: ["evidence-a"],
+  contradicting_evidence_refs: [],
+  predicted_observations: [],
+  successful_predictions: [],
+  failed_predictions: [],
+  confidence: "low" as const,
+  contradiction_score: "low" as const,
+  pinned: false,
+  first_observed_at: ISO,
+  last_referenced_at: ISO,
+  source_signal_ids: [],
+  lineage: {
+    generated_by: "agent" as const,
+  },
+};
+
+const HARNESS_STATE = {
+  id: "harness-1",
+  harness: "cursor",
+  project_ref: "ai-memory",
+  status: "active" as const,
+  observed_at: ISO,
+  source_signal_ids: ["signal-4"],
 };
 
 const ACTIVE_EPISODIC_FRAME = {
@@ -63,6 +168,14 @@ const ACTIVE_EPISODIC_FRAME = {
   lifecycle_state: "active" as const,
 };
 
+const EXPECTED_PROJECTABLE_KINDS = [
+  "unresolved-decision",
+  "runtime-preference-candidate",
+  "runtime-crystal-candidate",
+  "harness-operational-state",
+  "episodic-frame",
+] as const;
+
 describe("RUNTIME_FORMATTER_REGISTRY coverage", () => {
   it("includes every RUNTIME_ENTITY_REGISTRY kind", () => {
     for (const { kind } of RUNTIME_ENTITY_REGISTRY) {
@@ -86,31 +199,49 @@ describe("RUNTIME_FORMATTER_REGISTRY coverage", () => {
       /Unknown formatter registry kind/,
     );
   });
+
+  it("gives every registry kind schema and policy", () => {
+    for (const entry of RUNTIME_FORMATTER_REGISTRY) {
+      assert.ok(entry.schema, `${entry.kind} missing schema`);
+      assert.equal(typeof entry.safeParse, "function", `${entry.kind} missing safeParse`);
+      assert.ok(entry.schemaName.length > 0, `${entry.kind} missing schemaName`);
+      assert.ok(entry.policy, `${entry.kind} missing policy`);
+      assert.ok(
+        entry.policy.projectionEligibility,
+        `${entry.kind} missing projectionEligibility`,
+      );
+    }
+  });
+
+  it("derives schemaName from RUNTIME_ENTITY_REGISTRY for entity kinds", () => {
+    for (const { kind, schemaName } of RUNTIME_ENTITY_REGISTRY) {
+      assert.equal(getFormatterRegistryEntry(kind).schemaName, schemaName);
+    }
+  });
 });
 
 describe("projection eligibility policy", () => {
   it("marks rejected-signal-log as never projectable", () => {
     const entry = getFormatterRegistryEntry("rejected-signal-log");
-    assert.equal(entry.projectionEligibility, "never");
+    assert.equal(entry.policy.projectionEligibility, "never");
     assert.equal(isProjectableFormatterKind("rejected-signal-log"), false);
   });
 
   it("marks dormant-snapshot as never projectable by default", () => {
     const entry = getFormatterRegistryEntry("dormant-snapshot");
-    assert.equal(entry.projectionEligibility, "never");
-    assert.equal(entry.renderable, false);
+    assert.equal(entry.policy.projectionEligibility, "never");
+    assert.equal(entry.policy.renderable, false);
     assert.equal(isProjectableFormatterKind("dormant-snapshot"), false);
   });
 
   it("marks current-decision-leaning as sub-entity with no standalone projection", () => {
     const entry = getFormatterRegistryEntry("current-decision-leaning");
-    assert.equal(entry.projectionEligibility, "never");
-    assert.equal(entry.renderable, false);
-    assert.deepEqual(entry.subEntity, {
+    assert.equal(entry.policy.projectionEligibility, "never");
+    assert.equal(entry.policy.renderable, false);
+    assert.deepEqual(entry.policy.subEntity, {
       parentKind: "unresolved-decision",
       standaloneProjection: false,
     });
-    assert.equal(entry.format, undefined);
   });
 
   it("keeps projection eligibility values stable", () => {
@@ -125,42 +256,131 @@ describe("projection eligibility policy", () => {
       "dormant-snapshot": "never",
     });
   });
-});
 
-describe("formatter wiring", () => {
-  it("maps unresolved-decision to formatUnresolvedDecisionForRuntime", () => {
-    const entry = getFormatterRegistryEntry("unresolved-decision");
-    assert.equal(entry.schemaName, "UnresolvedDecision");
-    assert.equal(entry.renderable, true);
-
-    const direct = formatUnresolvedDecisionForRuntime(OPEN_DECISION);
-    const viaRegistry = entry.format?.(OPEN_DECISION);
-    assert.deepEqual(viaRegistry, direct);
-  });
-
-  it("maps episodic-frame to formatEpisodicFrameForRuntime with sensitivity redaction", () => {
-    const entry = getFormatterRegistryEntry("episodic-frame");
-    assert.equal(entry.schemaName, "EpisodicFrame");
-    assert.equal(entry.sensitivityPolicy, "respect_episodic_sensitivity");
-
-    const direct = formatEpisodicFrameForRuntime(ACTIVE_EPISODIC_FRAME);
-    const viaRegistry = entry.format?.(ACTIVE_EPISODIC_FRAME);
-    assert.deepEqual(viaRegistry, direct);
-
-    const text = joinRuntimeProjectionLines(viaRegistry!.lines);
-    assert.match(text, /metadata only/i);
-    assert.match(text, /secret_redacted/i);
-    assert.doesNotMatch(text, /User corrected the storage approach/);
-  });
-});
-
-describe("registry entry completeness", () => {
-  it("exposes schema and parse helpers for every registry entry", () => {
-    for (const entry of RUNTIME_FORMATTER_REGISTRY) {
-      assert.ok(entry.schema, `${entry.kind} missing schema`);
-      assert.equal(typeof entry.parse, "function", `${entry.kind} missing parse`);
-      assert.equal(typeof entry.safeParse, "function", `${entry.kind} missing safeParse`);
-      assert.ok(entry.schemaName.length > 0, `${entry.kind} missing schemaName`);
+  it("lists exactly the expected projectable kinds", () => {
+    assert.deepEqual([...PROJECTABLE_FORMATTER_KINDS].sort(), [
+      ...EXPECTED_PROJECTABLE_KINDS,
+    ].sort());
+    for (const kind of EXPECTED_PROJECTABLE_KINDS) {
+      assert.equal(isProjectableFormatterKind(kind), true);
     }
+    assert.equal(isProjectableFormatterKind("rejected-signal-log"), false);
+    assert.equal(isProjectableFormatterKind("current-decision-leaning"), false);
+    assert.equal(isProjectableFormatterKind("dormant-snapshot"), false);
+  });
+});
+
+describe("formatRuntimeEntityForProjection", () => {
+  it("returns invalid_input for unknown payloads without throwing", () => {
+    const result = formatRuntimeEntityForProjection("unresolved-decision", {
+      id: "dec-bad",
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.reason, "invalid_input");
+      assert.match(result.error, /Required|Invalid|expected/i);
+    }
+  });
+
+  it("returns unknown_kind for unsupported kind slugs without throwing", () => {
+    const result = formatRuntimeEntityForProjection(
+      "not-a-kind" as FormatterRegistryKind,
+      OPEN_DECISION,
+    );
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.reason, "unknown_kind");
+    }
+  });
+
+  it("blocks rejected-signal-log from projection formatting", () => {
+    const result = formatRuntimeEntityForProjection("rejected-signal-log", REJECTED_SIGNAL);
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.reason, "not_projectable");
+      assert.match(result.error, /not projectable/i);
+    }
+  });
+
+  it("blocks current-decision-leaning from standalone projection formatting", () => {
+    const result = formatRuntimeEntityForProjection(
+      "current-decision-leaning",
+      CURRENT_LEANING,
+    );
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.reason, "not_projectable");
+    }
+  });
+
+  it("blocks dormant-snapshot from standalone projection formatting", () => {
+    const result = formatRuntimeEntityForProjection("dormant-snapshot", DORMANT_SNAPSHOT);
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.reason, "not_projectable");
+    }
+  });
+
+  it("formats unresolved-decision through the typed helper", () => {
+    const direct = formatUnresolvedDecisionForRuntime(OPEN_DECISION);
+    const result = formatRuntimeEntityForProjection("unresolved-decision", OPEN_DECISION);
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.deepEqual(result.formatted, direct);
+    }
+  });
+
+  it("redacts episodic-frame secret_redacted content through the typed helper", () => {
+    const direct = formatEpisodicFrameForRuntime(ACTIVE_EPISODIC_FRAME);
+    const result = formatRuntimeEntityForProjection("episodic-frame", ACTIVE_EPISODIC_FRAME);
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.deepEqual(result.formatted, direct);
+      const text = joinRuntimeProjectionLines(result.formatted!.lines);
+      assert.match(text, /metadata only/i);
+      assert.match(text, /secret_redacted/i);
+      assert.doesNotMatch(text, /User corrected the storage approach/);
+    }
+  });
+
+  it("formats every projectable kind through the typed helper", () => {
+    const cases = [
+      {
+        kind: "runtime-preference-candidate" as const,
+        entity: ACTIVE_PREFERENCE,
+        direct: formatRuntimePreferenceCandidateForRuntime(ACTIVE_PREFERENCE),
+      },
+      {
+        kind: "runtime-crystal-candidate" as const,
+        entity: ACTIVE_CRYSTAL,
+        direct: formatRuntimeCrystalCandidateForRuntime(ACTIVE_CRYSTAL),
+      },
+      {
+        kind: "harness-operational-state" as const,
+        entity: HARNESS_STATE,
+        direct: formatHarnessOperationalStateForRuntime(HARNESS_STATE),
+      },
+    ];
+
+    for (const { kind, entity, direct } of cases) {
+      const result = formatRuntimeEntityForProjection(kind, entity);
+      assert.equal(result.ok, true, `${kind} should format successfully`);
+      if (result.ok) {
+        assert.deepEqual(result.formatted, direct, `${kind} should match direct formatter`);
+      }
+    }
+  });
+});
+
+describe("parseRuntimeEntityAtBoundary", () => {
+  it("validates payloads at the registry boundary", () => {
+    const parsed = parseRuntimeEntityAtBoundary("unresolved-decision", OPEN_DECISION);
+    assert.equal(parsed.success, true);
+    if (parsed.success) {
+      assert.equal(parsed.value.id, "dec-1");
+    }
+
+    const invalid = parseRuntimeEntityAtBoundary("unresolved-decision", { id: "bad" });
+    assert.equal(invalid.success, false);
   });
 });
