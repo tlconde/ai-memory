@@ -36,6 +36,7 @@ export {
 
 export {
   RuntimeSemanticStorageEntitySource,
+  RuntimeStoreSemanticEntityReader,
 } from "./storage-source.js";
 
 export type {

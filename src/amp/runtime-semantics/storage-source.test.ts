@@ -1,12 +1,18 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
+import { capturePreference } from "../substrate/capture-preference.js";
+import { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import {
   materializeRuntimeProjectionFromSource,
   type RuntimeSemanticEntityRecord,
 } from "./projection-source.js";
 import {
   RuntimeSemanticStorageEntitySource,
+  RuntimeStoreSemanticEntityReader,
   type RuntimeSemanticEntityReader,
 } from "./storage-source.js";
 
@@ -111,6 +117,67 @@ describe("RuntimeSemanticStorageEntitySource", () => {
     source.listEntities();
 
     assert.deepEqual(reader.readCalls, [0, 1]);
+  });
+});
+
+describe("RuntimeStoreSemanticEntityReader", () => {
+  it("returns no entities while RuntimeStore lacks a typed semantic table", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-store-semantic-reader-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+    try {
+      const reader = new RuntimeStoreSemanticEntityReader(runtime);
+
+      assert.deepEqual(reader.readEntities(), []);
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not treat runtime queue rows as typed semantic entities", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-store-semantic-reader-queue-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+    try {
+      capturePreference(runtime, {
+        content: "Queued preference signal — not a typed semantic entity row.",
+        scope: "project",
+        projectRef: PROJECT_REF,
+      });
+      assert.equal(runtime.queueList().length, 1);
+
+      const reader = new RuntimeStoreSemanticEntityReader(runtime);
+
+      assert.deepEqual(reader.readEntities(), []);
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("RuntimeSemanticStorageEntitySource with RuntimeStoreSemanticEntityReader", () => {
+  it("materializes no typed items and no skips when the store reader is default-empty", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-store-semantic-source-empty-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+    try {
+      capturePreference(runtime, {
+        content: "Another queued signal that must not surface as typed semantics.",
+        scope: "user",
+      });
+      const source = new RuntimeSemanticStorageEntitySource(
+        new RuntimeStoreSemanticEntityReader(runtime)
+      );
+
+      const result = materializeRuntimeProjectionFromSource(source, {
+        projectRef: PROJECT_REF,
+      });
+
+      assert.equal(result.items.length, 0);
+      assert.equal(result.skipped.length, 0);
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 });
 
