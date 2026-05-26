@@ -239,6 +239,27 @@ describe("formatUnresolvedDecisionForRuntime", () => {
     assert.ok(formatted);
     assert.match(textOf(formatted), /Scope: project/);
   });
+
+  it("returns null for abandoned decisions", () => {
+    const formatted = formatUnresolvedDecisionForRuntime({
+      ...OPEN_DECISION,
+      status: "abandoned",
+    });
+    assert.equal(formatted, null);
+  });
+
+  it("warns when decided status lacks selected_option_id", () => {
+    const formatted = formatUnresolvedDecisionForRuntime({
+      ...OPEN_DECISION,
+      status: "decided",
+    });
+    assert.ok(formatted);
+    const text = textOf(formatted);
+    assert.match(text, /incomplete/i);
+    assert.match(text, /selected_option_id missing/i);
+    assert.doesNotMatch(text, /Options:/);
+    assert.equal(formatted!.activeInstruction, false);
+  });
 });
 
 describe("formatRuntimePreferenceCandidateForRuntime", () => {
@@ -284,6 +305,16 @@ describe("formatRuntimePreferenceCandidateForRuntime", () => {
     });
     assert.equal(formatted, null);
   });
+
+  it("marks contradicted preferences inactive", () => {
+    const formatted = formatRuntimePreferenceCandidateForRuntime({
+      ...ACTIVE_TIME_BOUNDED_PREFERENCE,
+      status: "contradicted",
+    });
+    assert.ok(formatted);
+    assert.match(textOf(formatted), /inactive \(contradicted\)/);
+    assert.equal(formatted!.activeInstruction, false);
+  });
 });
 
 describe("formatRuntimeCrystalCandidateForRuntime", () => {
@@ -326,6 +357,16 @@ describe("formatRuntimeCrystalCandidateForRuntime", () => {
     assert.match(textOf(formatted), /stale/i);
     assert.equal(formatted!.activeInstruction, false);
   });
+
+  it("treats supported hypotheses as active instructions", () => {
+    const formatted = formatRuntimeCrystalCandidateForRuntime({
+      ...ACTIVE_CRYSTAL,
+      status: "supported",
+    });
+    assert.ok(formatted);
+    assert.match(textOf(formatted), /status: supported/);
+    assert.equal(formatted!.activeInstruction, true);
+  });
 });
 
 describe("formatHarnessOperationalStateForRuntime", () => {
@@ -355,6 +396,26 @@ describe("formatHarnessOperationalStateForRuntime", () => {
     });
     assert.ok(formatted);
     assert.match(textOf(formatted), /closed \(inactive\)/i);
+    assert.equal(formatted!.activeInstruction, false);
+  });
+
+  it("treats degraded harness state as an active instruction", () => {
+    const formatted = formatHarnessOperationalStateForRuntime({
+      ...HARNESS_STATE,
+      status: "degraded",
+    });
+    assert.ok(formatted);
+    assert.match(textOf(formatted), /Status: degraded/);
+    assert.equal(formatted!.activeInstruction, true);
+  });
+
+  it("treats unavailable harness state as inactive", () => {
+    const formatted = formatHarnessOperationalStateForRuntime({
+      ...HARNESS_STATE,
+      status: "unavailable",
+    });
+    assert.ok(formatted);
+    assert.match(textOf(formatted), /Status: unavailable/);
     assert.equal(formatted!.activeInstruction, false);
   });
 });
@@ -405,16 +466,50 @@ describe("formatEpisodicFrameForRuntime", () => {
     assert.doesNotMatch(text, /User corrected the storage approach/);
   });
 
-  it("does not render details for secret_redacted frames", () => {
+  it("does not render summary or details for secret_redacted frames", () => {
     const formatted = formatEpisodicFrameForRuntime({
       ...ACTIVE_EPISODIC_FRAME,
       sensitivity: "secret_redacted",
+      summary: "Contains secret-token in summary",
       details: { token: "secret-token" },
     });
     assert.ok(formatted);
     const text = textOf(formatted);
     assert.match(text, /secret_redacted/i);
+    assert.match(text, /metadata only/i);
     assert.doesNotMatch(text, /secret-token/);
+    assert.doesNotMatch(text, /Contains secret-token in summary/);
+  });
+
+  it("renders sensitive frames as metadata-only by default", () => {
+    const formatted = formatEpisodicFrameForRuntime({
+      ...ACTIVE_EPISODIC_FRAME,
+      sensitivity: "sensitive",
+      summary: "Sensitive summary must not leak",
+      details: { note: "sensitive-detail" },
+    });
+    assert.ok(formatted);
+    const text = textOf(formatted);
+    assert.match(text, /metadata only/i);
+    assert.doesNotMatch(text, /Sensitive summary must not leak/);
+    assert.doesNotMatch(text, /sensitive-detail/);
+  });
+
+  it("renders sensitive summary when includeSensitive is true", () => {
+    const formatted = formatEpisodicFrameForRuntime(
+      {
+        ...ACTIVE_EPISODIC_FRAME,
+        sensitivity: "sensitive",
+        summary: "Sensitive summary with opt-in",
+        details: { note: "still-hidden-detail" },
+      },
+      { includeSensitive: true },
+    );
+    assert.ok(formatted);
+    const text = textOf(formatted);
+    assert.match(text, /Sensitive summary with opt-in/);
+    assert.match(text, /details omitted/i);
+    assert.doesNotMatch(text, /still-hidden-detail/);
   });
 });
 

@@ -17,8 +17,6 @@ export {
 export type {
   FormatEpisodicFrameOptions,
   FormatHarnessOperationalOptions,
-  FormatRejectedSignalLogOptions,
-  FormatRuntimeCrystalOptions,
   FormatRuntimePreferenceOptions,
   FormatUnresolvedDecisionOptions,
   RuntimeProjectionFormat,

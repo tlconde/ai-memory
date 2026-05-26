@@ -10,6 +10,7 @@ import type { ScopeKind } from "../core/frame-schema.js";
 import type {
   CurrentDecisionLeaning,
   EpisodicFrame,
+  EpisodicLifecycleState,
   HarnessOperationalState,
   RejectedSignalLog,
   RuntimeCrystalCandidate,
@@ -31,20 +32,17 @@ export interface FormatRuntimePreferenceOptions {
   omitInactive?: boolean;
 }
 
-export interface FormatRuntimeCrystalOptions {
-  /** Reserved for future projection tuning. */
-}
-
 export interface FormatHarnessOperationalOptions {
   includeClosed?: boolean;
 }
 
 export interface FormatEpisodicFrameOptions {
   includeDormantMetadata?: boolean;
+  includeSensitive?: boolean;
 }
 
-export interface FormatRejectedSignalLogOptions {
-  /** Reserved for future projection tuning. */
+function assertNever(value: never): never {
+  throw new Error(`Unhandled runtime projection case: ${String(value)}`);
 }
 
 function formatScopeLine(scope: ScopeKind, projectRef?: string): string {
@@ -100,61 +98,97 @@ function formatEpisodicLineage(frame: EpisodicFrame): string[] {
   return ["Lineage:", ...lineageParts.map((part) => `- ${part}`)];
 }
 
+function formatEpisodicMetadataOnly(
+  frame: EpisodicFrame,
+  heading: string,
+  note: string,
+): RuntimeProjectionFormat {
+  return {
+    lines: [
+      heading,
+      formatScopeLine(frame.scope, frame.project_ref),
+      `frame_id: ${frame.id}`,
+      `event_type: ${frame.event_type}`,
+      `occurred_at: ${frame.occurred_at}`,
+      `sensitivity: ${frame.sensitivity}`,
+      note,
+    ],
+    activeInstruction: false,
+  };
+}
+
+function formatOpenDecisionLines(
+  decision: UnresolvedDecision,
+  options: FormatUnresolvedDecisionOptions,
+): string[] {
+  const lines: string[] = [
+    "Pending decision",
+    formatScopeLine(decision.scope),
+    decision.question,
+    "Status: Undecided",
+    "Options:",
+    ...formatDecisionOptions(decision),
+  ];
+
+  const leaning = options.currentLeaning;
+  if (leaning && leaning.decision_id === decision.id) {
+    const includeStale = options.includeStaleLeaning === true;
+    if (leaning.freshness === "fresh" || includeStale) {
+      lines.push(...formatCurrentLeaningSection(leaning, decision));
+    }
+  }
+
+  return lines;
+}
+
 /** Format an unresolved decision for runtime projection (never as durable fact). */
 export function formatUnresolvedDecisionForRuntime(
   decision: UnresolvedDecision,
   options: FormatUnresolvedDecisionOptions = {},
 ): RuntimeProjectionFormat | null {
-  if (decision.status === "abandoned") {
-    return null;
-  }
-
-  const heading =
-    decision.status === "decided" ? "Decision (resolved)" : "Pending decision";
-  const lines: string[] = [
-    heading,
-    formatScopeLine(decision.scope),
-    decision.question,
-    decision.status === "decided" ? "Status: Decided" : "Status: Undecided",
-  ];
-
-  if (decision.status === "decided" && decision.selected_option_id) {
-    const selected = decision.options.find(
-      (option) => option.id === decision.selected_option_id,
-    );
-    lines.push(`Selected: ${selected?.label ?? decision.selected_option_id}`);
-  } else {
-    lines.push("Options:", ...formatDecisionOptions(decision));
-    const leaning = options.currentLeaning;
-    if (leaning && leaning.decision_id === decision.id) {
-      const includeStale = options.includeStaleLeaning === true;
-      if (leaning.freshness === "fresh" || includeStale) {
-        lines.push(...formatCurrentLeaningSection(leaning, decision));
+  switch (decision.status) {
+    case "abandoned":
+      return null;
+    case "open":
+      return {
+        lines: formatOpenDecisionLines(decision, options),
+        activeInstruction: false,
+      };
+    case "decided": {
+      if (!decision.selected_option_id) {
+        return {
+          lines: [
+            "Decision (incomplete)",
+            formatScopeLine(decision.scope),
+            decision.question,
+            "Status: Decided (incomplete — selected_option_id missing)",
+          ],
+          activeInstruction: false,
+        };
       }
+      const selected = decision.options.find(
+        (option) => option.id === decision.selected_option_id,
+      );
+      return {
+        lines: [
+          "Decision (resolved)",
+          formatScopeLine(decision.scope),
+          decision.question,
+          "Status: Decided",
+          `Selected: ${selected?.label ?? decision.selected_option_id}`,
+        ],
+        activeInstruction: false,
+      };
     }
+    default:
+      return assertNever(decision.status);
   }
-
-  return {
-    lines,
-    activeInstruction: false,
-  };
 }
 
-/** Format a runtime preference candidate for projection. */
-export function formatRuntimePreferenceCandidateForRuntime(
+function formatPreferenceBody(
   preference: RuntimePreferenceCandidate,
-  options: FormatRuntimePreferenceOptions = {},
-): RuntimeProjectionFormat | null {
-  if (preference.status === "promoted" || preference.status === "abandoned") {
-    return null;
-  }
-
-  const inactive =
-    preference.status === "expired" || preference.status === "contradicted";
-  if (inactive && options.omitInactive === true) {
-    return null;
-  }
-
+  statusLabel: string,
+): string[] {
   const heading =
     preference.mode === "tentative" ? "Tentative preference" : "Runtime preference";
   const lines: string[] = [
@@ -176,29 +210,45 @@ export function formatRuntimePreferenceCandidateForRuntime(
     lines.push(`expires_at: ${preference.expires_at}`);
   }
 
-  lines.push(
-    inactive ? `Status: inactive (${preference.status})` : `Status: ${preference.status}`,
-  );
-
-  return {
-    lines,
-    activeInstruction: preference.status === "active",
-  };
+  lines.push(statusLabel);
+  return lines;
 }
 
-/** Format a runtime crystal candidate as a provisional working hypothesis. */
-export function formatRuntimeCrystalCandidateForRuntime(
-  crystal: RuntimeCrystalCandidate,
-  _options: FormatRuntimeCrystalOptions = {},
+/** Format a runtime preference candidate for projection. */
+export function formatRuntimePreferenceCandidateForRuntime(
+  preference: RuntimePreferenceCandidate,
+  options: FormatRuntimePreferenceOptions = {},
 ): RuntimeProjectionFormat | null {
-  if (crystal.status === "promoted" || crystal.status === "abandoned") {
-    return null;
+  switch (preference.status) {
+    case "promoted":
+    case "abandoned":
+      return null;
+    case "expired":
+    case "contradicted":
+      if (options.omitInactive === true) {
+        return null;
+      }
+      return {
+        lines: formatPreferenceBody(
+          preference,
+          `Status: inactive (${preference.status})`,
+        ),
+        activeInstruction: false,
+      };
+    case "active":
+      return {
+        lines: formatPreferenceBody(preference, `Status: ${preference.status}`),
+        activeInstruction: true,
+      };
+    default:
+      return assertNever(preference.status);
   }
+}
 
+function formatCrystalBody(crystal: RuntimeCrystalCandidate): string[] {
   const lines: string[] = [
-    "Working hypothesis",
+    "Working hypothesis (provisional — not durable fact)",
     formatScopeLine(crystal.scope, crystal.project_ref),
-    "Working hypothesis (provisional — not durable fact):",
     crystal.claim,
     `confidence: ${crystal.confidence}`,
     `lineage.generated_by: ${crystal.lineage.generated_by}`,
@@ -216,32 +266,35 @@ export function formatRuntimeCrystalCandidateForRuntime(
     );
   }
 
-  return {
-    lines,
-    activeInstruction: crystal.status === "active" || crystal.status === "supported",
-  };
+  return lines;
 }
 
-/** Format harness operational state with actionable fields only. */
-export function formatHarnessOperationalStateForRuntime(
-  state: HarnessOperationalState,
-  options: FormatHarnessOperationalOptions = {},
+/** Format a runtime crystal candidate as a provisional working hypothesis. */
+export function formatRuntimeCrystalCandidateForRuntime(
+  crystal: RuntimeCrystalCandidate,
 ): RuntimeProjectionFormat | null {
-  if (state.status === "closed") {
-    if (options.includeClosed !== true) {
+  switch (crystal.status) {
+    case "promoted":
+    case "abandoned":
       return null;
-    }
-    return {
-      lines: [
-        "Harness operational state",
-        ...(state.project_ref ? [formatScopeLine("project", state.project_ref)] : []),
-        `Harness: ${state.harness}`,
-        "Status: closed (inactive)",
-      ],
-      activeInstruction: false,
-    };
+    case "active":
+    case "supported":
+      return {
+        lines: formatCrystalBody(crystal),
+        activeInstruction: true,
+      };
+    case "refuted":
+    case "stale":
+      return {
+        lines: formatCrystalBody(crystal),
+        activeInstruction: false,
+      };
+    default:
+      return assertNever(crystal.status);
   }
+}
 
+function formatHarnessActionableLines(state: HarnessOperationalState): string[] {
   const lines: string[] = [
     "Harness operational state",
     ...(state.project_ref ? [formatScopeLine("project", state.project_ref)] : []),
@@ -276,42 +329,68 @@ export function formatHarnessOperationalStateForRuntime(
     lines.push(`next_agent_instruction: ${state.next_agent_instruction}`);
   }
 
-  return {
-    lines,
-    activeInstruction: state.status === "active" || state.status === "degraded",
-  };
+  return lines;
 }
 
-/** Format an episodic frame for runtime projection with lifecycle-aware redaction. */
-export function formatEpisodicFrameForRuntime(
-  frame: EpisodicFrame,
-  options: FormatEpisodicFrameOptions = {},
+/** Format harness operational state with actionable fields only. */
+export function formatHarnessOperationalStateForRuntime(
+  state: HarnessOperationalState,
+  options: FormatHarnessOperationalOptions = {},
 ): RuntimeProjectionFormat | null {
-  if (frame.lifecycle_state === "deleted") {
-    return null;
+  switch (state.status) {
+    case "closed":
+      if (options.includeClosed !== true) {
+        return null;
+      }
+      return {
+        lines: [
+          "Harness operational state",
+          ...(state.project_ref ? [formatScopeLine("project", state.project_ref)] : []),
+          `Harness: ${state.harness}`,
+          "Status: closed (inactive)",
+        ],
+        activeInstruction: false,
+      };
+    case "active":
+    case "degraded":
+      return {
+        lines: formatHarnessActionableLines(state),
+        activeInstruction: true,
+      };
+    case "unavailable":
+      return {
+        lines: formatHarnessActionableLines(state),
+        activeInstruction: false,
+      };
+    default:
+      return assertNever(state.status);
   }
+}
 
-  if (
-    frame.lifecycle_state === "dormant" ||
-    frame.lifecycle_state === "deep_dormant"
-  ) {
-    if (options.includeDormantMetadata !== true) {
-      return null;
-    }
-    return {
-      lines: [
-        "Episodic frame (dormant metadata)",
-        formatScopeLine(frame.scope, frame.project_ref),
-        "Dormant metadata:",
-        `- frame_id: ${frame.id}`,
-        `- lifecycle_state: ${frame.lifecycle_state}`,
-        ...(frame.dormant_snapshot_id
-          ? [`- dormant_snapshot_id: ${frame.dormant_snapshot_id}`]
-          : []),
-        `- occurred_at: ${frame.occurred_at}`,
-      ],
-      activeInstruction: false,
-    };
+function formatActiveEpisodicFrame(
+  frame: EpisodicFrame,
+  options: FormatEpisodicFrameOptions,
+): RuntimeProjectionFormat {
+  switch (frame.sensitivity) {
+    case "secret_redacted":
+      return formatEpisodicMetadataOnly(
+        frame,
+        "Episodic frame (metadata only)",
+        "[secret_redacted: summary and details omitted from runtime projection]",
+      );
+    case "sensitive":
+      if (options.includeSensitive !== true) {
+        return formatEpisodicMetadataOnly(
+          frame,
+          "Episodic frame (metadata only)",
+          "[sensitive: summary and details omitted from runtime projection]",
+        );
+      }
+      break;
+    case "normal":
+      break;
+    default:
+      assertNever(frame.sensitivity);
   }
 
   const lines: string[] = [
@@ -323,9 +402,7 @@ export function formatEpisodicFrameForRuntime(
     ...formatEpisodicLineage(frame),
   ];
 
-  if (frame.sensitivity === "secret_redacted") {
-    lines.push("[secret_redacted: details omitted from runtime projection]");
-  } else if (frame.sensitivity === "sensitive") {
+  if (frame.sensitivity === "sensitive") {
     lines.push("[sensitive: details omitted from runtime projection]");
   } else if (frame.details && Object.keys(frame.details).length > 0) {
     lines.push("Details omitted from runtime projection.");
@@ -337,10 +414,50 @@ export function formatEpisodicFrameForRuntime(
   };
 }
 
+function formatDormantEpisodicFrame(
+  frame: EpisodicFrame,
+): RuntimeProjectionFormat {
+  return {
+    lines: [
+      "Episodic frame (dormant metadata)",
+      formatScopeLine(frame.scope, frame.project_ref),
+      "Dormant metadata:",
+      `- frame_id: ${frame.id}`,
+      `- lifecycle_state: ${frame.lifecycle_state}`,
+      ...(frame.dormant_snapshot_id
+        ? [`- dormant_snapshot_id: ${frame.dormant_snapshot_id}`]
+        : []),
+      `- occurred_at: ${frame.occurred_at}`,
+    ],
+    activeInstruction: false,
+  };
+}
+
+/** Format an episodic frame for runtime projection with lifecycle-aware redaction. */
+export function formatEpisodicFrameForRuntime(
+  frame: EpisodicFrame,
+  options: FormatEpisodicFrameOptions = {},
+): RuntimeProjectionFormat | null {
+  const lifecycleState: EpisodicLifecycleState = frame.lifecycle_state;
+  switch (lifecycleState) {
+    case "deleted":
+      return null;
+    case "dormant":
+    case "deep_dormant":
+      if (options.includeDormantMetadata !== true) {
+        return null;
+      }
+      return formatDormantEpisodicFrame(frame);
+    case "active":
+      return formatActiveEpisodicFrame(frame, options);
+    default:
+      return assertNever(lifecycleState);
+  }
+}
+
 /** Format rejected-signal audit metadata without raw or excerpt content. */
 export function formatRejectedSignalLogForRuntime(
   log: RejectedSignalLog,
-  _options: FormatRejectedSignalLogOptions = {},
 ): RuntimeProjectionFormat {
   return {
     lines: [
