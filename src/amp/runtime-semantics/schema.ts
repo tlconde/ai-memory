@@ -66,7 +66,7 @@ export type RuntimePreferenceMode = z.infer<typeof RuntimePreferenceModeSchema>;
 export const ContradictionScoreSchema = z.enum(["low", "medium", "high"]);
 export type ContradictionScore = z.infer<typeof ContradictionScoreSchema>;
 
-function addProjectScopeIssue(
+function addScopeRefIssues(
   ctx: z.RefinementCtx,
   scope: string,
   projectRef: string | undefined,
@@ -76,6 +76,13 @@ function addProjectScopeIssue(
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "project scope requires project_ref",
+      path,
+    });
+  }
+  if (scope !== "project" && projectRef) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "project_ref is only valid for project scope",
       path,
     });
   }
@@ -193,7 +200,7 @@ export const RuntimePreferenceCandidateSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    addProjectScopeIssue(ctx, value.scope, value.project_ref);
+    addScopeRefIssues(ctx, value.scope, value.project_ref);
   });
 
 export type RuntimePreferenceCandidate = z.infer<typeof RuntimePreferenceCandidateSchema>;
@@ -234,7 +241,7 @@ export const RuntimeCrystalCandidateSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    addProjectScopeIssue(ctx, value.scope, value.project_ref);
+    addScopeRefIssues(ctx, value.scope, value.project_ref);
   });
 
 export type RuntimeCrystalCandidate = z.infer<typeof RuntimeCrystalCandidateSchema>;
@@ -344,7 +351,7 @@ export const EpisodicFrameSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    addProjectScopeIssue(ctx, value.scope, value.project_ref);
+    addScopeRefIssues(ctx, value.scope, value.project_ref);
     addDeletedLifecycleIssue(
       ctx,
       value.lifecycle_state,

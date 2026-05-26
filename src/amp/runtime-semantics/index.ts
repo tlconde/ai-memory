@@ -47,4 +47,36 @@ export {
   safeParseUnresolvedDecision,
 } from "./schema.js";
 
-export type * from "./types.js";
+export type {
+  ContradictionScore,
+  CurrentDecisionLeaning,
+  DecisionFreshness,
+  DecisionOption,
+  DormantSnapshot,
+  DormantSnapshotActivationHistory,
+  DormantSnapshotEncodingContext,
+  DormantSnapshotGeneratedBy,
+  DormantSnapshotRelatedEntities,
+  EpisodicAccessStats,
+  EpisodicEventType,
+  EpisodicFrame,
+  EpisodicLifecycleState,
+  EpisodicProvenance,
+  EpisodicRelatedEntities,
+  EpisodicSensitivity,
+  EpisodicVisibility,
+  HarnessOperationalState,
+  RejectedSignalLog,
+  RuntimeConfidence,
+  RuntimeCrystalCandidate,
+  RuntimeCrystalLineage,
+  RuntimeEntityParseResult,
+  RuntimePreferenceCandidate,
+  RuntimePreferenceContext,
+  RuntimePreferenceMode,
+  RuntimePreferencePromotionEvidence,
+  RuntimeSource,
+  UnresolvedDecision,
+} from "./schema.js";
+
+export type { CurationMode, ScopeKind } from "../core/frame-schema.js";

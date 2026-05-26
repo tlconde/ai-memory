@@ -291,3 +291,74 @@ describe("runtime-semantics schemas", () => {
     assert.equal(parsed.success, false);
   });
 });
+
+type ScopeSafeParse = (input: unknown) => { success: boolean; error?: string };
+
+const SCOPE_REF_ENTITIES: Array<{
+  name: string;
+  minimal: Record<string, unknown>;
+  safeParse: ScopeSafeParse;
+}> = [
+  {
+    name: "EpisodicFrame",
+    minimal: MINIMAL_EPISODIC_FRAME,
+    safeParse: safeParseEpisodicFrame,
+  },
+  {
+    name: "RuntimePreferenceCandidate",
+    minimal: MINIMAL_RUNTIME_PREFERENCE,
+    safeParse: safeParseRuntimePreferenceCandidate,
+  },
+  {
+    name: "RuntimeCrystalCandidate",
+    minimal: MINIMAL_RUNTIME_CRYSTAL,
+    safeParse: safeParseRuntimeCrystalCandidate,
+  },
+];
+
+describe("scope and project_ref symmetry", () => {
+  for (const { name, minimal, safeParse } of SCOPE_REF_ENTITIES) {
+    it(`rejects ${name} with project scope and no project_ref`, () => {
+      const parsed = safeParse({
+        ...minimal,
+        scope: "project",
+        project_ref: undefined,
+      });
+      assert.equal(parsed.success, false);
+      if (parsed.success) return;
+      assert.match(parsed.error!, /project scope requires project_ref/);
+    });
+
+    it(`rejects ${name} with user scope and project_ref`, () => {
+      const parsed = safeParse({
+        ...minimal,
+        scope: "user",
+        project_ref: "ai-memory",
+      });
+      assert.equal(parsed.success, false);
+      if (parsed.success) return;
+      assert.match(parsed.error!, /project_ref is only valid for project scope/);
+    });
+
+    it(`rejects ${name} with universal scope and project_ref`, () => {
+      const parsed = safeParse({
+        ...minimal,
+        scope: "universal",
+        project_ref: "ai-memory",
+      });
+      assert.equal(parsed.success, false);
+      if (parsed.success) return;
+      assert.match(parsed.error!, /project_ref is only valid for project scope/);
+    });
+  }
+});
+
+describe("strict unknown-key rejection", () => {
+  it("rejects EpisodicFrame with unknown metadata key", () => {
+    const parsed = safeParseEpisodicFrame({
+      ...MINIMAL_EPISODIC_FRAME,
+      unexpected_field: true,
+    });
+    assert.equal(parsed.success, false);
+  });
+});
