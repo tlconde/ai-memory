@@ -34,6 +34,10 @@ export class LocalProjectionSource implements ProjectionSource {
 
   constructor(private readonly options: LocalProjectionSourceOptions) {}
 
+  /**
+   * Returns four projection documents only. Typed runtime skip telemetry lives on
+   * {@link buildProjectionDocumentsWithReport}, not on {@link ProjectionSource}.
+   */
   loadProjectionDocuments(options: ProjectionSourceLoadOptions = {}): ProjectionDocument[] {
     const projectRef = options.projectRef ?? this.options.projectRef ?? "project";
 
