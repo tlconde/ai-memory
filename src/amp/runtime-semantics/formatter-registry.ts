@@ -236,15 +236,22 @@ function buildRegistryEntry(
   };
 }
 
+function buildSubEntityRegistryEntry(
+  kind: keyof typeof SUB_ENTITY_SCHEMA_BUNDLES,
+): RuntimeFormatterRegistryEntry {
+  const bundle = SUB_ENTITY_SCHEMA_BUNDLES[kind];
+  return {
+    kind,
+    schemaName: bundle.schemaName,
+    schema: bundle.schema,
+    safeParse: bundle.safeParse,
+    policy: FORMATTER_POLICY_BY_KIND[kind],
+  };
+}
+
 const entityRegistryEntries = RUNTIME_ENTITY_REGISTRY.map((row) => buildRegistryEntry(row));
 
-const subEntityRegistryEntry: RuntimeFormatterRegistryEntry = {
-  kind: "current-decision-leaning",
-  schemaName: SUB_ENTITY_SCHEMA_BUNDLES["current-decision-leaning"].schemaName,
-  schema: SUB_ENTITY_SCHEMA_BUNDLES["current-decision-leaning"].schema,
-  safeParse: SUB_ENTITY_SCHEMA_BUNDLES["current-decision-leaning"].safeParse,
-  policy: FORMATTER_POLICY_BY_KIND["current-decision-leaning"],
-};
+const subEntityRegistryEntry = buildSubEntityRegistryEntry("current-decision-leaning");
 
 export const RUNTIME_FORMATTER_REGISTRY = [
   ...entityRegistryEntries,
@@ -336,39 +343,21 @@ export function resolveFormatterRegistryEntry(
   return getFormatterRegistryEntry(kind);
 }
 
-function formatParsedEntityForProjection(
-  kind: ProjectableFormatterKind,
-  entity: FormatterEntityByKind[ProjectableFormatterKind],
-  options?: unknown,
+type ProjectableFormatFn<K extends ProjectableFormatterKind> = (
+  entity: FormatterEntityByKind[K],
+  options?: FormatterOptionsByKind[K],
+) => RuntimeProjectionFormat | null;
+
+function formatParsedEntityForProjection<K extends ProjectableFormatterKind>(
+  kind: K,
+  entity: FormatterEntityByKind[K],
+  options?: FormatterOptionsByKind[K],
 ): RuntimeProjectionFormat | null {
-  switch (kind) {
-    case "unresolved-decision":
-      return ENTITY_SCHEMA_BUNDLES[kind].format!(
-        entity as UnresolvedDecision,
-        options as FormatUnresolvedDecisionOptions | undefined,
-      );
-    case "runtime-preference-candidate":
-      return ENTITY_SCHEMA_BUNDLES[kind].format!(
-        entity as RuntimePreferenceCandidate,
-        options as FormatRuntimePreferenceOptions | undefined,
-      );
-    case "runtime-crystal-candidate":
-      return ENTITY_SCHEMA_BUNDLES[kind].format!(entity as RuntimeCrystalCandidate);
-    case "harness-operational-state":
-      return ENTITY_SCHEMA_BUNDLES[kind].format!(
-        entity as HarnessOperationalState,
-        options as FormatHarnessOperationalOptions | undefined,
-      );
-    case "episodic-frame":
-      return ENTITY_SCHEMA_BUNDLES[kind].format!(
-        entity as EpisodicFrame,
-        options as FormatEpisodicFrameOptions | undefined,
-      );
-    default: {
-      const _exhaustive: never = kind;
-      throw new Error(`Unhandled projectable formatter kind: ${String(_exhaustive)}`);
-    }
+  const format = ENTITY_SCHEMA_BUNDLES[kind].format as ProjectableFormatFn<K> | undefined;
+  if (format === undefined) {
+    throw new Error(`Projectable kind missing formatter: ${String(kind)}`);
   }
+  return format(entity, options);
 }
 
 type EnforceProjectionFormatPolicyResult =
@@ -407,7 +396,16 @@ function enforceProjectionFormatPolicy(
   return { ok: true, projectableKind: kind as ProjectableFormatterKind };
 }
 
-function formatParsedRuntimeEntityForProjectionImpl(
+function formatParsedRuntimeEntityForProjectionImpl<K extends ProjectableFormatterKind>(
+  kind: K,
+  parsedValue: FormatterEntityByKind[K],
+  options?: FormatterOptionsByKind[K],
+): FormatRuntimeEntityForProjectionResult {
+  const formatted = formatParsedEntityForProjection(kind, parsedValue, options);
+  return { ok: true, formatted };
+}
+
+function formatParsedRuntimeEntityForProjectionFromKind(
   kind: FormatterRegistryKind,
   parsedValue: unknown,
   options?: unknown,
@@ -417,13 +415,11 @@ function formatParsedRuntimeEntityForProjectionImpl(
     return policy;
   }
 
-  const formatted = formatParsedEntityForProjection(
+  return formatParsedRuntimeEntityForProjectionImpl(
     policy.projectableKind,
-    parsedValue as FormatterEntityByKind[ProjectableFormatterKind],
-    options as FormatterOptionsByKind[ProjectableFormatterKind],
+    parsedValue as FormatterEntityByKind[typeof policy.projectableKind],
+    options as FormatterOptionsByKind[typeof policy.projectableKind],
   );
-
-  return { ok: true, formatted };
 }
 
 /** Format an already-parsed runtime entity for projection without re-running Zod parse. */
@@ -461,7 +457,7 @@ export function formatParsedRuntimeEntityForProjection(
   parsedValue: unknown,
   options?: unknown,
 ): FormatRuntimeEntityForProjectionResult {
-  return formatParsedRuntimeEntityForProjectionImpl(kind, parsedValue, options);
+  return formatParsedRuntimeEntityForProjectionFromKind(kind, parsedValue, options);
 }
 
 function formatRuntimeEntityForProjectionImpl(
@@ -486,7 +482,7 @@ function formatRuntimeEntityForProjectionImpl(
     };
   }
 
-  return formatParsedRuntimeEntityForProjectionImpl(kind, parsed.value, options);
+  return formatParsedRuntimeEntityForProjectionFromKind(kind, parsed.value, options);
 }
 
 /** Format and validate a runtime entity for projection at the registry boundary. */
