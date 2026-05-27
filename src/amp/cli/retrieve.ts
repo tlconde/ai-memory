@@ -17,14 +17,11 @@ import {
 } from "../substrate/retrieve-preference.js";
 import { resolveCliProjectContext } from "./cli-context.js";
 import {
-  AMP_KNOWLEDGE_BACKEND_ENV,
-  createReadKnowledgeBackend,
-  resolveKnowledgeBackend,
-  resolveLocalPersistentRetrieveKnowledgeStore,
-  type AmpKnowledgeBackend,
+  resolveRetrieveKnowledgeStore,
+  type AmpRetrieveKnowledgeBackend,
 } from "./knowledge-backend.js";
 
-export type AmpRetrieveKnowledgeBackend = AmpKnowledgeBackend | "local-persistent";
+export type { AmpRetrieveKnowledgeBackend };
 
 export interface AmpRetrieveOptions {
   scope?: ScopeKind;
@@ -51,22 +48,6 @@ export interface AmpRetrieveResult {
   preferences: RetrievedPreference[];
 }
 
-function hasExplicitKnowledgeBackendSelection(
-  options: Pick<AmpRetrieveOptions, "knowledge" | "env">,
-): boolean {
-  const env = options.env ?? process.env;
-  return Boolean(options.knowledge?.trim() || env[AMP_KNOWLEDGE_BACKEND_ENV]?.trim());
-}
-
-function resolveExplicitKnowledgeBackend(
-  options: Pick<AmpRetrieveOptions, "knowledge" | "env">,
-): AmpKnowledgeBackend | undefined {
-  if (!hasExplicitKnowledgeBackendSelection(options)) {
-    return undefined;
-  }
-  return resolveKnowledgeBackend({ explicit: options.knowledge, env: options.env });
-}
-
 /** Retrieve consolidated preferences from knowledge storage. */
 export async function runAmpRetrieve(
   options: AmpRetrieveOptions = {}
@@ -82,63 +63,49 @@ export async function runAmpRetrieve(
   const projectRef =
     scope === "project" ? (options.projectRef ?? context.projectRef) : options.projectRef;
 
-  const explicitBackend = resolveExplicitKnowledgeBackend(options);
+  const resolved = resolveRetrieveKnowledgeStore({
+    explicitKnowledge: options.knowledge,
+    env: options.env,
+    runtimeDbPath: context.runtimeDbPath,
+    inMemoryStore: options.inMemoryStore,
+    knowledgeStore: options.knowledgeStore,
+    gbrainAdapter: options.gbrainAdapter,
+    ampRepoRoot: options.ampRepoRoot,
+  });
+
+  if (!resolved.ok) {
+    throw new Error(resolved.error);
+  }
+
   let preferences: RetrievedPreference[];
-  let knowledgeBackend: AmpRetrieveKnowledgeBackend;
-  let liveGbrain: boolean | undefined;
 
-  if (options.inMemoryStore || explicitBackend === "in-memory") {
-    const handle = createReadKnowledgeBackend({
-      backend: "in-memory",
-      ampRepoRoot: options.ampRepoRoot,
-      inMemoryStore: options.inMemoryStore,
-      env: options.env,
-    });
-    knowledgeBackend = handle.backend;
-    preferences = retrievePreferences(handle.inMemory!, {
-      scope,
-      projectRef,
-      query: options.query,
-    });
-  } else if (explicitBackend === "gbrain" || explicitBackend === "fake-gbrain") {
-    const handle = createReadKnowledgeBackend({
-      backend: explicitBackend,
-      ampRepoRoot: options.ampRepoRoot,
-      gbrainAdapter: options.gbrainAdapter,
-      env: options.env,
-    });
-    knowledgeBackend = handle.backend;
-    liveGbrain = handle.liveGbrain;
-    preferences = await retrievePreferencesFromGbrain(handle.gbrain!, {
-      scope,
-      projectRef,
-      query: options.query,
-    });
-  } else {
-    const resolved = resolveLocalPersistentRetrieveKnowledgeStore({
-      knowledgeStore: options.knowledgeStore,
-      runtimeDbPath: context.runtimeDbPath,
-    });
-    if (!resolved.ok) {
-      throw new Error(resolved.error);
+  try {
+    switch (resolved.backend) {
+      case "gbrain":
+      case "fake-gbrain":
+        preferences = await retrievePreferencesFromGbrain(resolved.gbrain, {
+          scope,
+          projectRef,
+          query: options.query,
+        });
+        break;
+      case "in-memory":
+      case "local-persistent":
+        preferences = retrievePreferences(resolved.store, {
+          scope,
+          projectRef,
+          query: options.query,
+        });
+        break;
     }
-
-    knowledgeBackend = "local-persistent";
-    try {
-      preferences = retrievePreferences(resolved.store, {
-        scope,
-        projectRef,
-        query: options.query,
-      });
-    } finally {
-      resolved.cleanup();
-    }
+  } finally {
+    resolved.cleanup();
   }
 
   return {
     projectRoot: context.projectRoot,
-    knowledgeBackend,
-    liveGbrain,
+    knowledgeBackend: resolved.backend,
+    liveGbrain: resolved.liveGbrain,
     scope,
     projectRef,
     query: options.query,

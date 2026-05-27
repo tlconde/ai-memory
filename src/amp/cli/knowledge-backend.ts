@@ -255,6 +255,123 @@ export function resolveLocalPersistentRetrieveKnowledgeStore(
   });
 }
 
+export type AmpRetrieveKnowledgeBackend = AmpKnowledgeBackend | "local-persistent";
+
+export interface ResolveRetrieveKnowledgeStoreOptions {
+  explicitKnowledge?: string;
+  env?: NodeJS.ProcessEnv;
+  runtimeDbPath?: string;
+  inMemoryStore?: InMemoryKnowledgeStore;
+  knowledgeStore?: KnowledgeStore;
+  gbrainAdapter?: GbrainKnowledgeAdapter;
+  ampRepoRoot?: string;
+}
+
+export type ResolveRetrieveKnowledgeStoreResult =
+  | {
+      ok: true;
+      backend: "in-memory";
+      store: InMemoryKnowledgeStore;
+      liveGbrain?: undefined;
+      cleanup: () => void;
+    }
+  | {
+      ok: true;
+      backend: "gbrain" | "fake-gbrain";
+      gbrain: GbrainKnowledgeAdapter;
+      liveGbrain?: boolean;
+      cleanup: () => void;
+    }
+  | {
+      ok: true;
+      backend: "local-persistent";
+      store: KnowledgeStore;
+      liveGbrain?: undefined;
+      cleanup: () => void;
+    }
+  | { ok: false; error: string };
+
+function hasExplicitRetrieveKnowledgeBackendSelection(
+  options: Pick<ResolveRetrieveKnowledgeStoreOptions, "explicitKnowledge" | "env">,
+): boolean {
+  const env = options.env ?? process.env;
+  return Boolean(options.explicitKnowledge?.trim() || env[AMP_KNOWLEDGE_BACKEND_ENV]?.trim());
+}
+
+/**
+ * Resolve retrieve knowledge backend and store handle.
+ *
+ * Precedence:
+ * 1. Explicit `--knowledge` or `AMP_KNOWLEDGE_BACKEND` → in-memory, gbrain, or fake-gbrain
+ * 2. Injected `inMemoryStore` (backward-compatible tests)
+ * 3. Injected `knowledgeStore` or persistent local SQLite via `runtimeDbPath`
+ */
+export function resolveRetrieveKnowledgeStore(
+  options: ResolveRetrieveKnowledgeStoreOptions = {},
+): ResolveRetrieveKnowledgeStoreResult {
+  const env = options.env ?? process.env;
+
+  if (hasExplicitRetrieveKnowledgeBackendSelection(options)) {
+    const backend = resolveKnowledgeBackend({ explicit: options.explicitKnowledge, env });
+    const handle = createReadKnowledgeBackend({
+      backend,
+      ampRepoRoot: options.ampRepoRoot,
+      inMemoryStore: options.inMemoryStore,
+      gbrainAdapter: options.gbrainAdapter,
+      env,
+    });
+
+    if (backend === "in-memory") {
+      if (!handle.inMemory) {
+        return { ok: false, error: LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE };
+      }
+      return {
+        ok: true,
+        backend: "in-memory",
+        store: handle.inMemory,
+        cleanup: () => {},
+      };
+    }
+
+    if (!handle.gbrain) {
+      return { ok: false, error: LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE };
+    }
+
+    return {
+      ok: true,
+      backend,
+      gbrain: handle.gbrain,
+      liveGbrain: handle.liveGbrain,
+      cleanup: () => {},
+    };
+  }
+
+  if (options.inMemoryStore) {
+    return {
+      ok: true,
+      backend: "in-memory",
+      store: options.inMemoryStore,
+      cleanup: () => {},
+    };
+  }
+
+  const resolved = resolveLocalPersistentRetrieveKnowledgeStore({
+    knowledgeStore: options.knowledgeStore,
+    runtimeDbPath: options.runtimeDbPath,
+  });
+
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  return {
+    ok: true,
+    backend: "local-persistent",
+    store: resolved.store,
+    cleanup: resolved.cleanup,
+  };
+}
+
 export interface ResolveGraduationApplyKnowledgeStoreOptions {
   knowledgeStore?: KnowledgeStore;
   runtimeDbPath?: string;

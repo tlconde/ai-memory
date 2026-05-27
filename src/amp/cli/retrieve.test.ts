@@ -38,7 +38,34 @@ const ACTIVE_PREFERENCE = {
 };
 
 describe("runAmpRetrieve", () => {
-  it("reads preferences from injected in-memory store", async () => {
+  it("reads preferences from injected in-memory store without explicit backend", async () => {
+    const knowledge = new InMemoryKnowledgeStore();
+    knowledge.write([
+      createFrame({
+        id: "frame-cli-1",
+        kind: "semantic",
+        content: "Prefer explicit verification commands.",
+        source: { surface: "cursor", harness: "cursor" },
+        created_at: "2026-05-24T12:00:00.000Z",
+        scope: { kind: "project", project_ref: "ai-memory" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const result = await runAmpRetrieve({
+      projectRoot: process.cwd(),
+      inMemoryStore: knowledge,
+      scope: "project",
+      projectRef: "ai-memory",
+      query: "verification",
+    });
+
+    assert.equal(result.preferences.length, 1);
+    assert.equal(result.knowledgeBackend, "in-memory");
+    assert.equal(result.preferences[0]?.frame.content, "Prefer explicit verification commands.");
+  });
+
+  it("reads preferences from injected in-memory store with explicit backend", async () => {
     const knowledge = new InMemoryKnowledgeStore();
     knowledge.write([
       createFrame({

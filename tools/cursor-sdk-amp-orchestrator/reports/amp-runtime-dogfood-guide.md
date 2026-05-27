@@ -58,7 +58,7 @@ echo ".amp/dogfood-user/" >> .gitignore
 |----------|---------|
 | `AMP_USER_ROOT` | Keeps **global** projection/runtime markdown under the project (`.amp/dogfood-user/…`) instead of `~/.amp` |
 
-**Local knowledge storage:** Durable frames live in `.amp/runtime/knowledge.db` beside `runtime.db`. `--source local` reads this file by default after `amp init`. You do **not** need `AMP_KNOWLEDGE_BACKEND=in-memory` for local projection.
+**Local knowledge storage:** Durable frames live in `.amp/runtime/knowledge.db` beside `runtime.db`. `--source local` reads this file by default after `amp init`. You do **not** need `AMP_KNOWLEDGE_BACKEND=in-memory` for local projection. Default `amp retrieve` also reads this persistent store; setting `AMP_KNOWLEDGE_BACKEND=gbrain` in the shell overrides that default and routes retrieve through live gbrain instead.
 
 Project-local runtime SQLite lives at `.amp/runtime/runtime.db` after `amp init` (from project config). No need to override `AMP_RUNTIME_PATH` unless you want a custom DB path.
 

@@ -9,6 +9,8 @@ import {
   LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE,
   LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
 } from "../projection/messages.js";
+import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
+import { FakeGbrainMcpTransport } from "../adapters/ssa/gbrain/fake-transport.js";
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
 import { LocalSqliteKnowledgeStore } from "../adapters/ssa/local-sqlite-knowledge-store.js";
 import {
@@ -21,6 +23,7 @@ import {
   resolveLocalPersistentProjectionKnowledgeStore,
   resolveLocalPersistentRetrieveKnowledgeStore,
   resolveProjectionKnowledgeStore,
+  resolveRetrieveKnowledgeStore,
   resolveGraduationApplyKnowledgeStore,
   GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT,
   LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE,
@@ -285,6 +288,148 @@ describe("resolveLocalPersistentRetrieveKnowledgeStore", () => {
 
   it("fails closed when neither injected store nor runtimeDbPath is provided", () => {
     const result = resolveLocalPersistentRetrieveKnowledgeStore();
+
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error, LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE);
+    }
+  });
+});
+
+describe("resolveRetrieveKnowledgeStore", () => {
+  it("uses explicit CLI backend over injected knowledgeStore", () => {
+    const injected = new InMemoryKnowledgeStore();
+    const fake = new FakeGbrainMcpTransport();
+    const adapter = new GbrainKnowledgeAdapter({
+      transport: fake,
+      ssaSpecPath: join(process.cwd(), "ssa-files", "gbrain.yaml"),
+    });
+
+    const result = resolveRetrieveKnowledgeStore({
+      explicitKnowledge: "fake-gbrain",
+      knowledgeStore: injected,
+      gbrainAdapter: adapter,
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.backend, "fake-gbrain");
+      assert.ok(result.gbrain);
+      result.cleanup();
+    }
+  });
+
+  it("uses AMP_KNOWLEDGE_BACKEND env over injected knowledgeStore", () => {
+    const injected = new InMemoryKnowledgeStore();
+    const fake = new FakeGbrainMcpTransport();
+    const adapter = new GbrainKnowledgeAdapter({
+      transport: fake,
+      ssaSpecPath: join(process.cwd(), "ssa-files", "gbrain.yaml"),
+    });
+
+    const result = resolveRetrieveKnowledgeStore({
+      env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "fake-gbrain" },
+      knowledgeStore: injected,
+      gbrainAdapter: adapter,
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.backend, "fake-gbrain");
+      assert.ok(result.gbrain);
+      result.cleanup();
+    }
+  });
+
+  it("uses injected knowledgeStore as local-persistent when no explicit backend", () => {
+    const injected = new InMemoryKnowledgeStore();
+    const result = resolveRetrieveKnowledgeStore({ knowledgeStore: injected });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.backend, "local-persistent");
+      assert.equal(result.store, injected);
+      result.cleanup();
+    }
+  });
+
+  it("uses injected inMemoryStore when no explicit backend", () => {
+    const inMemory = new InMemoryKnowledgeStore();
+    const result = resolveRetrieveKnowledgeStore({ inMemoryStore: inMemory });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.backend, "in-memory");
+      assert.equal(result.store, inMemory);
+      result.cleanup();
+    }
+  });
+
+  it("prefers explicit backend over injected inMemoryStore", () => {
+    const inMemory = new InMemoryKnowledgeStore();
+    const fake = new FakeGbrainMcpTransport();
+    const adapter = new GbrainKnowledgeAdapter({
+      transport: fake,
+      ssaSpecPath: join(process.cwd(), "ssa-files", "gbrain.yaml"),
+    });
+
+    const result = resolveRetrieveKnowledgeStore({
+      explicitKnowledge: "fake-gbrain",
+      inMemoryStore: inMemory,
+      gbrainAdapter: adapter,
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.backend, "fake-gbrain");
+      assert.ok(result.gbrain);
+      result.cleanup();
+    }
+  });
+
+  it("opens persistent local SQLite when no explicit backend or injections", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-retrieve-resolve-persistent-"));
+    const runtimeDbPath = join(tempDir, "runtime.db");
+
+    try {
+      const result = resolveRetrieveKnowledgeStore({ runtimeDbPath });
+
+      assert.equal(result.ok, true);
+      if (result.ok) {
+        assert.equal(result.backend, "local-persistent");
+        assert.ok(result.store instanceof LocalSqliteKnowledgeStore);
+        result.cleanup();
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("closes persistent local SQLite via cleanup", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-retrieve-resolve-cleanup-"));
+    const runtimeDbPath = join(tempDir, "runtime.db");
+
+    try {
+      const result = resolveRetrieveKnowledgeStore({ runtimeDbPath });
+      assert.equal(result.ok, true);
+      if (result.ok) {
+        result.cleanup();
+        const reopened = new LocalSqliteKnowledgeStore({
+          dbPath: resolveLocalKnowledgeDbPath(runtimeDbPath),
+        });
+        try {
+          assert.equal(reopened.list().length, 0);
+        } finally {
+          reopened.close();
+        }
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when persistent local retrieve has no runtime context", () => {
+    const result = resolveRetrieveKnowledgeStore();
 
     assert.equal(result.ok, false);
     if (!result.ok) {
