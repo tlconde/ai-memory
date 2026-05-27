@@ -17,6 +17,7 @@ import {
   createWriteKnowledgeBackend,
   resolveKnowledgeBackend,
   resolveLocalKnowledgeDbPath,
+  resolveLocalPersistentProjectionKnowledgeStore,
   resolveProjectionKnowledgeStore,
   resolveGraduationApplyKnowledgeStore,
   GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT,
@@ -119,6 +120,87 @@ describe("resolveProjectionKnowledgeStore", () => {
     const result = resolveProjectionKnowledgeStore({
       env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "fake-gbrain" },
     });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
+    }
+  });
+});
+
+describe("resolveLocalPersistentProjectionKnowledgeStore", () => {
+  it("returns injected store for explicit test/DI boundaries", () => {
+    const injected = new InMemoryKnowledgeStore();
+    const result = resolveLocalPersistentProjectionKnowledgeStore({ knowledgeStore: injected });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.store, injected);
+      result.cleanup();
+    }
+  });
+
+  it("opens LocalSqliteKnowledgeStore when runtimeDbPath is provided", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-projection-knowledge-resolve-"));
+    const runtimeDbPath = join(tempDir, "runtime.db");
+
+    try {
+      const result = resolveLocalPersistentProjectionKnowledgeStore({ runtimeDbPath });
+
+      assert.equal(result.ok, true);
+      if (result.ok) {
+        assert.ok(result.store instanceof LocalSqliteKnowledgeStore);
+        result.cleanup();
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not consult AMP_KNOWLEDGE_BACKEND when runtimeDbPath is provided", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-projection-knowledge-no-gbrain-"));
+    const runtimeDbPath = join(tempDir, "runtime.db");
+
+    try {
+      const result = resolveLocalPersistentProjectionKnowledgeStore({
+        runtimeDbPath,
+      });
+
+      assert.equal(result.ok, true);
+      if (result.ok) {
+        assert.ok(result.store instanceof LocalSqliteKnowledgeStore);
+        result.cleanup();
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("closes local SQLite store via cleanup", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-projection-knowledge-cleanup-"));
+    const runtimeDbPath = join(tempDir, "runtime.db");
+
+    try {
+      const result = resolveLocalPersistentProjectionKnowledgeStore({ runtimeDbPath });
+      assert.equal(result.ok, true);
+      if (result.ok) {
+        result.cleanup();
+        const reopened = new LocalSqliteKnowledgeStore({
+          dbPath: resolveLocalKnowledgeDbPath(runtimeDbPath),
+        });
+        try {
+          assert.equal(reopened.list().length, 0);
+        } finally {
+          reopened.close();
+        }
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when neither injected store nor runtimeDbPath is provided", () => {
+    const result = resolveLocalPersistentProjectionKnowledgeStore();
 
     assert.equal(result.ok, false);
     if (!result.ok) {

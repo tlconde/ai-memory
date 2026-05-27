@@ -34,7 +34,10 @@ import {
 } from "./checks/gbrain-preflight.js";
 import { openRuntimeStore } from "./cli-context.js";
 import { resolveAmpRepoRoot } from "./doctor.js";
-import { resolveKnowledgeBackend, resolveProjectionKnowledgeStore } from "./knowledge-backend.js";
+import {
+  resolveKnowledgeBackend,
+  resolveLocalPersistentProjectionKnowledgeStore,
+} from "./knowledge-backend.js";
 
 export type AmpProjectionSourceKind = "placeholder" | "local" | "gbrain";
 
@@ -188,8 +191,8 @@ export function createProjectionRenderSource(
     );
   }
 
-  const knowledgeResult = resolveProjectionKnowledgeStore({
-    env,
+  const knowledgeResult = resolveLocalPersistentProjectionKnowledgeStore({
+    runtimeDbPath,
     knowledgeStore,
   });
 
@@ -197,7 +200,7 @@ export function createProjectionRenderSource(
     return { error: knowledgeResult.error };
   }
 
-  return createRuntimeBackedProjectionSource(
+  const runtimeBacked = createRuntimeBackedProjectionSource(
     runtimeDbPath,
     openStore,
     (runtime) =>
@@ -208,6 +211,14 @@ export function createProjectionRenderSource(
         runtimeSemanticSource: resolveLocalRuntimeSemanticSource(runtime, runtimeSemanticSource),
       })
   );
+
+  return {
+    source: runtimeBacked.source,
+    cleanup: () => {
+      runtimeBacked.cleanup();
+      knowledgeResult.cleanup();
+    },
+  };
 }
 
 /** Run materialization with guaranteed source cleanup (success or throw). */

@@ -1,7 +1,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import { FakeGbrainMcpTransport } from "../adapters/ssa/gbrain/fake-transport.js";
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
+import { LocalSqliteKnowledgeStore } from "../adapters/ssa/local-sqlite-knowledge-store.js";
 import { createFrame } from "../core/frame-schema.js";
 import { PROJECTION_FILE_KINDS } from "../projection/constants.js";
 import {
@@ -17,7 +18,10 @@ import {
 } from "../projection/messages.js";
 import { capturePreference } from "../substrate/capture-preference.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
+import { AMP_KNOWLEDGE_BACKEND_ENV, resolveLocalKnowledgeDbPath, resolveProjectionKnowledgeStore } from "./knowledge-backend.js";
 import { runAmpInit } from "./init.js";
+import { runAmpRuntimeGraduationApply } from "./runtime-graduation-apply.js";
+import { runAmpRuntimeSeed } from "./runtime-seed.js";
 import {
   createProjectionRenderSource,
   materializeProjectionRenderSource,
@@ -29,6 +33,26 @@ import {
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const GBRAIN_SPEC = join(REPO_ROOT, "ssa-files/gbrain.yaml");
+const GENERATED_AT = "2026-05-27T10:00:00.000Z";
+const PREFERENCE_ISO = "2026-05-26T12:00:00.000Z";
+
+const ACTIVE_PREFERENCE = {
+  id: "pref-1",
+  statement: "Keep responses short today",
+  mode: "time_bounded" as const,
+  scope: "user" as const,
+  context: {},
+  status: "active" as const,
+  expires_at: PREFERENCE_ISO,
+  first_observed_at: PREFERENCE_ISO,
+  last_observed_at: PREFERENCE_ISO,
+  source_signal_ids: ["signal-3"],
+  confidence: "medium" as const,
+  promotion_evidence: {
+    repetition_count: 0,
+    independent_sessions: 0,
+  },
+};
 
 describe("projection source factory", () => {
   let tempRoot = "";
@@ -359,22 +383,144 @@ describe("runAmpProjectionRender", () => {
     assert.match(projectRuntime, /Runtime note for local apply\./);
   });
 
-  it("fails local source when offline knowledge backend is unavailable", async () => {
-    const projectRoot = join(tempRoot, "local-no-knowledge");
-    await runAmpInit({ projectRoot });
+  it("local source reads persistent knowledge.db without AMP_KNOWLEDGE_BACKEND=in-memory", async () => {
+    const projectRoot = join(tempRoot, "local-persistent-default");
+    const fakeHome = join(tempRoot, "home-local-persistent-default");
+    const env = { HOME: fakeHome, AMP_KNOWLEDGE_BACKEND: "gbrain" };
+    await runAmpInit({ projectRoot, env });
 
     const result = await runAmpProjectionRender({
       projectRoot,
       source: "local",
       dryRun: true,
-      env: { AMP_KNOWLEDGE_BACKEND: "gbrain" },
+      homedir: () => fakeHome,
+      env,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.source, "local");
+    assert.equal(result.writes.length, 4);
+  });
+
+  it("local projection dry-run includes frames persisted by graduation apply", async () => {
+    const projectRoot = join(tempRoot, "local-graduation-projection");
+    const fakeHome = join(tempRoot, "home-local-graduation-projection");
+    const env = { HOME: fakeHome };
+    await runAmpInit({ projectRoot, env });
+
+    const seedPath = join(projectRoot, "seed.json");
+    await writeFile(
+      seedPath,
+      JSON.stringify({
+        id: "pref-confirmed",
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: {
+          ...ACTIVE_PREFERENCE,
+          id: "pref-confirmed",
+          promotion_evidence: {
+            ...ACTIVE_PREFERENCE.promotion_evidence,
+            explicit_confirmation_signal_id: "confirm-1",
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const seedResult = await runAmpRuntimeSeed({
+      projectRoot,
+      file: seedPath,
+      env,
+      homedir: () => fakeHome,
+    });
+    assert.equal(seedResult.ok, true);
+
+    const applyResult = runAmpRuntimeGraduationApply({
+      projectRoot,
+      id: "pref-confirmed",
+      env,
+      homedir: () => fakeHome,
+      generatedAt: GENERATED_AT,
+    });
+    assert.equal(applyResult.ok, true);
+
+    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const reopened = new LocalSqliteKnowledgeStore({
+      dbPath: resolveLocalKnowledgeDbPath(context.runtimeDbPath),
+    });
+    try {
+      assert.equal(reopened.read("runtime-graduation:pref-confirmed")?.kind, "semantic");
+    } finally {
+      reopened.close();
+    }
+
+    const resolved = createProjectionRenderSource({
+      sourceKind: "local",
+      projectRef: "local-graduation-projection",
+      runtimeDbPath: context.runtimeDbPath,
+    });
+    assert.ok(!("error" in resolved));
+    try {
+      const documents = resolved.source.loadProjectionDocuments({
+        projectRef: "local-graduation-projection",
+      });
+      const globalProjection = documents.find((doc) => doc.metadata.kind === "global_projection");
+      assert.match(globalProjection?.body ?? "", /Keep responses short today/);
+    } finally {
+      resolved.cleanup();
+    }
+
+    const renderResult = await runAmpProjectionRender({
+      projectRoot,
+      source: "local",
+      dryRun: true,
+      homedir: () => fakeHome,
+      env,
+    });
+    assert.equal(renderResult.ok, true);
+  });
+
+  it("local source with empty knowledge.db remains queue and runtime-semantics compatible", async () => {
+    const projectRoot = join(tempRoot, "local-empty-knowledge-db");
+    const fakeHome = join(tempRoot, "home-local-empty-knowledge-db");
+    const env = { HOME: fakeHome };
+    await runAmpInit({ projectRoot, env });
+
+    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const runtime = openRuntimeStore(context.runtimeDbPath);
+    capturePreference(runtime, {
+      content: "Queue-only runtime note.",
+      scope: "project",
+      projectRef: "local-empty-knowledge-db",
+    });
+    runtime.close();
+
+    const resolved = createProjectionRenderSource({
+      sourceKind: "local",
+      projectRef: "local-empty-knowledge-db",
+      runtimeDbPath: context.runtimeDbPath,
+    });
+    assert.ok(!("error" in resolved));
+    try {
+      const documents = resolved.source.loadProjectionDocuments({
+        projectRef: "local-empty-knowledge-db",
+      });
+      const projectRuntime = documents.find((doc) => doc.metadata.kind === "project_runtime");
+      assert.match(projectRuntime?.body ?? "", /Queue-only runtime note\./);
+    } finally {
+      resolved.cleanup();
+    }
+  });
+
+  it("fails legacy in-memory-only resolver when offline knowledge backend is unavailable", () => {
+    const result = resolveProjectionKnowledgeStore({
+      env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "gbrain" },
     });
 
     assert.equal(result.ok, false);
-    assert.equal(result.source, "local");
-    assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
-    assert.match(result.error ?? "", /amp projection render --source placeholder --dry-run/);
-    assert.equal(result.writes.length, 0);
+    if (!result.ok) {
+      assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
+    }
   });
 
   it("gbrain dry-run plans four writes without live gbrain when adapter is injected", async () => {

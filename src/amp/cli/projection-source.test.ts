@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
+import { LocalSqliteKnowledgeStore } from "../adapters/ssa/local-sqlite-knowledge-store.js";
 import { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import { ReadonlyGbrainMcpTransport } from "../adapters/ssa/gbrain/readonly-transport.js";
@@ -30,7 +31,7 @@ import {
   type RuntimeSemanticEntityReader,
 } from "../runtime-semantics/storage-source.js";
 import { capturePreference } from "../substrate/capture-preference.js";
-import { AMP_KNOWLEDGE_BACKEND_ENV } from "./knowledge-backend.js";
+import { AMP_KNOWLEDGE_BACKEND_ENV, resolveLocalKnowledgeDbPath } from "./knowledge-backend.js";
 import { createProjectionRenderSource } from "./projection-source.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -253,7 +254,138 @@ describe("createProjectionRenderSource local", () => {
       runtime.close();
     }
   });
+
+  it("reads durable frames from persistent knowledge.db when no store is injected", () => {
+    const runtimeDbPath = join(tempDir, "persistent-read", "runtime.db");
+    const runtime = new RuntimeStore({ dbPath: runtimeDbPath });
+    const knowledgeDbPath = resolveLocalKnowledgeDbPath(runtimeDbPath);
+    const knowledge = new LocalSqliteKnowledgeStore({ dbPath: knowledgeDbPath });
+    let resolved: ReturnType<typeof createProjectionRenderSource> | undefined;
+    try {
+      knowledge.write([
+        createFrame({
+          id: "persisted-pref",
+          kind: "semantic",
+          content: "Persisted local knowledge frame.",
+          source: { surface: "cursor" },
+          created_at: "2026-05-25T00:00:00.000Z",
+          scope: { kind: "project", project_ref: LOCAL_PROJECT_REF },
+          curation_mode: "personal",
+        }),
+      ]);
+      knowledge.close();
+
+      resolved = createProjectionRenderSource({
+        sourceKind: "local",
+        projectRef: LOCAL_PROJECT_REF,
+        runtimeDbPath,
+        deps: { openRuntimeStore: () => runtime },
+      });
+
+      assert.ok(resolved && !("error" in resolved));
+      if (!resolved || "error" in resolved) return;
+
+      const documents = resolved.source.loadProjectionDocuments({
+        projectRef: LOCAL_PROJECT_REF,
+      });
+      const projectProjection = documents.find((doc) => doc.metadata.kind === "project_projection");
+      assert.match(projectProjection?.body ?? "", /Persisted local knowledge frame\./);
+    } finally {
+      resolvedCleanup(resolved);
+      runtime.close();
+    }
+  });
+
+  it("prefers injected knowledge store over persistent knowledge.db", () => {
+    const runtimeDbPath = join(tempDir, "injected-over-persistent", "runtime.db");
+    const runtime = new RuntimeStore({ dbPath: runtimeDbPath });
+    const injected = new InMemoryKnowledgeStore();
+    const persistent = new LocalSqliteKnowledgeStore({
+      dbPath: resolveLocalKnowledgeDbPath(runtimeDbPath),
+    });
+    let resolved: ReturnType<typeof createProjectionRenderSource> | undefined;
+    try {
+      injected.write([
+        createFrame({
+          id: "injected-pref",
+          kind: "semantic",
+          content: "Injected knowledge wins.",
+          source: { surface: "cursor" },
+          created_at: "2026-05-25T00:00:00.000Z",
+          scope: { kind: "project", project_ref: LOCAL_PROJECT_REF },
+          curation_mode: "personal",
+        }),
+      ]);
+      persistent.write([
+        createFrame({
+          id: "persistent-pref",
+          kind: "semantic",
+          content: "Persistent knowledge should not win.",
+          source: { surface: "cursor" },
+          created_at: "2026-05-25T00:00:00.000Z",
+          scope: { kind: "project", project_ref: LOCAL_PROJECT_REF },
+          curation_mode: "personal",
+        }),
+      ]);
+      persistent.close();
+
+      resolved = createProjectionRenderSource({
+        sourceKind: "local",
+        projectRef: LOCAL_PROJECT_REF,
+        runtimeDbPath,
+        knowledgeStore: injected,
+        deps: { openRuntimeStore: () => runtime },
+      });
+
+      assert.ok(resolved && !("error" in resolved));
+      if (!resolved || "error" in resolved) return;
+
+      const projectProjection = resolved.source
+        .loadProjectionDocuments({ projectRef: LOCAL_PROJECT_REF })
+        .find((doc) => doc.metadata.kind === "project_projection");
+      assert.match(projectProjection?.body ?? "", /Injected knowledge wins\./);
+      assert.doesNotMatch(projectProjection?.body ?? "", /Persistent knowledge should not win\./);
+    } finally {
+      resolvedCleanup(resolved);
+      runtime.close();
+    }
+  });
+
+  it("closes persistent knowledge store via projection source cleanup", async () => {
+    const runtimeDbPath = join(tempDir, "persistent-cleanup", "runtime.db");
+    const runtime = new RuntimeStore({ dbPath: runtimeDbPath });
+    try {
+      const resolved = createProjectionRenderSource({
+        sourceKind: "local",
+        projectRef: LOCAL_PROJECT_REF,
+        runtimeDbPath,
+        deps: { openRuntimeStore: () => runtime },
+      });
+
+      assert.ok(!("error" in resolved));
+      resolved.cleanup();
+
+      const reopened = new LocalSqliteKnowledgeStore({
+        dbPath: resolveLocalKnowledgeDbPath(runtimeDbPath),
+      });
+      try {
+        assert.equal(reopened.list().length, 0);
+      } finally {
+        reopened.close();
+      }
+    } finally {
+      runtime.close();
+    }
+  });
 });
+
+function resolvedCleanup(
+  resolved: ReturnType<typeof createProjectionRenderSource> | undefined,
+): void {
+  if (resolved && !("error" in resolved)) {
+    resolved.cleanup();
+  }
+}
 
 describe("createProjectionRenderSource gbrain", () => {
   let tempDir = "";

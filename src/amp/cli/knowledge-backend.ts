@@ -169,6 +169,33 @@ export function resolveProjectionKnowledgeStore(
   return { ok: true, store: handle.inMemory };
 }
 
+export interface ResolveLocalPersistentProjectionKnowledgeStoreOptions {
+  knowledgeStore?: KnowledgeStore;
+  runtimeDbPath?: string;
+}
+
+export type ResolveLocalPersistentProjectionKnowledgeStoreResult =
+  | { ok: true; store: KnowledgeStore; cleanup: () => void }
+  | { ok: false; error: string };
+
+/** Resolve local projection knowledge from injected store or persistent knowledge.db (no gbrain). */
+export function resolveLocalPersistentProjectionKnowledgeStore(
+  options: ResolveLocalPersistentProjectionKnowledgeStoreOptions = {},
+): ResolveLocalPersistentProjectionKnowledgeStoreResult {
+  if (options.knowledgeStore) {
+    return { ok: true, store: options.knowledgeStore, cleanup: () => {} };
+  }
+
+  if (!options.runtimeDbPath) {
+    return { ok: false, error: LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE };
+  }
+
+  const store = new LocalSqliteKnowledgeStore({
+    dbPath: resolveLocalKnowledgeDbPath(options.runtimeDbPath),
+  });
+  return { ok: true, store, cleanup: () => store.close() };
+}
+
 export const GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT =
   "Graduation apply requires a persistent local knowledge backend; in-memory CLI apply is not durable.";
 
