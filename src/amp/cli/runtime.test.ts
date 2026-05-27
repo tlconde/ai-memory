@@ -79,6 +79,23 @@ describe("registerAmpCommands runtime group", () => {
       correct.options.some((option) => option.long?.includes("--note")),
       "expected --note option on runtime correct"
     );
+
+    const seed = runtime.commands.find((cmd) => cmd.name() === "seed");
+    assert.ok(seed, "expected amp runtime seed subcommand");
+    assert.ok(
+      seed.options.some((option) => option.long?.includes("--file")),
+      "expected --file option on runtime seed"
+    );
+
+    const graduation = runtime.commands.find((cmd) => cmd.name() === "graduation");
+    assert.ok(graduation, "expected amp runtime graduation command group");
+
+    const plan = graduation.commands.find((cmd) => cmd.name() === "plan");
+    assert.ok(plan, "expected amp runtime graduation plan subcommand");
+    assert.ok(
+      plan.options.some((option) => option.long?.includes("--entity")),
+      "expected --entity option on runtime graduation plan"
+    );
   });
 
   it("mentions read-only graduation plan in amp status wiring", async () => {

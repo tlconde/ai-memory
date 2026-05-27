@@ -19,11 +19,8 @@ import {
   type RuntimeGraduationPlan,
 } from "../runtime-semantics/graduation-planner.js";
 import {
-  RUNTIME_ENTITY_REGISTRY,
   type RuntimeEntityKind,
   type RuntimeEntitySchemaName,
-  isRuntimeEntityKind,
-  runtimeEntitySchemaNameForKind,
 } from "../runtime-semantics/schema.js";
 import {
   RuntimeStoreSemanticEntityReader,
@@ -39,6 +36,7 @@ import {
   resolveAmpRuntimeCliBootstrap,
   withAmpRuntimeCliStore,
 } from "./runtime-cli-bootstrap.js";
+import { parseRuntimeCliEntityFilter } from "./runtime-cli-entity-filter.js";
 
 export interface AmpRuntimeGraduationPlanOptions {
   projectRoot?: string;
@@ -89,19 +87,16 @@ export function runAmpRuntimeGraduationPlan(
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const env = options.env ?? process.env;
 
-  let entity: RuntimeEntityKind | undefined;
-  if (options.entity !== undefined) {
-    if (!isRuntimeEntityKind(options.entity)) {
-      const expected = RUNTIME_ENTITY_REGISTRY.map((entry) => entry.kind).join(", ");
-      return {
-        projectRoot,
-        storageWired: false,
-        ok: false,
-        error: `Invalid runtime entity kind "${options.entity}" — expected one of: ${expected}.`,
-      };
-    }
-    entity = options.entity;
+  const entityFilter = parseRuntimeCliEntityFilter(options.entity);
+  if (!entityFilter.ok) {
+    return {
+      projectRoot,
+      storageWired: false,
+      ok: false,
+      error: entityFilter.error,
+    };
   }
+  const entity = entityFilter.entity;
 
   const bootstrap = resolveAmpRuntimeCliBootstrap({
     projectRoot: options.projectRoot,
@@ -146,7 +141,7 @@ export function runAmpRuntimeGraduationPlan(
     projectRoot: bootstrap.projectRoot,
     runtimeDbPath: bootstrap.runtimeDbPath,
     entity,
-    entitySchemaName: entity ? runtimeEntitySchemaNameForKind(entity) : undefined,
+    entitySchemaName: entityFilter.entitySchemaName,
     storageWired: true,
     ok: true,
     plan,
