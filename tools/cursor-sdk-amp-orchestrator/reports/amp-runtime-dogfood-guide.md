@@ -1,15 +1,15 @@
 # AMP Runtime Semantics — Operator Dogfood Guide
 
-> **Task:** Prompt 1 — safe local dogfooding in a real workspace (e.g. `ai-product-sense`)
+> **Task:** LOCAL-KNOW-04 — durable local knowledge dogfooding in a real workspace (e.g. `ai-product-sense`)
 > **Base:** `ralph/amp-runtime-semantics-plan` runtime semantics line
 > **Date:** 2026-05-27
-> **Scope:** Operator guide only — no production code changes
+> **Scope:** Operator docs and CLI copy for persistent local knowledge (companion message/status updates in `src/amp/`)
 
 ---
 
 ## Verdict
 
-**Safe to dogfood locally with explicit commands only.** Use a linked build from `ai-memory`, a throwaway branch in the target repo, and isolated env vars (`AMP_USER_ROOT`, `AMP_KNOWLEDGE_BACKEND=in-memory`). This exercises typed runtime storage (`amp runtime correct` / `inspect`) and offline local projection without live gbrain, automatic capture, or consolidation.
+**Safe to dogfood locally with explicit commands only.** Use a linked build from `ai-memory`, a throwaway branch in the target repo, and isolated env vars (`AMP_USER_ROOT`). This exercises typed runtime storage (`amp runtime correct` / `inspect`), durable local knowledge (`amp runtime graduation apply`), and offline local projection (`amp projection render --source local`) without live gbrain, automatic capture, or consolidation.
 
 ---
 
@@ -17,11 +17,14 @@
 
 | Step | Command | Storage / side effects |
 |------|---------|------------------------|
-| Init | `amp init` | Project `.amp/config.yaml`, `.amp/runtime/` dir, `.amp/local/`; SQLite file appears on first typed write |
+| Init | `amp init` | Project `.amp/config.yaml`, `.amp/runtime/` dir, `.amp/local/`; SQLite appears on first typed write |
 | Health | `amp doctor`, `amp runtime status` | Read-only checks |
-| Explicit correction | `amp runtime correct --id … --note …` | Typed `episodic-frame` row in project runtime DB |
+| Explicit correction | `amp runtime correct --id … --note …` | Typed `episodic-frame` row in project runtime DB (episodic, not durable knowledge) |
+| Seed candidate (optional) | `amp runtime seed --file …` | Typed `runtime-preference-candidate` row for graduation dogfood |
+| Graduation review | `amp runtime graduation plan` | Read-only graduation decisions |
+| Graduation apply | `amp runtime graduation apply --id …` | Writes one durable semantic frame to `.amp/runtime/knowledge.db` |
 | Inspect | `amp runtime inspect [--json]` | Read-only typed entity report |
-| Projection plan | `amp projection render --source local --dry-run` | No disk writes |
+| Projection plan | `amp projection render --source local --dry-run` | Plans four paths; may create empty `knowledge.db` on first open |
 | Projection apply | `amp projection render --source local --apply` | Writes four markdown files (project + global under `AMP_USER_ROOT`) |
 
 **Not exercised (intentionally):** live gbrain reads/writes, `amp capture`, `amp consolidate`, agent setup apply, Hermes/Cursor/Claude propagation.
@@ -46,7 +49,6 @@ amp --version
 
 ```bash
 export AMP_USER_ROOT="$PWD/.amp/dogfood-user"
-export AMP_KNOWLEDGE_BACKEND=in-memory
 
 # Optional but recommended when AMP_USER_ROOT lives inside the repo:
 echo ".amp/dogfood-user/" >> .gitignore
@@ -55,7 +57,8 @@ echo ".amp/dogfood-user/" >> .gitignore
 | Variable | Purpose |
 |----------|---------|
 | `AMP_USER_ROOT` | Keeps **global** projection/runtime markdown under the project (`.amp/dogfood-user/…`) instead of `~/.amp` |
-| `AMP_KNOWLEDGE_BACKEND=in-memory` | **Required** for `--source local` projection; default backend is `gbrain` and will fail closed with `LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE` |
+
+**Local knowledge storage:** Durable frames live in `.amp/runtime/knowledge.db` beside `runtime.db`. `--source local` reads this file by default after `amp init`. You do **not** need `AMP_KNOWLEDGE_BACKEND=in-memory` for local projection.
 
 Project-local runtime SQLite lives at `.amp/runtime/runtime.db` after `amp init` (from project config). No need to override `AMP_RUNTIME_PATH` unless you want a custom DB path.
 
@@ -71,7 +74,6 @@ git status
 git switch -c amp-runtime-dogfood
 
 export AMP_USER_ROOT="$PWD/.amp/dogfood-user"
-export AMP_KNOWLEDGE_BACKEND=in-memory
 ```
 
 ### 2. Initialize and verify
@@ -85,7 +87,7 @@ amp runtime status
 - If `amp init` reports config already exists, that is fine. **Do not** use `--force` unless you intend to replace project AMP config.
 - `amp runtime status` should list supported entity schemas and note that local typed storage is wired for inspect/seed/correct.
 
-### 3. Add one explicit correction
+### 3. Add one explicit correction (episodic)
 
 ```bash
 amp runtime correct \
@@ -97,9 +99,47 @@ amp runtime correct \
 
 **Idempotency:** Default record id is `explicit-correction:dogfood-start`. A second `correct` with the **same `--id`** fails closed with `duplicate_id` even if `--note` changes (by design). Use a **new `--id`** for additional corrections via CLI.
 
-**Experimental surfaces:** `amp runtime inspect` and `amp runtime seed` are CLI-labeled experimental; `correct` is the primary dogfood write path. The overall runtime CLI remains pre-release.
+### 4. (Optional) Seed and graduate a preference candidate
 
-### 4. Inspect typed storage
+For durable knowledge that appears in projection bodies, seed a confirmed preference candidate and apply graduation:
+
+```bash
+cat > seed.json <<'EOF'
+{
+  "id": "pref-dogfood",
+  "kind": "runtime-preference-candidate",
+  "scope": "user",
+  "payload": {
+    "id": "pref-dogfood",
+    "statement": "Keep responses short today",
+    "mode": "time_bounded",
+    "scope": "user",
+    "context": {},
+    "status": "active",
+    "expires_at": "2026-05-27T12:00:00.000Z",
+    "first_observed_at": "2026-05-27T12:00:00.000Z",
+    "last_observed_at": "2026-05-27T12:00:00.000Z",
+    "source_signal_ids": ["signal-dogfood"],
+    "confidence": "medium",
+    "promotion_evidence": {
+      "repetition_count": 0,
+      "independent_sessions": 0,
+      "explicit_confirmation_signal_id": "confirm-dogfood"
+    }
+  }
+}
+EOF
+
+amp runtime seed --file seed.json
+amp runtime graduation plan
+amp runtime graduation apply --id pref-dogfood
+```
+
+**Semantics:** Graduation apply writes one semantic frame to `.amp/runtime/knowledge.db` without mutating the runtime semantic entity row. Re-running apply with the same id fails closed on duplicate durable frame ids.
+
+**Experimental surfaces:** `amp runtime inspect`, `seed`, and `graduation plan`/`apply` are CLI-labeled experimental; `correct` is the primary episodic dogfood write path. The overall runtime CLI remains pre-release.
+
+### 5. Inspect typed storage
 
 ```bash
 amp runtime inspect
@@ -107,9 +147,9 @@ amp runtime inspect --json
 amp runtime inspect --entity episodic-frame
 ```
 
-Expect one valid `episodic-frame` row with your note in the payload.
+Expect correction rows under `episodic-frame` and, if seeded, preference candidates under `runtime-preference-candidate`.
 
-### 5. Render projection — dry-run first
+### 6. Render projection — dry-run first
 
 ```bash
 amp projection render --source local --dry-run
@@ -117,7 +157,9 @@ amp projection render --source local --dry-run
 
 Review the planned writes (four paths: project `.amp/local/projection.md`, `.amp/local/runtime.md`, plus global files under `$AMP_USER_ROOT`).
 
-### 6. Apply only if dry-run looks sane
+**Note:** First local projection open may create an empty `.amp/runtime/knowledge.db` even on dry-run. That is expected when no graduation apply has run yet.
+
+### 7. Apply only if dry-run looks sane
 
 ```bash
 amp projection render --source local --apply
@@ -132,7 +174,7 @@ cat "$AMP_USER_ROOT/runtime/global.md"
 cat "$AMP_USER_ROOT/projection/global.md"
 ```
 
-The correction should appear under an episodic heading (e.g. **Episodic correction (not durable truth)**), not as consolidated preference truth.
+Corrections appear under an episodic heading (e.g. **Episodic correction (not durable truth)**), not as consolidated preference truth. Graduated preferences appear in projection bodies when present in `knowledge.db`.
 
 ---
 
@@ -140,10 +182,12 @@ The correction should appear under an episodic heading (e.g. **Episodic correcti
 
 | Mistake | Effect |
 |---------|--------|
-| `amp projection render --source local` without `--dry-run` or `--apply` | **Defaults to apply** — writes four files immediately when env is set |
-| Forgetting env vars in a subshell | Local projection fails or global files land under `~/.amp` |
-| `amp consolidate` with in-memory backend | Still promotes queue → knowledge — not the explicit-correction path |
+| `amp projection render --source local` without `--dry-run` or `--apply` | **Defaults to apply** — writes four files immediately |
+| Forgetting `AMP_USER_ROOT` in a subshell | Global files land under `~/.amp` |
+| Expecting `runtime correct` alone to populate durable projection preferences | Corrections are episodic only; use graduation apply for durable knowledge |
+| `amp consolidate` | Promotion path — not the explicit correction or graduation apply contract |
 | `amp runtime seed` | Writes arbitrary typed entities into the same DB you inspect |
+| Assuming dry-run never touches disk | Local projection may create empty `knowledge.db` on first open |
 
 ---
 
@@ -176,13 +220,12 @@ npm unlink -g @radix-ai/ai-memory   # or reinstall the published package
 |-------|--------|
 | Live gbrain (`--source gbrain`, default knowledge backend) | Reads/writes real brain; requires preflight and opt-in |
 | `amp projection render --source gbrain` (even `--dry-run`) | Spawns gbrain preflight / readonly transport probes |
-| `amp consolidate` / `amp retrieve` (any backend) | Promotion and durable knowledge paths; not explicit correction |
+| `amp consolidate` / `amp retrieve` (any backend) | Promotion and durable knowledge paths; not explicit correction / graduation apply |
 | `amp capture` | Queue capture automation — not the explicit correction contract |
-| `amp runtime seed` | Experimental typed-entity writes into the same runtime DB |
 | `amp agent setup --apply` | Mutates Cursor/Claude/Codex harness files |
 | `amp propagate` | Compiles registry procedures to verified harness roots |
 | `amp projection render --source local` without explicit `--dry-run` or `--apply` | Defaults to apply |
-| Publishing this branch to npm | Runtime CLI is **experimental**; wait for release-readiness audit (Prompt 3) |
+| Publishing this branch to npm | Runtime CLI is **experimental**; wait for release-readiness audit |
 | `--force` on `amp init` in a repo with existing AMP config | Overwrites project config |
 
 ---
@@ -192,7 +235,8 @@ npm unlink -g @radix-ai/ai-memory   # or reinstall the published package
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | `Project AMP config not found` | Skipped `amp init` | Run `amp init` in project root |
-| Local projection knowledge unavailable | Missing `AMP_KNOWLEDGE_BACKEND=in-memory` | Export env var in shell |
+| Local projection knowledge unavailable | Runtime storage not initialized | Run `amp init`; ensure `.amp/runtime/runtime.db` exists |
+| Empty projection preference bodies | No frames in `knowledge.db` yet | Run `amp runtime graduation apply --id …` after seeding a confirmed candidate |
 | `duplicate_id` on second `runtime correct` | Same `--id` (even with changed `--note`) | New `--id`; use `amp runtime correct --json` for `reason` codes |
 | `invalid_note` | Empty or whitespace-only `--note` | Provide non-empty note text |
 | Global files under `~/.amp` | Missing `AMP_USER_ROOT` | Export before projection apply |
@@ -217,56 +261,3 @@ npm run typecheck
 npm run amp:acceptance
 git diff --check
 ```
-
-| Check | Result |
-|-------|--------|
-| `npm run typecheck` | **PASS** (2026-05-27) |
-| `npm run amp:acceptance` | **PASS** (2026-05-27) |
-| `git diff --check` | **PASS** (no conflict markers or trailing whitespace) |
-
----
-
-## Thermo-nuclear code quality review
-
-**Reviewer:** thermo-nuclear-code-quality-review subagent  
-**Scope:** Guide accuracy vs. CLI sources (`runtime.ts`, `runtime-inspect.ts`, `projection.ts`, `projection-source.ts`, `knowledge-backend.ts`, `init.ts`, `index.ts`)  
-**Post-fix verdict:** **Approve with notes** — guide updated to address blockers from initial review
-
-### Initial blockers (fixed in this revision)
-
-| Finding | Resolution |
-|---------|------------|
-| False Invariant 6 claim for `AMP_USER_ROOT` | Rollback section now states `.amp/dogfood-user/` is **not** gitignored; prerequisites recommend adding it to `.gitignore` |
-| Documented `--record-id` CLI flag (not exposed) | Removed; idempotency section documents one correction per `--id` via CLI only |
-| Missing projection default-apply footgun | Added **Footguns** section |
-| Incomplete "do not test yet" list | Added `seed`, gbrain dry-run, consolidate with in-memory, implicit apply mode |
-| Imprecise `duplicate_id` semantics | Clarified same `--id` fails even when `--note` changes |
-
-### Remaining notes (non-blocking)
-
-- **Experimental labels:** `inspect`/`seed` are CLI-labeled experimental; guide now calls this out.
-- **Init timing:** Table notes SQLite appears on first typed write, not necessarily at init.
-- **Bootstrap error text:** Some CLI paths say ``Run `ai-memory amp init` first``; linked `amp init` is equivalent.
-
-### Verified CLI alignment
-
-| Guide claim | Confirmed |
-|-------------|-----------|
-| `AMP_KNOWLEDGE_BACKEND=in-memory` required for `--source local` | `resolveProjectionKnowledgeStore()` |
-| Default knowledge backend is `gbrain` | `resolveKnowledgeBackend()` |
-| Four projection paths | `projection/paths.ts` |
-| `duplicate_id` on repeated `--id` | `defaultExplicitCorrectionRecordId` + storage writer |
-| Episodic projection heading | `EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING` |
-| Placeholder source blocks apply | `PlaceholderProjectionSource.supportsApply === false` |
-
-### Approval bar
-
-| Criterion | Status |
-|-----------|--------|
-| No false safety invariants | **Pass** (after fix) |
-| Documented commands match CLI contracts | **Pass** |
-| Footguns documented | **Pass** |
-| Happy-path flow accurate | **Pass** |
-| Operator-readable structure | **Pass** |
-
-**Summary:** Core flow (`init` → env → `correct` → `inspect` → `projection render --source local --dry-run` → `--apply`) matches implementation. Safe to use for local dogfooding when operators follow the env isolation and footgun callouts.

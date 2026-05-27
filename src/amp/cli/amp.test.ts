@@ -111,7 +111,11 @@ describe("registerAmpCommands", () => {
     const output = chunks.join("");
     assert.match(output, /--source local/);
     assert.match(output, /--source gbrain/);
-    assert.match(output, /AMP_KNOWLEDGE_BACKEND=in-memory/);
+    assert.match(output, /persistent knowledge\.db/);
+    assert.doesNotMatch(
+      output,
+      /AMP_KNOWLEDGE_BACKEND=in-memory.*--source local|--source local.*AMP_KNOWLEDGE_BACKEND=in-memory/,
+    );
   });
 
   it("exports a stable shell version constant", () => {

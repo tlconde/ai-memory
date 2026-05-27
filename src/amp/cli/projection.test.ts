@@ -14,7 +14,7 @@ import { createFrame } from "../core/frame-schema.js";
 import { PROJECTION_FILE_KINDS } from "../projection/constants.js";
 import {
   DB_BACKED_MATERIALIZATION_NOT_WIRED,
-  LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
+  LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE,
 } from "../projection/messages.js";
 import { capturePreference } from "../substrate/capture-preference.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
@@ -519,7 +519,7 @@ describe("runAmpProjectionRender", () => {
 
     assert.equal(result.ok, false);
     if (!result.ok) {
-      assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
+      assert.equal(result.error, LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE);
     }
   });
 

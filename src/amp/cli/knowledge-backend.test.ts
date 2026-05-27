@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import { AMP_CONFIRM_LIVE_GBRAIN_WRITE_ENV } from "../gbrain/live-policy.js";
 import {
+  LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE,
   LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
 } from "../projection/messages.js";
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
@@ -112,7 +113,7 @@ describe("resolveProjectionKnowledgeStore", () => {
 
     assert.equal(result.ok, false);
     if (!result.ok) {
-      assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
+      assert.equal(result.error, LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE);
     }
   });
 
@@ -123,7 +124,17 @@ describe("resolveProjectionKnowledgeStore", () => {
 
     assert.equal(result.ok, false);
     if (!result.ok) {
-      assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
+      assert.equal(result.error, LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE);
+    }
+  });
+
+  it("legacy resolver error mentions in-memory without claiming local projection requires it", () => {
+    const result = resolveProjectionKnowledgeStore({ env: {} });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.match(result.error, /AMP_KNOWLEDGE_BACKEND=in-memory/);
+      assert.match(result.error, /Legacy projection knowledge resolver/);
+      assert.doesNotMatch(result.error, /Set AMP_KNOWLEDGE_BACKEND=in-memory or run/);
     }
   });
 });
@@ -205,6 +216,15 @@ describe("resolveLocalPersistentProjectionKnowledgeStore", () => {
     assert.equal(result.ok, false);
     if (!result.ok) {
       assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
+    }
+  });
+
+  it("persistent resolver error does not claim in-memory is required for local projection", () => {
+    const result = resolveLocalPersistentProjectionKnowledgeStore();
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.match(result.error, /persistent knowledge\.db/);
+      assert.doesNotMatch(result.error, /AMP_KNOWLEDGE_BACKEND=in-memory/);
     }
   });
 });

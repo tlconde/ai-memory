@@ -121,5 +121,11 @@ describe("registerAmpCommands runtime group", () => {
     const output = chunks.join("");
     assert.match(output, /graduation plan/i);
     assert.match(output, /read-only graduation review/i);
+    assert.match(output, /graduation apply writes durable local knowledge/i);
+    assert.match(output, /persistent knowledge\.db/);
+    assert.doesNotMatch(
+      output,
+      /AMP_KNOWLEDGE_BACKEND=in-memory.*--source local|--source local.*AMP_KNOWLEDGE_BACKEND=in-memory/,
+    );
   });
 });

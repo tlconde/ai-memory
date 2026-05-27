@@ -11,7 +11,10 @@ import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import { FakeGbrainMcpTransport } from "../adapters/ssa/gbrain/fake-transport.js";
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
 import { LocalSqliteKnowledgeStore } from "../adapters/ssa/local-sqlite-knowledge-store.js";
-import { LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE } from "../projection/messages.js";
+import {
+  LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE,
+  LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
+} from "../projection/messages.js";
 import type { KnowledgeStore } from "../substrate/storage/knowledge-store.js";
 import {
   assertLiveGbrainWriteConfirmed,
@@ -154,7 +157,7 @@ export function resolveProjectionKnowledgeStore(
 
   const backend = resolveKnowledgeBackend({ env: options.env });
   if (backend !== "in-memory") {
-    return { ok: false, error: LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE };
+    return { ok: false, error: LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE };
   }
 
   const handle = createReadKnowledgeBackend({
@@ -163,7 +166,7 @@ export function resolveProjectionKnowledgeStore(
   });
 
   if (!handle.inMemory) {
-    return { ok: false, error: LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE };
+    return { ok: false, error: LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE };
   }
 
   return { ok: true, store: handle.inMemory };
