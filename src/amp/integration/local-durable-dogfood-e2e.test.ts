@@ -4,7 +4,8 @@
  * Falsifiable claim: the explicit operator path init → seed → graduation plan →
  * graduation apply → local projection dry-run/apply works against real CLI
  * functions and persistent `.amp/runtime/knowledge.db` without gbrain transport
- * or injected knowledge stores.
+ * or injected knowledge stores. Retrieve reads the same durable knowledge store
+ * by default after graduation apply.
  */
 
 import { describe, it, before, after } from "node:test";
@@ -24,6 +25,7 @@ import { createProjectionRenderSource } from "../cli/projection-source.js";
 import { runAmpRuntimeGraduationApply } from "../cli/runtime-graduation-apply.js";
 import { runAmpRuntimeGraduationPlan } from "../cli/runtime-graduation-plan.js";
 import { runAmpRuntimeSeed } from "../cli/runtime-seed.js";
+import { formatAmpRetrieveMessages, runAmpRetrieve } from "../cli/retrieve.js";
 import { ACTIVE_PREFERENCE } from "../runtime-semantics/runtime-semantics.test-fixture.js";
 import {
   canonicalLocalProjectionPaths,
@@ -50,7 +52,7 @@ describe("Local durable dogfood E2E", () => {
     await rm(tempRoot, { recursive: true, force: true });
   });
 
-  it("runs seed → graduation plan/apply → local projection against persistent knowledge.db", async () => {
+  it("runs seed → graduation plan/apply → retrieve → local projection against persistent knowledge.db", async () => {
     const projectRoot = join(tempRoot, "local-durable-dogfood");
     const { env, ampUserRoot, rejectRealHomedir } = createIsolatedAmpTestEnv(
       tempRoot,
@@ -150,6 +152,22 @@ describe("Local durable dogfood E2E", () => {
     } finally {
       runtimeAfterApply.close();
     }
+
+    const retrieveResult = await runAmpRetrieve({
+      projectRoot,
+      env,
+      homedir: rejectRealHomedir,
+      scope: "user",
+    });
+    assert.equal(retrieveResult.knowledgeBackend, "local-persistent");
+    assert.equal(retrieveResult.knowledgeSource, "local-sqlite");
+    assert.equal(retrieveResult.preferences.length, 1);
+    assert.equal(retrieveResult.preferences[0]?.frame.id, `runtime-graduation:${CANDIDATE_ID}`);
+    const retrievedContent = retrieveResult.preferences[0]?.frame.content as { statement?: string };
+    assert.equal(retrievedContent.statement, PREFERENCE_STATEMENT);
+
+    const retrieveMessages = formatAmpRetrieveMessages(retrieveResult);
+    assert.match(retrieveMessages.join("\n"), /local persistent knowledge\.db/);
 
     const dryRunResult = await runAmpProjectionRender({
       projectRoot,
