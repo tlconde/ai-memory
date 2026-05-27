@@ -31,7 +31,8 @@ import {
   type RuntimeSemanticEntityReader,
 } from "../runtime-semantics/storage-source.js";
 import { capturePreference } from "../substrate/capture-preference.js";
-import { AMP_KNOWLEDGE_BACKEND_ENV, resolveLocalKnowledgeDbPath } from "./knowledge-backend.js";
+import { AMP_KNOWLEDGE_BACKEND_ENV, resolveLocalKnowledgeDbPath, resolveLegacyInMemoryProjectionKnowledgeStore } from "./knowledge-backend.js";
+import { LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE } from "../projection/messages.js";
 import { createProjectionRenderSource } from "./projection-source.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -290,6 +291,59 @@ describe("createProjectionRenderSource local", () => {
       });
       const projectProjection = documents.find((doc) => doc.metadata.kind === "project_projection");
       assert.match(projectProjection?.body ?? "", /Persisted local knowledge frame\./);
+    } finally {
+      resolvedCleanup(resolved);
+      runtime.close();
+    }
+  });
+
+  it("local source ignores AMP_KNOWLEDGE_BACKEND and does not use legacy in-memory resolver", () => {
+    const runtimeDbPath = join(tempDir, "local-env-guard", "runtime.db");
+    const runtime = new RuntimeStore({ dbPath: runtimeDbPath });
+    const knowledgeDbPath = resolveLocalKnowledgeDbPath(runtimeDbPath);
+    const knowledge = new LocalSqliteKnowledgeStore({ dbPath: knowledgeDbPath });
+    let resolved: ReturnType<typeof createProjectionRenderSource> | undefined;
+
+    const legacyWouldFail = resolveLegacyInMemoryProjectionKnowledgeStore({
+      env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "gbrain" },
+    });
+    assert.equal(legacyWouldFail.ok, false);
+    if (!legacyWouldFail.ok) {
+      assert.equal(legacyWouldFail.error, LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE);
+    }
+
+    try {
+      knowledge.write([
+        createFrame({
+          id: "env-guard-pref",
+          kind: "semantic",
+          content: "Opened via persistent resolver despite gbrain env.",
+          source: { surface: "cursor" },
+          created_at: "2026-05-25T00:00:00.000Z",
+          scope: { kind: "project", project_ref: LOCAL_PROJECT_REF },
+          curation_mode: "personal",
+        }),
+      ]);
+      knowledge.close();
+
+      resolved = createProjectionRenderSource({
+        sourceKind: "local",
+        projectRef: LOCAL_PROJECT_REF,
+        runtimeDbPath,
+        env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "gbrain" },
+        deps: { openRuntimeStore: () => runtime },
+      });
+
+      assert.ok(resolved && !("error" in resolved));
+      if (!resolved || "error" in resolved) return;
+
+      const projectProjection = resolved.source
+        .loadProjectionDocuments({ projectRef: LOCAL_PROJECT_REF })
+        .find((doc) => doc.metadata.kind === "project_projection");
+      assert.match(
+        projectProjection?.body ?? "",
+        /Opened via persistent resolver despite gbrain env\./,
+      );
     } finally {
       resolvedCleanup(resolved);
       runtime.close();

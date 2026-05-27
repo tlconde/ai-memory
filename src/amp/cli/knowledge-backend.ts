@@ -138,19 +138,24 @@ export function createWriteKnowledgeBackend(
   return createKnowledgeBackend({ ...options, access: "write" });
 }
 
-export interface ResolveProjectionKnowledgeStoreOptions {
+export interface ResolveLegacyInMemoryProjectionKnowledgeStoreOptions {
   env?: NodeJS.ProcessEnv;
   knowledgeStore?: InMemoryKnowledgeStore;
 }
 
-export type ResolveProjectionKnowledgeStoreResult =
+export type ResolveLegacyInMemoryProjectionKnowledgeStoreResult =
   | { ok: true; store: InMemoryKnowledgeStore }
   | { ok: false; error: string };
 
-/** Resolve offline knowledge for local projection source — never live gbrain. */
-export function resolveProjectionKnowledgeStore(
-  options: ResolveProjectionKnowledgeStoreOptions = {}
-): ResolveProjectionKnowledgeStoreResult {
+/**
+ * Legacy in-memory projection knowledge resolver for in-process consolidate+render tests.
+ *
+ * Production `--source local` uses {@link resolveLocalPersistentProjectionKnowledgeStore}
+ * and does not read `AMP_KNOWLEDGE_BACKEND`. Do not use this in projection materialization.
+ */
+export function resolveLegacyInMemoryProjectionKnowledgeStore(
+  options: ResolveLegacyInMemoryProjectionKnowledgeStoreOptions = {},
+): ResolveLegacyInMemoryProjectionKnowledgeStoreResult {
   if (options.knowledgeStore) {
     return { ok: true, store: options.knowledgeStore };
   }

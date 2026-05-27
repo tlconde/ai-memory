@@ -22,7 +22,7 @@ import {
   resolveLocalKnowledgeDbPath,
   resolveLocalPersistentProjectionKnowledgeStore,
   resolveLocalPersistentRetrieveKnowledgeStore,
-  resolveProjectionKnowledgeStore,
+  resolveLegacyInMemoryProjectionKnowledgeStore,
   resolveRetrieveKnowledgeStore,
   resolveGraduationApplyKnowledgeStore,
   GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT,
@@ -92,10 +92,10 @@ describe("createKnowledgeBackend", () => {
   });
 });
 
-describe("resolveProjectionKnowledgeStore", () => {
+describe("resolveLegacyInMemoryProjectionKnowledgeStore", () => {
   it("returns injected store without reading env backend", () => {
     const injected = new InMemoryKnowledgeStore();
-    const result = resolveProjectionKnowledgeStore({
+    const result = resolveLegacyInMemoryProjectionKnowledgeStore({
       knowledgeStore: injected,
       env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "gbrain" },
     });
@@ -105,7 +105,7 @@ describe("resolveProjectionKnowledgeStore", () => {
   });
 
   it("creates in-memory store when env backend is in-memory", () => {
-    const result = resolveProjectionKnowledgeStore({
+    const result = resolveLegacyInMemoryProjectionKnowledgeStore({
       env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "in-memory" },
     });
 
@@ -114,7 +114,7 @@ describe("resolveProjectionKnowledgeStore", () => {
   });
 
   it("rejects gbrain backend without constructing live gbrain", () => {
-    const result = resolveProjectionKnowledgeStore({ env: {} });
+    const result = resolveLegacyInMemoryProjectionKnowledgeStore({ env: {} });
 
     assert.equal(result.ok, false);
     if (!result.ok) {
@@ -123,7 +123,7 @@ describe("resolveProjectionKnowledgeStore", () => {
   });
 
   it("rejects fake-gbrain backend for projection source", () => {
-    const result = resolveProjectionKnowledgeStore({
+    const result = resolveLegacyInMemoryProjectionKnowledgeStore({
       env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "fake-gbrain" },
     });
 
@@ -134,7 +134,7 @@ describe("resolveProjectionKnowledgeStore", () => {
   });
 
   it("legacy resolver error mentions in-memory without claiming local projection requires it", () => {
-    const result = resolveProjectionKnowledgeStore({ env: {} });
+    const result = resolveLegacyInMemoryProjectionKnowledgeStore({ env: {} });
     assert.equal(result.ok, false);
     if (!result.ok) {
       assert.match(result.error, /AMP_KNOWLEDGE_BACKEND=in-memory/);

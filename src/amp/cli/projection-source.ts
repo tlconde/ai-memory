@@ -208,6 +208,8 @@ export function createProjectionRenderSource(
     );
   }
 
+  // Local projection reads persistent knowledge.db (or injected store in tests) — never the
+  // legacy in-memory env resolver (resolveLegacyInMemoryProjectionKnowledgeStore).
   const knowledgeResult = resolveLocalPersistentProjectionKnowledgeStore({
     runtimeDbPath,
     knowledgeStore,

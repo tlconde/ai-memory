@@ -14,11 +14,10 @@ import { createFrame } from "../core/frame-schema.js";
 import { PROJECTION_FILE_KINDS } from "../projection/constants.js";
 import {
   DB_BACKED_MATERIALIZATION_NOT_WIRED,
-  LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE,
 } from "../projection/messages.js";
 import { capturePreference } from "../substrate/capture-preference.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
-import { AMP_KNOWLEDGE_BACKEND_ENV, resolveLocalKnowledgeDbPath, resolveProjectionKnowledgeStore } from "./knowledge-backend.js";
+import { AMP_KNOWLEDGE_BACKEND_ENV, resolveLocalKnowledgeDbPath } from "./knowledge-backend.js";
 import { runAmpInit } from "./init.js";
 import { runAmpRuntimeGraduationApply } from "./runtime-graduation-apply.js";
 import { runAmpRuntimeSeed } from "./runtime-seed.js";
@@ -509,17 +508,6 @@ describe("runAmpProjectionRender", () => {
       assert.match(projectRuntime?.body ?? "", /Queue-only runtime note\./);
     } finally {
       resolved.cleanup();
-    }
-  });
-
-  it("fails legacy in-memory-only resolver when offline knowledge backend is unavailable", () => {
-    const result = resolveProjectionKnowledgeStore({
-      env: { [AMP_KNOWLEDGE_BACKEND_ENV]: "gbrain" },
-    });
-
-    assert.equal(result.ok, false);
-    if (!result.ok) {
-      assert.equal(result.error, LEGACY_PROJECTION_KNOWLEDGE_BACKEND_UNAVAILABLE);
     }
   });
 
