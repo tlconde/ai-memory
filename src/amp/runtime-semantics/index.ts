@@ -90,6 +90,15 @@ export {
 } from "./capture-rejected-signal.js";
 
 export {
+  applyRuntimeGraduationDecision,
+  type ApplyRuntimeGraduationFailure,
+  type ApplyRuntimeGraduationFailureReason,
+  type ApplyRuntimeGraduationInput,
+  type ApplyRuntimeGraduationResult,
+  type ApplyRuntimeGraduationSuccess,
+} from "./graduation-apply.js";
+
+export {
   planRuntimeGraduation,
   RUNTIME_GRADUATION_KIND_PROVENANCE,
   RUNTIME_GRADUATION_SOURCE_SURFACE,

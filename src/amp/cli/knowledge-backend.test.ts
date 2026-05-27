@@ -13,6 +13,8 @@ import {
   createWriteKnowledgeBackend,
   resolveKnowledgeBackend,
   resolveProjectionKnowledgeStore,
+  resolveGraduationApplyKnowledgeStore,
+  GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT,
 } from "./knowledge-backend.js";
 
 describe("resolveKnowledgeBackend", () => {
@@ -116,6 +118,28 @@ describe("resolveProjectionKnowledgeStore", () => {
     assert.equal(result.ok, false);
     if (!result.ok) {
       assert.equal(result.error, LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE);
+    }
+  });
+});
+
+describe("resolveGraduationApplyKnowledgeStore", () => {
+  it("returns injected store for explicit test/DI boundaries", () => {
+    const injected = new InMemoryKnowledgeStore();
+    const result = resolveGraduationApplyKnowledgeStore({ knowledgeStore: injected });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.store, injected);
+    }
+  });
+
+  it("fails closed when no persistent local knowledge backend is wired", () => {
+    const result = resolveGraduationApplyKnowledgeStore();
+
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.reason, "knowledge_backend_not_persistent");
+      assert.equal(result.error, GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT);
     }
   });
 });

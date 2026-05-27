@@ -370,6 +370,6 @@ describe("registerAmpCommands runtime graduation plan", () => {
     );
     assert.match(plan.description() ?? "", /read-only/i);
     assert.match(runtime.description() ?? "", /graduation plan/i);
-    assert.match(runtime.description() ?? "", /read-only/i);
+    assert.match(runtime.description() ?? "", /plan\/apply/i);
   });
 });

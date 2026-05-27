@@ -16,6 +16,11 @@ import {
   writeAmpRuntimeCliResult,
 } from "./runtime.js";
 import {
+  formatAmpRuntimeGraduationApplyJson,
+  formatAmpRuntimeGraduationApplyReport,
+  runAmpRuntimeGraduationApply,
+} from "./runtime-graduation-apply.js";
+import {
   formatAmpRuntimeGraduationPlanJson,
   formatAmpRuntimeGraduationPlanReport,
   runAmpRuntimeGraduationPlan,
@@ -36,7 +41,7 @@ export function registerAmpRuntimeCommands(amp: Command): Command {
   const runtime = amp
     .command("runtime")
     .description(
-      "Runtime semantics inspection, seeding, and correction (inspect/seed/correct on local typed storage); read-only graduation review via graduation plan"
+      "Runtime semantics inspection, seeding, and correction (inspect/seed/correct on local typed storage); graduation review via graduation plan/apply"
     );
 
   runtime
@@ -130,7 +135,7 @@ export function registerAmpRuntimeCommands(amp: Command): Command {
 
   const graduation = runtime
     .command("graduation")
-    .description("Read-only graduation planning for typed runtime semantic entities");
+    .description("Graduation planning and explicit apply for typed runtime semantic entities");
 
   graduation
     .command("plan")
@@ -150,6 +155,30 @@ export function registerAmpRuntimeCommands(amp: Command): Command {
         json: opts.json,
         formatJson: formatAmpRuntimeGraduationPlanJson,
         formatReport: formatAmpRuntimeGraduationPlanReport,
+      });
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+    });
+
+  graduation
+    .command("apply")
+    .description(
+      "Experimental operator command — apply one graduate runtime-preference-candidate to local durable knowledge"
+    )
+    .requiredOption("--id <id>", "Runtime entity id to apply")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--json", "Emit JSON instead of human-readable report")
+    .action((opts: { id: string; projectRoot?: string; json?: boolean }) => {
+      const result = runAmpRuntimeGraduationApply({
+        projectRoot: opts.projectRoot,
+        id: opts.id,
+      });
+      writeAmpRuntimeCliResult({
+        result,
+        json: opts.json,
+        formatJson: formatAmpRuntimeGraduationApplyJson,
+        formatReport: formatAmpRuntimeGraduationApplyReport,
       });
       if (!result.ok) {
         process.exitCode = 1;
