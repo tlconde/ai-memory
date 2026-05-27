@@ -22,6 +22,11 @@ import {
   runAmpAgentSetup,
 } from "./agent-setup.js";
 import {
+  formatAmpKnowledgeListJson,
+  formatAmpKnowledgeListReport,
+  runAmpKnowledgeList,
+} from "./knowledge-list.js";
+import {
   formatAmpKnowledgeStatusJson,
   formatAmpKnowledgeStatusReport,
   runAmpKnowledgeStatus,
@@ -327,6 +332,40 @@ export function registerAmpCommands(
       }
     });
 
+  knowledge
+    .command("list")
+    .description("List durable frames from local knowledge.db (read-only, no gbrain)")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--json", "Emit JSON instead of human-readable report")
+    .option("--kind <frame-kind>", "Filter by frame kind: episodic, semantic, or crystal")
+    .option("--scope <scope-kind>", "Filter by scope kind: project, user, or universal")
+    .option("--limit <n>", "Maximum frames to return (default: 20)")
+    .action(
+      (opts: {
+        projectRoot?: string;
+        json?: boolean;
+        kind?: string;
+        scope?: string;
+        limit?: string;
+      }) => {
+        const result = runAmpKnowledgeList({
+          projectRoot: opts.projectRoot,
+          kind: opts.kind,
+          scope: opts.scope,
+          limit: opts.limit,
+        });
+        writeAmpRuntimeCliResult({
+          result,
+          json: opts.json,
+          formatJson: formatAmpKnowledgeListJson,
+          formatReport: formatAmpKnowledgeListReport,
+        });
+        if (!result.ok) {
+          process.exitCode = 1;
+        }
+      },
+    );
+
   registerAmpRuntimeCommands(amp);
 
   amp
@@ -335,7 +374,7 @@ export function registerAmpCommands(
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local reads persistent knowledge.db; gbrain read-only source with --source gbrain), knowledge status (read-only local knowledge.db summary), runtime status/inspect/seed/correct/graduation plan/apply (typed entity inspect/seed/correct on local storage; read-only graduation review; graduation apply writes durable local knowledge), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local reads persistent knowledge.db; gbrain read-only source with --source gbrain), knowledge status/list (read-only local knowledge.db summary and frame listing), runtime status/inspect/seed/correct/graduation plan/apply (typed entity inspect/seed/correct on local storage; read-only graduation review; graduation apply writes durable local knowledge), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
       );
     });
 
