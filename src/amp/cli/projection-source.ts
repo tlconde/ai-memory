@@ -158,6 +158,23 @@ function createRuntimeBackedProjectionSource<T extends ProjectionSource>(
   };
 }
 
+/** Run cleanups in order; attempt all even when one throws, then rethrow the first error. */
+function cleanupAll(cleanups: Array<() => void>): void {
+  let firstError: unknown;
+  for (const cleanup of cleanups) {
+    try {
+      cleanup();
+    } catch (error) {
+      if (firstError === undefined) {
+        firstError = error;
+      }
+    }
+  }
+  if (firstError !== undefined) {
+    throw firstError;
+  }
+}
+
 /** Create a projection source and runtime cleanup callback for materialization. */
 export function createProjectionRenderSource(
   options: CreateProjectionRenderSourceOptions
@@ -215,8 +232,7 @@ export function createProjectionRenderSource(
   return {
     source: runtimeBacked.source,
     cleanup: () => {
-      runtimeBacked.cleanup();
-      knowledgeResult.cleanup();
+      cleanupAll([runtimeBacked.cleanup, knowledgeResult.cleanup]);
     },
   };
 }

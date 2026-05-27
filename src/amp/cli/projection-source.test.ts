@@ -379,6 +379,94 @@ describe("createProjectionRenderSource local", () => {
   });
 });
 
+describe("local projection source cleanup ordering", () => {
+  let tempDir = "";
+
+  before(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "amp-projection-source-cleanup-order-"));
+  });
+
+  after(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("still closes persistent knowledge when runtime cleanup throws", () => {
+    const runtimeDbPath = join(tempDir, "runtime-throws", "runtime.db");
+    const runtime = new RuntimeStore({ dbPath: runtimeDbPath });
+    let knowledgeCloseCalls = 0;
+    const originalKnowledgeClose = LocalSqliteKnowledgeStore.prototype.close;
+    LocalSqliteKnowledgeStore.prototype.close = function closeWithSpy(
+      this: LocalSqliteKnowledgeStore,
+    ) {
+      knowledgeCloseCalls += 1;
+      return originalKnowledgeClose.call(this);
+    };
+
+    const originalRuntimeClose = runtime.close.bind(runtime);
+    runtime.close = () => {
+      originalRuntimeClose();
+      throw new Error("runtime cleanup failed");
+    };
+
+    let resolved: ReturnType<typeof createProjectionRenderSource> | undefined;
+    try {
+      resolved = createProjectionRenderSource({
+        sourceKind: "local",
+        projectRef: LOCAL_PROJECT_REF,
+        runtimeDbPath,
+        deps: { openRuntimeStore: () => runtime },
+      });
+
+      assert.ok(resolved && !("error" in resolved));
+      if (!resolved || "error" in resolved) return;
+
+      assert.throws(() => resolved.cleanup(), /runtime cleanup failed/);
+      assert.equal(knowledgeCloseCalls, 1);
+      resolved = undefined;
+    } finally {
+      LocalSqliteKnowledgeStore.prototype.close = originalKnowledgeClose;
+    }
+  });
+
+  it("still closes runtime store when knowledge cleanup throws", () => {
+    const runtimeDbPath = join(tempDir, "knowledge-throws", "runtime.db");
+    const runtime = new RuntimeStore({ dbPath: runtimeDbPath });
+    let runtimeCloseCalls = 0;
+    const originalRuntimeClose = runtime.close.bind(runtime);
+    runtime.close = () => {
+      runtimeCloseCalls += 1;
+      originalRuntimeClose();
+    };
+
+    const originalKnowledgeClose = LocalSqliteKnowledgeStore.prototype.close;
+    LocalSqliteKnowledgeStore.prototype.close = function closeWithFailure(
+      this: LocalSqliteKnowledgeStore,
+    ) {
+      originalKnowledgeClose.call(this);
+      throw new Error("knowledge cleanup failed");
+    };
+
+    let resolved: ReturnType<typeof createProjectionRenderSource> | undefined;
+    try {
+      resolved = createProjectionRenderSource({
+        sourceKind: "local",
+        projectRef: LOCAL_PROJECT_REF,
+        runtimeDbPath,
+        deps: { openRuntimeStore: () => runtime },
+      });
+
+      assert.ok(resolved && !("error" in resolved));
+      if (!resolved || "error" in resolved) return;
+
+      assert.throws(() => resolved.cleanup(), /knowledge cleanup failed/);
+      assert.equal(runtimeCloseCalls, 1);
+      resolved = undefined;
+    } finally {
+      LocalSqliteKnowledgeStore.prototype.close = originalKnowledgeClose;
+    }
+  });
+});
+
 function resolvedCleanup(
   resolved: ReturnType<typeof createProjectionRenderSource> | undefined,
 ): void {

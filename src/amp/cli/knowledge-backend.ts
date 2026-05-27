@@ -181,6 +181,26 @@ export type ResolveLocalPersistentProjectionKnowledgeStoreResult =
   | { ok: true; store: KnowledgeStore; cleanup: () => void }
   | { ok: false; error: string };
 
+export const GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT =
+  "Graduation apply requires a persistent local knowledge backend; in-memory CLI apply is not durable.";
+
+export type ResolveGraduationApplyKnowledgeStoreFailureReason =
+  "knowledge_backend_not_persistent";
+
+/** Resolve `knowledge.db` adjacent to the typed runtime store path. */
+export function resolveLocalKnowledgeDbPath(runtimeDbPath: string): string {
+  return join(dirname(runtimeDbPath), "knowledge.db");
+}
+
+function openLocalPersistentKnowledgeStore(
+  runtimeDbPath: string,
+): { store: KnowledgeStore; cleanup: () => void } {
+  const store = new LocalSqliteKnowledgeStore({
+    dbPath: resolveLocalKnowledgeDbPath(runtimeDbPath),
+  });
+  return { store, cleanup: () => store.close() };
+}
+
 /** Resolve local projection knowledge from injected store or persistent knowledge.db (no gbrain). */
 export function resolveLocalPersistentProjectionKnowledgeStore(
   options: ResolveLocalPersistentProjectionKnowledgeStoreOptions = {},
@@ -193,21 +213,8 @@ export function resolveLocalPersistentProjectionKnowledgeStore(
     return { ok: false, error: LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE };
   }
 
-  const store = new LocalSqliteKnowledgeStore({
-    dbPath: resolveLocalKnowledgeDbPath(options.runtimeDbPath),
-  });
-  return { ok: true, store, cleanup: () => store.close() };
-}
-
-export const GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT =
-  "Graduation apply requires a persistent local knowledge backend; in-memory CLI apply is not durable.";
-
-export type ResolveGraduationApplyKnowledgeStoreFailureReason =
-  "knowledge_backend_not_persistent";
-
-/** Resolve `knowledge.db` adjacent to the typed runtime store path. */
-export function resolveLocalKnowledgeDbPath(runtimeDbPath: string): string {
-  return join(dirname(runtimeDbPath), "knowledge.db");
+  const { store, cleanup } = openLocalPersistentKnowledgeStore(options.runtimeDbPath);
+  return { ok: true, store, cleanup };
 }
 
 export interface ResolveGraduationApplyKnowledgeStoreOptions {
@@ -232,10 +239,8 @@ export function resolveGraduationApplyKnowledgeStore(
   }
 
   if (options.runtimeDbPath) {
-    const store = new LocalSqliteKnowledgeStore({
-      dbPath: resolveLocalKnowledgeDbPath(options.runtimeDbPath),
-    });
-    return { ok: true, store, cleanup: () => store.close() };
+    const { store, cleanup } = openLocalPersistentKnowledgeStore(options.runtimeDbPath);
+    return { ok: true, store, cleanup };
   }
 
   return {
