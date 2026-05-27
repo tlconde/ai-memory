@@ -23,15 +23,18 @@ export interface IsolatedAmpTestEnv {
 
 export function createIsolatedAmpTestEnv(
   tempRoot: string,
-  label: string
+  label: string,
+  options?: { knowledgeBackend?: string | false },
 ): IsolatedAmpTestEnv {
   const fakeHome = join(tempRoot, `${label}-home`);
   const ampUserRoot = join(tempRoot, `${label}-amp-user-root`);
-  const env = {
+  const env: NodeJS.ProcessEnv = {
     HOME: fakeHome,
     AMP_USER_ROOT: ampUserRoot,
-    AMP_KNOWLEDGE_BACKEND: "in-memory",
   };
+  if (options?.knowledgeBackend !== false) {
+    env.AMP_KNOWLEDGE_BACKEND = options?.knowledgeBackend ?? "in-memory";
+  }
   const rejectRealHomedir = (): string => {
     throw new Error(`must not resolve real homedir during ${label} E2E`);
   };
