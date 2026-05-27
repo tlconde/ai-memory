@@ -314,6 +314,7 @@ describe("resolveRetrieveKnowledgeStore", () => {
     assert.equal(result.ok, true);
     if (result.ok) {
       assert.equal(result.backend, "fake-gbrain");
+      assert.equal(result.source, "gbrain");
       assert.ok(result.gbrain);
       result.cleanup();
     }
@@ -336,6 +337,7 @@ describe("resolveRetrieveKnowledgeStore", () => {
     assert.equal(result.ok, true);
     if (result.ok) {
       assert.equal(result.backend, "fake-gbrain");
+      assert.equal(result.source, "gbrain");
       assert.ok(result.gbrain);
       result.cleanup();
     }
@@ -348,6 +350,7 @@ describe("resolveRetrieveKnowledgeStore", () => {
     assert.equal(result.ok, true);
     if (result.ok) {
       assert.equal(result.backend, "local-persistent");
+      assert.equal(result.source, "injected");
       assert.equal(result.store, injected);
       result.cleanup();
     }
@@ -360,6 +363,25 @@ describe("resolveRetrieveKnowledgeStore", () => {
     assert.equal(result.ok, true);
     if (result.ok) {
       assert.equal(result.backend, "in-memory");
+      assert.equal(result.source, "in-memory");
+      assert.equal(result.store, inMemory);
+      result.cleanup();
+    }
+  });
+
+  it("prefers inMemoryStore over knowledgeStore when both are injected without explicit backend", () => {
+    const inMemory = new InMemoryKnowledgeStore();
+    const knowledgeStore = new InMemoryKnowledgeStore();
+
+    const result = resolveRetrieveKnowledgeStore({
+      inMemoryStore: inMemory,
+      knowledgeStore,
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.backend, "in-memory");
+      assert.equal(result.source, "in-memory");
       assert.equal(result.store, inMemory);
       result.cleanup();
     }
@@ -382,6 +404,32 @@ describe("resolveRetrieveKnowledgeStore", () => {
     assert.equal(result.ok, true);
     if (result.ok) {
       assert.equal(result.backend, "fake-gbrain");
+      assert.equal(result.source, "gbrain");
+      assert.ok(result.gbrain);
+      result.cleanup();
+    }
+  });
+
+  it("prefers explicit backend over both injected stores", () => {
+    const inMemory = new InMemoryKnowledgeStore();
+    const knowledgeStore = new InMemoryKnowledgeStore();
+    const fake = new FakeGbrainMcpTransport();
+    const adapter = new GbrainKnowledgeAdapter({
+      transport: fake,
+      ssaSpecPath: join(process.cwd(), "ssa-files", "gbrain.yaml"),
+    });
+
+    const result = resolveRetrieveKnowledgeStore({
+      explicitKnowledge: "fake-gbrain",
+      inMemoryStore: inMemory,
+      knowledgeStore,
+      gbrainAdapter: adapter,
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.backend, "fake-gbrain");
+      assert.equal(result.source, "gbrain");
       assert.ok(result.gbrain);
       result.cleanup();
     }
@@ -397,6 +445,7 @@ describe("resolveRetrieveKnowledgeStore", () => {
       assert.equal(result.ok, true);
       if (result.ok) {
         assert.equal(result.backend, "local-persistent");
+        assert.equal(result.source, "local-sqlite");
         assert.ok(result.store instanceof LocalSqliteKnowledgeStore);
         result.cleanup();
       }

@@ -62,6 +62,7 @@ describe("runAmpRetrieve", () => {
 
     assert.equal(result.preferences.length, 1);
     assert.equal(result.knowledgeBackend, "in-memory");
+    assert.equal(result.knowledgeSource, "in-memory");
     assert.equal(result.preferences[0]?.frame.content, "Prefer explicit verification commands.");
   });
 
@@ -90,6 +91,7 @@ describe("runAmpRetrieve", () => {
 
     assert.equal(result.preferences.length, 1);
     assert.equal(result.knowledgeBackend, "in-memory");
+    assert.equal(result.knowledgeSource, "in-memory");
     assert.equal(result.preferences[0]?.frame.content, "Prefer explicit verification commands.");
   });
 
@@ -97,6 +99,7 @@ describe("runAmpRetrieve", () => {
     const withMatches = formatAmpRetrieveMessages({
       projectRoot: "/tmp/project",
       knowledgeBackend: "in-memory",
+      knowledgeSource: "in-memory",
       scope: "project",
       projectRef: "ai-memory",
       preferences: [
@@ -119,6 +122,7 @@ describe("runAmpRetrieve", () => {
     const empty = formatAmpRetrieveMessages({
       projectRoot: "/tmp/project",
       knowledgeBackend: "gbrain",
+      knowledgeSource: "gbrain",
       liveGbrain: true,
       scope: "user",
       preferences: [],
@@ -127,13 +131,24 @@ describe("runAmpRetrieve", () => {
     assert.match(empty.join("\n"), /no matches/i);
     assert.match(empty.join("\n"), /live gbrain read/i);
 
-    const localPersistent = formatAmpRetrieveMessages({
+    const localSqlite = formatAmpRetrieveMessages({
       projectRoot: "/tmp/project",
       knowledgeBackend: "local-persistent",
+      knowledgeSource: "local-sqlite",
       scope: "user",
       preferences: [],
     });
-    assert.match(localPersistent.join("\n"), /local persistent knowledge\.db/);
+    assert.match(localSqlite.join("\n"), /local persistent knowledge\.db/);
+
+    const injected = formatAmpRetrieveMessages({
+      projectRoot: "/tmp/project",
+      knowledgeBackend: "local-persistent",
+      knowledgeSource: "injected",
+      scope: "user",
+      preferences: [],
+    });
+    assert.match(injected.join("\n"), /injected knowledge store/);
+    assert.doesNotMatch(injected.join("\n"), /knowledge\.db/);
   });
 });
 
@@ -220,10 +235,14 @@ describe("runAmpRetrieve persistent local knowledge", () => {
     });
 
     assert.equal(result.knowledgeBackend, "local-persistent");
+    assert.equal(result.knowledgeSource, "local-sqlite");
     assert.equal(result.preferences.length, 1);
     assert.equal(result.preferences[0]?.frame.id, "runtime-graduation:pref-confirmed");
     const content = result.preferences[0]?.frame.content as { statement?: string };
     assert.equal(content.statement, ACTIVE_PREFERENCE.statement);
+
+    const messages = formatAmpRetrieveMessages(result);
+    assert.match(messages.join("\n"), /local persistent knowledge\.db/);
   });
 
   it("prefers injected knowledge store over persistent knowledge.db", async () => {
@@ -252,8 +271,119 @@ describe("runAmpRetrieve persistent local knowledge", () => {
     });
 
     assert.equal(result.knowledgeBackend, "local-persistent");
+    assert.equal(result.knowledgeSource, "injected");
     assert.equal(result.preferences.length, 1);
     assert.equal(result.preferences[0]?.frame.id, "injected-pref");
+
+    const messages = formatAmpRetrieveMessages(result);
+    assert.match(messages.join("\n"), /injected knowledge store/);
+    assert.doesNotMatch(messages.join("\n"), /knowledge\.db/);
+  });
+
+  it("prefers inMemoryStore over knowledgeStore when both are injected without explicit backend", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("retrieve-coinjection-in-memory-wins");
+    await seedAndGraduatePreference(projectRoot, env, fakeHome);
+
+    const inMemory = new InMemoryKnowledgeStore();
+    inMemory.write([
+      createFrame({
+        id: "in-memory-wins",
+        kind: "semantic",
+        content: "In-memory injection wins.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "user" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const knowledgeStore = new InMemoryKnowledgeStore();
+    knowledgeStore.write([
+      createFrame({
+        id: "knowledge-store-loses",
+        kind: "semantic",
+        content: "Should not be read.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "user" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const result = await runAmpRetrieve({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      scope: "user",
+      inMemoryStore: inMemory,
+      knowledgeStore,
+    });
+
+    assert.equal(result.knowledgeBackend, "in-memory");
+    assert.equal(result.knowledgeSource, "in-memory");
+    assert.equal(result.preferences.length, 1);
+    assert.equal(result.preferences[0]?.frame.id, "in-memory-wins");
+  });
+
+  it("prefers explicit backend over both injected stores", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("retrieve-explicit-over-coinjection");
+    const fake = new FakeGbrainMcpTransport();
+    const adapter = new GbrainKnowledgeAdapter({
+      transport: fake,
+      ssaSpecPath: join(process.cwd(), "ssa-files", "gbrain.yaml"),
+    });
+    await adapter.writeFrames([
+      createFrame({
+        id: "gbrain-pref",
+        kind: "semantic",
+        content: "Explicit gbrain over injections.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "user" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const inMemory = new InMemoryKnowledgeStore();
+    inMemory.write([
+      createFrame({
+        id: "ignored-in-memory",
+        kind: "semantic",
+        content: "Ignored.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "user" },
+        curation_mode: "personal",
+      }),
+    ]);
+    const knowledgeStore = new InMemoryKnowledgeStore();
+    knowledgeStore.write([
+      createFrame({
+        id: "ignored-knowledge-store",
+        kind: "semantic",
+        content: "Also ignored.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "user" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const result = await runAmpRetrieve({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      scope: "user",
+      knowledge: "fake-gbrain",
+      gbrainAdapter: adapter,
+      inMemoryStore: inMemory,
+      knowledgeStore,
+    });
+
+    assert.equal(result.knowledgeBackend, "fake-gbrain");
+    assert.equal(result.knowledgeSource, "gbrain");
+    assert.equal(result.preferences.length, 1);
+    assert.equal(result.preferences[0]?.frame.content, "Explicit gbrain over injections.");
   });
 
   it("uses gbrain adapter only when knowledge backend is explicitly gbrain", async () => {
@@ -285,6 +415,7 @@ describe("runAmpRetrieve persistent local knowledge", () => {
     });
 
     assert.equal(result.knowledgeBackend, "fake-gbrain");
+    assert.equal(result.knowledgeSource, "gbrain");
     assert.equal(result.preferences.length, 1);
     assert.equal(result.preferences[0]?.frame.content, "Gbrain explicit retrieve path.");
   });

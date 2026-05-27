@@ -19,9 +19,10 @@ import { resolveCliProjectContext } from "./cli-context.js";
 import {
   resolveRetrieveKnowledgeStore,
   type AmpRetrieveKnowledgeBackend,
+  type AmpRetrieveKnowledgeSource,
 } from "./knowledge-backend.js";
 
-export type { AmpRetrieveKnowledgeBackend };
+export type { AmpRetrieveKnowledgeBackend, AmpRetrieveKnowledgeSource };
 
 export interface AmpRetrieveOptions {
   scope?: ScopeKind;
@@ -41,11 +42,26 @@ export interface AmpRetrieveOptions {
 export interface AmpRetrieveResult {
   projectRoot: string;
   knowledgeBackend: AmpRetrieveKnowledgeBackend;
+  knowledgeSource: AmpRetrieveKnowledgeSource;
   liveGbrain?: boolean;
   scope: ScopeKind;
   projectRef?: string;
   query?: string;
   preferences: RetrievedPreference[];
+}
+
+/** Human-readable label for where preferences were read from. */
+export function formatRetrieveKnowledgeSourceLabel(result: AmpRetrieveResult): string {
+  switch (result.knowledgeSource) {
+    case "in-memory":
+      return "in-memory";
+    case "gbrain":
+      return result.knowledgeBackend;
+    case "injected":
+      return "injected knowledge store";
+    case "local-sqlite":
+      return "local persistent knowledge.db";
+  }
 }
 
 /** Retrieve consolidated preferences from knowledge storage. */
@@ -105,6 +121,7 @@ export async function runAmpRetrieve(
   return {
     projectRoot: context.projectRoot,
     knowledgeBackend: resolved.backend,
+    knowledgeSource: resolved.source,
     liveGbrain: resolved.liveGbrain,
     scope,
     projectRef,
@@ -115,10 +132,7 @@ export async function runAmpRetrieve(
 
 /** Human-readable retrieve output lines for CLI and tests. */
 export function formatAmpRetrieveMessages(result: AmpRetrieveResult): string[] {
-  const backendLabel =
-    result.knowledgeBackend === "local-persistent"
-      ? "local persistent knowledge.db"
-      : result.knowledgeBackend;
+  const backendLabel = formatRetrieveKnowledgeSourceLabel(result);
   const lines = [
     `Retrieved ${result.preferences.length} preference(s) from ${backendLabel}.`,
     `  scope: ${result.scope}${result.projectRef ? ` (${result.projectRef})` : ""}`,

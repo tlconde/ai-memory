@@ -257,6 +257,13 @@ export function resolveLocalPersistentRetrieveKnowledgeStore(
 
 export type AmpRetrieveKnowledgeBackend = AmpKnowledgeBackend | "local-persistent";
 
+/** Where retrieve actually read preferences from (distinct from routing backend label). */
+export type AmpRetrieveKnowledgeSource =
+  | "in-memory"
+  | "gbrain"
+  | "injected"
+  | "local-sqlite";
+
 export interface ResolveRetrieveKnowledgeStoreOptions {
   explicitKnowledge?: string;
   env?: NodeJS.ProcessEnv;
@@ -271,6 +278,7 @@ export type ResolveRetrieveKnowledgeStoreResult =
   | {
       ok: true;
       backend: "in-memory";
+      source: "in-memory";
       store: InMemoryKnowledgeStore;
       liveGbrain?: undefined;
       cleanup: () => void;
@@ -278,6 +286,7 @@ export type ResolveRetrieveKnowledgeStoreResult =
   | {
       ok: true;
       backend: "gbrain" | "fake-gbrain";
+      source: "gbrain";
       gbrain: GbrainKnowledgeAdapter;
       liveGbrain?: boolean;
       cleanup: () => void;
@@ -285,6 +294,7 @@ export type ResolveRetrieveKnowledgeStoreResult =
   | {
       ok: true;
       backend: "local-persistent";
+      source: "injected" | "local-sqlite";
       store: KnowledgeStore;
       liveGbrain?: undefined;
       cleanup: () => void;
@@ -303,7 +313,7 @@ function hasExplicitRetrieveKnowledgeBackendSelection(
  *
  * Precedence:
  * 1. Explicit `--knowledge` or `AMP_KNOWLEDGE_BACKEND` → in-memory, gbrain, or fake-gbrain
- * 2. Injected `inMemoryStore` (backward-compatible tests)
+ * 2. Injected `inMemoryStore` (backward-compatible tests; wins over `knowledgeStore` when both are set)
  * 3. Injected `knowledgeStore` or persistent local SQLite via `runtimeDbPath`
  */
 export function resolveRetrieveKnowledgeStore(
@@ -328,6 +338,7 @@ export function resolveRetrieveKnowledgeStore(
       return {
         ok: true,
         backend: "in-memory",
+        source: "in-memory",
         store: handle.inMemory,
         cleanup: () => {},
       };
@@ -340,6 +351,7 @@ export function resolveRetrieveKnowledgeStore(
     return {
       ok: true,
       backend,
+      source: "gbrain",
       gbrain: handle.gbrain,
       liveGbrain: handle.liveGbrain,
       cleanup: () => {},
@@ -350,6 +362,7 @@ export function resolveRetrieveKnowledgeStore(
     return {
       ok: true,
       backend: "in-memory",
+      source: "in-memory",
       store: options.inMemoryStore,
       cleanup: () => {},
     };
@@ -367,6 +380,7 @@ export function resolveRetrieveKnowledgeStore(
   return {
     ok: true,
     backend: "local-persistent",
+    source: options.knowledgeStore ? "injected" : "local-sqlite",
     store: resolved.store,
     cleanup: resolved.cleanup,
   };
