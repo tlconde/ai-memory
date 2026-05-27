@@ -66,6 +66,7 @@ export interface AmpRuntimeGraduationApplyResult {
   appliedFrameId?: string;
   decision?: RuntimeGraduationDecision;
   runtimeRowMutated: false;
+  persistentLocalKnowledgeWritten?: boolean;
   reason?: AmpRuntimeGraduationApplyFailureReason;
   error?: string;
 }
@@ -107,21 +108,6 @@ export function runAmpRuntimeGraduationApply(
     };
   }
 
-  const knowledgeResult = resolveGraduationApplyKnowledgeStore({
-    knowledgeStore: options.deps?.knowledgeStore,
-  });
-  if (!knowledgeResult.ok) {
-    return {
-      projectRoot,
-      recordId,
-      storageWired: false,
-      ok: false,
-      runtimeRowMutated: false,
-      reason: knowledgeResult.reason,
-      error: knowledgeResult.error,
-    };
-  }
-
   const bootstrap = resolveAmpRuntimeCliBootstrap({
     projectRoot: options.projectRoot,
     env,
@@ -139,63 +125,87 @@ export function runAmpRuntimeGraduationApply(
     };
   }
 
-  const createReader =
-    options.deps?.createReader ??
-    ((runtime: RuntimeStore) => new RuntimeStoreSemanticEntityReader(runtime));
-  const generatedAt = options.generatedAt ?? new Date().toISOString();
+  const knowledgeResult = resolveGraduationApplyKnowledgeStore({
+    knowledgeStore: options.deps?.knowledgeStore,
+    runtimeDbPath: bootstrap.runtimeDbPath,
+  });
+  if (!knowledgeResult.ok) {
+    return {
+      projectRoot: bootstrap.projectRoot,
+      runtimeDbPath: bootstrap.runtimeDbPath,
+      recordId,
+      storageWired: false,
+      ok: false,
+      runtimeRowMutated: false,
+      reason: knowledgeResult.reason,
+      error: knowledgeResult.error,
+    };
+  }
 
-  const applyResult = withAmpRuntimeCliStore(
-    bootstrap,
-    { deps: { openRuntimeStore: options.deps?.openRuntimeStore } },
-    (runtime) => {
-      const persisted = createReader(runtime).readEntities();
-      const record = persisted.find((entity) => entity.id === recordId);
-      if (record === undefined) {
-        return {
-          ok: false as const,
+  const usingPersistentLocalKnowledge = options.deps?.knowledgeStore === undefined;
+
+  try {
+    const createReader =
+      options.deps?.createReader ??
+      ((runtime: RuntimeStore) => new RuntimeStoreSemanticEntityReader(runtime));
+    const generatedAt = options.generatedAt ?? new Date().toISOString();
+
+    const applyResult = withAmpRuntimeCliStore(
+      bootstrap,
+      { deps: { openRuntimeStore: options.deps?.openRuntimeStore } },
+      (runtime) => {
+        const persisted = createReader(runtime).readEntities();
+        const record = persisted.find((entity) => entity.id === recordId);
+        if (record === undefined) {
+          return {
+            ok: false as const,
+            recordId,
+            reason: "record_not_found" as const,
+            error: `Runtime semantic entity "${recordId}" was not found in typed runtime storage.`,
+          };
+        }
+
+        const plan = planRuntimeGraduation({
+          records: [record],
+          generatedAt,
+          projectRef: bootstrap.projectRef,
+        });
+
+        return applyRuntimeGraduationDecision({
           recordId,
-          reason: "record_not_found" as const,
-          error: `Runtime semantic entity "${recordId}" was not found in typed runtime storage.`,
-        };
-      }
+          plan,
+          knowledgeStore: knowledgeResult.store,
+        });
+      },
+    );
 
-      const plan = planRuntimeGraduation({
-        records: [record],
-        generatedAt,
-        projectRef: bootstrap.projectRef,
-      });
-
-      return applyRuntimeGraduationDecision({
+    if (!applyResult.ok) {
+      return {
+        projectRoot: bootstrap.projectRoot,
+        runtimeDbPath: bootstrap.runtimeDbPath,
         recordId,
-        plan,
-        knowledgeStore: knowledgeResult.store,
-      });
-    },
-  );
+        storageWired: true,
+        ok: false,
+        runtimeRowMutated: false,
+        decision: "decision" in applyResult ? applyResult.decision : undefined,
+        error: applyResult.error,
+      };
+    }
 
-  if (!applyResult.ok) {
     return {
       projectRoot: bootstrap.projectRoot,
       runtimeDbPath: bootstrap.runtimeDbPath,
       recordId,
       storageWired: true,
-      ok: false,
+      ok: true,
+      appliedFrameId: applyResult.appliedFrameId,
+      decision: applyResult.decision,
       runtimeRowMutated: false,
-      decision: "decision" in applyResult ? applyResult.decision : undefined,
-      error: applyResult.error,
+      persistentLocalKnowledgeWritten: usingPersistentLocalKnowledge,
     };
+  } finally {
+    knowledgeResult.cleanup();
   }
-
-  return {
-    projectRoot: bootstrap.projectRoot,
-    runtimeDbPath: bootstrap.runtimeDbPath,
-    recordId,
-    storageWired: true,
-    ok: true,
-    appliedFrameId: applyResult.appliedFrameId,
-    decision: applyResult.decision,
-    runtimeRowMutated: false,
-  };
 }
 
 /** Human-readable graduation apply report lines for CLI and tests. */
@@ -230,9 +240,15 @@ export function formatAmpRuntimeGraduationApplyReport(
   }
 
   lines.push("");
-  lines.push(
-    "NOTE Runtime semantic entity row was not mutated; only durable knowledge was written.",
-  );
+  if (result.persistentLocalKnowledgeWritten) {
+    lines.push(
+      "NOTE Runtime semantic entity row was not mutated; durable local knowledge was written.",
+    );
+  } else {
+    lines.push(
+      "NOTE Runtime semantic entity row was not mutated; only durable knowledge was written.",
+    );
+  }
   lines.push("");
   lines.push("OK Runtime graduation apply finished.");
 

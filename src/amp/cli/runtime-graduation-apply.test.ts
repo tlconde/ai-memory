@@ -6,9 +6,11 @@ import { join } from "node:path";
 import { Command } from "commander";
 
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
+import { LocalSqliteKnowledgeStore } from "../adapters/ssa/local-sqlite-knowledge-store.js";
 import { runAmpInit } from "./init.js";
 import { registerAmpCommands } from "./index.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
+import { resolveLocalKnowledgeDbPath } from "./knowledge-backend.js";
 import {
   formatAmpRuntimeGraduationApplyJson,
   formatAmpRuntimeGraduationApplyReport,
@@ -79,6 +81,40 @@ describe("runAmpRuntimeGraduationApply", () => {
     const env = { HOME: fakeHome, AMP_KNOWLEDGE_BACKEND: "in-memory" };
     await runAmpInit({ projectRoot, env });
     return { projectRoot, env, fakeHome };
+  }
+
+  async function seedConfirmedPreference(
+    projectRoot: string,
+    env: NodeJS.ProcessEnv,
+    fakeHome: string,
+    id = "pref-confirmed",
+  ) {
+    const seedPath = join(projectRoot, "seed.json");
+    await writeFile(
+      seedPath,
+      JSON.stringify({
+        id,
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: {
+          ...ACTIVE_PREFERENCE,
+          id,
+          promotion_evidence: {
+            ...ACTIVE_PREFERENCE.promotion_evidence,
+            explicit_confirmation_signal_id: "confirm-1",
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const seedResult = await runAmpRuntimeSeed({
+      projectRoot,
+      file: seedPath,
+      env,
+      homedir: () => fakeHome,
+    });
+    assert.equal(seedResult.ok, true);
   }
 
   it("applies an explicitly confirmed preference candidate and writes one semantic frame", async () => {
@@ -471,7 +507,6 @@ describe("runAmpRuntimeGraduationApply", () => {
     const result = runAmpRuntimeGraduationApply({
       projectRoot: "/tmp/missing-amp-config-graduation-apply",
       id: "pref-1",
-      deps: { knowledgeStore: new InMemoryKnowledgeStore() },
     });
 
     assert.equal(result.ok, false);
@@ -479,8 +514,14 @@ describe("runAmpRuntimeGraduationApply", () => {
     assert.match(result.error ?? "", /Project AMP config not found/);
   });
 
-  it("fails closed without injected store because in-memory CLI apply is not durable", async () => {
-    const { projectRoot, env, fakeHome } = await initProject("apply-non-durable");
+  it("applies without injected store to persistent local knowledge.db", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("apply-persistent");
+    await seedConfirmedPreference(projectRoot, env, fakeHome);
+
+    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const runtimeBefore = openRuntimeStore(context.runtimeDbPath);
+    const entityBefore = runtimeBefore.semanticEntityList()[0];
+    runtimeBefore.close();
 
     const result = runAmpRuntimeGraduationApply({
       projectRoot,
@@ -490,23 +531,50 @@ describe("runAmpRuntimeGraduationApply", () => {
       generatedAt: GENERATED_AT,
     });
 
-    assert.equal(result.ok, false);
-    assert.equal(result.storageWired, false);
-    assert.equal(result.reason, "knowledge_backend_not_persistent");
-    assert.match(result.error ?? "", /persistent local knowledge backend/i);
-    assert.match(result.error ?? "", /not durable/i);
+    assert.equal(result.ok, true);
+    assert.equal(result.appliedFrameId, "runtime-graduation:pref-confirmed");
+    assert.equal(result.persistentLocalKnowledgeWritten, true);
+    assert.equal(result.runtimeRowMutated, false);
+
+    const knowledgeDbPath = resolveLocalKnowledgeDbPath(context.runtimeDbPath);
+    const reopened = new LocalSqliteKnowledgeStore({ dbPath: knowledgeDbPath });
+    try {
+      const frame = reopened.read("runtime-graduation:pref-confirmed");
+      assert.equal(frame?.kind, "semantic");
+      assert.equal(reopened.list().length, 1);
+    } finally {
+      reopened.close();
+    }
+
+    const runtimeAfter = openRuntimeStore(context.runtimeDbPath);
+    try {
+      const entityAfter = runtimeAfter.semanticEntityList()[0];
+      assert.deepEqual(entityAfter?.payload, entityBefore?.payload);
+      assert.equal(entityAfter?.kind, entityBefore?.kind);
+      assert.equal(entityAfter?.scope, entityBefore?.scope);
+    } finally {
+      runtimeAfter.close();
+    }
 
     const text = formatAmpRuntimeGraduationApplyReport(result).join("\n");
-    assert.match(text, /ERROR/);
-    assert.match(text, /reason: knowledge_backend_not_persistent/);
-    assert.doesNotMatch(text, /durable_frame_id:/);
+    assert.match(text, /durable local knowledge was written/);
     assert.doesNotMatch(text, /only durable knowledge was written/);
   });
 
-  it("emits parseable failure JSON with structured reason for non-durable backend", async () => {
-    const { projectRoot, env, fakeHome } = await initProject("apply-non-durable-json");
+  it("fails duplicate apply across reopened persistent knowledge store", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("apply-persistent-duplicate");
+    await seedConfirmedPreference(projectRoot, env, fakeHome);
 
-    const result = runAmpRuntimeGraduationApply({
+    const first = runAmpRuntimeGraduationApply({
+      projectRoot,
+      id: "pref-confirmed",
+      env,
+      homedir: () => fakeHome,
+      generatedAt: GENERATED_AT,
+    });
+    assert.equal(first.ok, true);
+
+    const second = runAmpRuntimeGraduationApply({
       projectRoot,
       id: "pref-confirmed",
       env,
@@ -514,19 +582,45 @@ describe("runAmpRuntimeGraduationApply", () => {
       generatedAt: GENERATED_AT,
     });
 
-    const payload = JSON.parse(formatAmpRuntimeGraduationApplyJson(result)) as {
-      ok: boolean;
-      recordId: string;
-      reason: string;
-      error: string;
-      appliedFrameId: string | null;
-    };
+    assert.equal(second.ok, false);
+    assert.match(second.error ?? "", /already exists/i);
 
-    assert.equal(payload.ok, false);
-    assert.equal(payload.recordId, "pref-confirmed");
-    assert.equal(payload.reason, "knowledge_backend_not_persistent");
-    assert.match(payload.error, /not durable/i);
-    assert.equal(payload.appliedFrameId, null);
+    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const reopened = new LocalSqliteKnowledgeStore({
+      dbPath: resolveLocalKnowledgeDbPath(context.runtimeDbPath),
+    });
+    try {
+      assert.equal(reopened.list().length, 1);
+    } finally {
+      reopened.close();
+    }
+  });
+
+  it("uses local SQLite graduation apply path without constructing gbrain", async () => {
+    const { projectRoot, fakeHome } = await initProject("apply-no-gbrain");
+    const env = { HOME: fakeHome };
+    await seedConfirmedPreference(projectRoot, env, fakeHome, "pref-no-gbrain");
+
+    const result = runAmpRuntimeGraduationApply({
+      projectRoot,
+      id: "pref-no-gbrain",
+      env,
+      homedir: () => fakeHome,
+      generatedAt: GENERATED_AT,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.persistentLocalKnowledgeWritten, true);
+
+    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const reopened = new LocalSqliteKnowledgeStore({
+      dbPath: resolveLocalKnowledgeDbPath(context.runtimeDbPath),
+    });
+    try {
+      assert.equal(reopened.read("runtime-graduation:pref-no-gbrain")?.kind, "semantic");
+    } finally {
+      reopened.close();
+    }
   });
 });
 

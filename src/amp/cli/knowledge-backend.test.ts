@@ -1,17 +1,22 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { AMP_CONFIRM_LIVE_GBRAIN_WRITE_ENV } from "../gbrain/live-policy.js";
 import {
   LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
 } from "../projection/messages.js";
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
+import { LocalSqliteKnowledgeStore } from "../adapters/ssa/local-sqlite-knowledge-store.js";
 import {
   AMP_KNOWLEDGE_BACKEND_ENV,
   createKnowledgeBackend,
   createReadKnowledgeBackend,
   createWriteKnowledgeBackend,
   resolveKnowledgeBackend,
+  resolveLocalKnowledgeDbPath,
   resolveProjectionKnowledgeStore,
   resolveGraduationApplyKnowledgeStore,
   GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT,
@@ -130,10 +135,52 @@ describe("resolveGraduationApplyKnowledgeStore", () => {
     assert.equal(result.ok, true);
     if (result.ok) {
       assert.equal(result.store, injected);
+      result.cleanup();
     }
   });
 
-  it("fails closed when no persistent local knowledge backend is wired", () => {
+  it("opens LocalSqliteKnowledgeStore when runtimeDbPath is provided", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-graduation-knowledge-resolve-"));
+    const runtimeDbPath = join(tempDir, "runtime.db");
+
+    try {
+      const result = resolveGraduationApplyKnowledgeStore({ runtimeDbPath });
+
+      assert.equal(result.ok, true);
+      if (result.ok) {
+        assert.ok(result.store instanceof LocalSqliteKnowledgeStore);
+        assert.equal(resolveLocalKnowledgeDbPath(runtimeDbPath), join(tempDir, "knowledge.db"));
+        result.cleanup();
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("closes local SQLite store via cleanup", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-graduation-knowledge-cleanup-"));
+    const runtimeDbPath = join(tempDir, "runtime.db");
+
+    try {
+      const result = resolveGraduationApplyKnowledgeStore({ runtimeDbPath });
+      assert.equal(result.ok, true);
+      if (result.ok) {
+        result.cleanup();
+        const reopened = new LocalSqliteKnowledgeStore({
+          dbPath: resolveLocalKnowledgeDbPath(runtimeDbPath),
+        });
+        try {
+          assert.equal(reopened.list().length, 0);
+        } finally {
+          reopened.close();
+        }
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when no injected store or runtimeDbPath is provided", () => {
     const result = resolveGraduationApplyKnowledgeStore();
 
     assert.equal(result.ok, false);
@@ -141,5 +188,14 @@ describe("resolveGraduationApplyKnowledgeStore", () => {
       assert.equal(result.reason, "knowledge_backend_not_persistent");
       assert.equal(result.error, GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT);
     }
+  });
+});
+
+describe("resolveLocalKnowledgeDbPath", () => {
+  it("returns knowledge.db adjacent to runtime.db", () => {
+    assert.equal(
+      resolveLocalKnowledgeDbPath("/tmp/project/.amp/runtime/runtime.db"),
+      "/tmp/project/.amp/runtime/knowledge.db",
+    );
   });
 });

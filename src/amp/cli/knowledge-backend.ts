@@ -5,11 +5,12 @@
  * AMP_KNOWLEDGE_BACKEND env for v1.
  */
 
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
 import { FakeGbrainMcpTransport } from "../adapters/ssa/gbrain/fake-transport.js";
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
+import { LocalSqliteKnowledgeStore } from "../adapters/ssa/local-sqlite-knowledge-store.js";
 import { LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE } from "../projection/messages.js";
 import type { KnowledgeStore } from "../substrate/storage/knowledge-store.js";
 import {
@@ -174,24 +175,37 @@ export const GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT =
 export type ResolveGraduationApplyKnowledgeStoreFailureReason =
   "knowledge_backend_not_persistent";
 
+/** Resolve `knowledge.db` adjacent to the typed runtime store path. */
+export function resolveLocalKnowledgeDbPath(runtimeDbPath: string): string {
+  return join(dirname(runtimeDbPath), "knowledge.db");
+}
+
 export interface ResolveGraduationApplyKnowledgeStoreOptions {
   knowledgeStore?: KnowledgeStore;
+  runtimeDbPath?: string;
 }
 
 export type ResolveGraduationApplyKnowledgeStoreResult =
-  | { ok: true; store: KnowledgeStore }
+  | { ok: true; store: KnowledgeStore; cleanup: () => void }
   | {
       ok: false;
       reason: ResolveGraduationApplyKnowledgeStoreFailureReason;
       error: string;
     };
 
-/** Resolve durable knowledge for graduation apply — injected store only until persistence is wired. */
+/** Resolve durable knowledge for graduation apply — injected store or local SQLite only (no gbrain). */
 export function resolveGraduationApplyKnowledgeStore(
   options: ResolveGraduationApplyKnowledgeStoreOptions = {},
 ): ResolveGraduationApplyKnowledgeStoreResult {
   if (options.knowledgeStore) {
-    return { ok: true, store: options.knowledgeStore };
+    return { ok: true, store: options.knowledgeStore, cleanup: () => {} };
+  }
+
+  if (options.runtimeDbPath) {
+    const store = new LocalSqliteKnowledgeStore({
+      dbPath: resolveLocalKnowledgeDbPath(options.runtimeDbPath),
+    });
+    return { ok: true, store, cleanup: () => store.close() };
   }
 
   return {
