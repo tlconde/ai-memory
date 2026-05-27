@@ -40,6 +40,11 @@ import {
   runAmpRuntimeInspect,
 } from "./runtime-inspect.js";
 import {
+  formatAmpRuntimeGraduationPlanJson,
+  formatAmpRuntimeGraduationPlanReport,
+  runAmpRuntimeGraduationPlan,
+} from "./runtime-graduation-plan.js";
+import {
   formatAmpRuntimeSeedJson,
   formatAmpRuntimeSeedReport,
   runAmpRuntimeSeed,
@@ -405,6 +410,32 @@ export function registerAmpCommands(
         json: opts.json,
         formatJson: formatAmpRuntimeSeedJson,
         formatReport: formatAmpRuntimeSeedReport,
+      });
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+    });
+
+  const graduation = runtime
+    .command("graduation")
+    .description("Read-only graduation planning for typed runtime semantic entities");
+
+  graduation
+    .command("plan")
+    .description(
+      "Experimental operator command — review graduation decisions for persisted typed runtime entities (read-only)"
+    )
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--json", "Emit JSON instead of human-readable report")
+    .action((opts: { projectRoot?: string; json?: boolean }) => {
+      const result = runAmpRuntimeGraduationPlan({
+        projectRoot: opts.projectRoot,
+      });
+      writeAmpRuntimeCliResult({
+        result,
+        json: opts.json,
+        formatJson: formatAmpRuntimeGraduationPlanJson,
+        formatReport: formatAmpRuntimeGraduationPlanReport,
       });
       if (!result.ok) {
         process.exitCode = 1;
