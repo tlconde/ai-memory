@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 
 import { runAmpInit } from "./init.js";
+import { resolveCliProjectContext } from "./cli-context.js";
 import { registerAmpCommands } from "./index.js";
 import { runAmpRuntimeSeed } from "./runtime-seed.js";
 import {
@@ -13,6 +14,7 @@ import {
   formatAmpRuntimeGraduationPlanReport,
   runAmpRuntimeGraduationPlan,
 } from "./runtime-graduation-plan.js";
+import { RuntimeStore } from "../substrate/storage/runtime-store.js";
 
 const ISO = "2026-05-26T12:00:00.000Z";
 const GENERATED_AT = "2026-05-27T10:00:00.000Z";
@@ -33,6 +35,26 @@ const ACTIVE_PREFERENCE = {
     repetition_count: 0,
     independent_sessions: 0,
   },
+};
+
+const OPEN_DECISION = {
+  id: "dec-1",
+  question: "Which storage backend?",
+  status: "open" as const,
+  scope: "project" as const,
+  options: [
+    {
+      id: "opt-1",
+      label: "SQLite",
+      tradeoffs: ["local only"],
+      evidence_refs: ["evidence-1"],
+    },
+  ],
+  urgency: "medium" as const,
+  owner: "user" as const,
+  created_at: ISO,
+  last_touched_at: ISO,
+  provenance: ["signal-1"],
 };
 
 describe("runAmpRuntimeGraduationPlan", () => {
@@ -218,6 +240,7 @@ describe("runAmpRuntimeGraduationPlan", () => {
 
     const payload = JSON.parse(formatAmpRuntimeGraduationPlanJson(result)) as {
       ok: boolean;
+      projectRoot: string;
       storageWired: boolean;
       runtimeDbPath: string;
       plan: {
@@ -232,6 +255,7 @@ describe("runAmpRuntimeGraduationPlan", () => {
     };
 
     assert.equal(payload.ok, true);
+    assert.equal(payload.projectRoot, projectRoot);
     assert.equal(payload.storageWired, true);
     assert.match(payload.runtimeDbPath, /runtime\.db$/);
     assert.equal(payload.plan.generatedAt, GENERATED_AT);
@@ -252,6 +276,67 @@ describe("runAmpRuntimeGraduationPlan", () => {
 
     const text = formatAmpRuntimeGraduationPlanReport(result).join("\n");
     assert.match(text, /ERROR Runtime graduation plan did not run/);
+  });
+
+  it("filters by --entity runtime-preference-candidate", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("filtered-graduation");
+    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const runtime = new RuntimeStore({ dbPath: context.runtimeDbPath });
+    try {
+      runtime.semanticEntityInsert({
+        id: "pref-1",
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: ACTIVE_PREFERENCE,
+      });
+      runtime.semanticEntityInsert({
+        id: "dec-1",
+        kind: "unresolved-decision",
+        scope: "project",
+        project_ref: "filtered-graduation",
+        payload: OPEN_DECISION,
+      });
+    } finally {
+      runtime.close();
+    }
+
+    const result = runAmpRuntimeGraduationPlan({
+      projectRoot,
+      entity: "runtime-preference-candidate",
+      env,
+      homedir: () => fakeHome,
+      generatedAt: GENERATED_AT,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.entity, "runtime-preference-candidate");
+    assert.equal(result.plan?.decisions.length, 1);
+    assert.equal(result.plan?.decisions[0]?.recordId, "pref-1");
+    assert.equal(result.plan?.decisions[0]?.runtimeKind, "runtime-preference-candidate");
+  });
+
+  it("rejects unknown entity filter before storage read", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("invalid-entity-graduation");
+    let readCalled = false;
+
+    const result = runAmpRuntimeGraduationPlan({
+      projectRoot,
+      entity: "not-a-real-kind",
+      env,
+      homedir: () => fakeHome,
+      deps: {
+        createReader: () => {
+          readCalled = true;
+          throw new Error("should not read storage");
+        },
+      },
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.storageWired, false);
+    assert.equal(readCalled, false);
+    assert.match(result.error ?? "", /Invalid runtime entity kind "not-a-real-kind"/);
+    assert.equal(result.plan, undefined);
   });
 });
 
@@ -279,6 +364,12 @@ describe("registerAmpCommands runtime graduation plan", () => {
       plan.options.some((option) => option.long?.includes("--project-root")),
       "expected --project-root option on runtime graduation plan",
     );
+    assert.ok(
+      plan.options.some((option) => option.long?.includes("--entity")),
+      "expected --entity option on runtime graduation plan",
+    );
     assert.match(plan.description() ?? "", /read-only/i);
+    assert.match(runtime.description() ?? "", /graduation plan/i);
+    assert.match(runtime.description() ?? "", /read-only/i);
   });
 });

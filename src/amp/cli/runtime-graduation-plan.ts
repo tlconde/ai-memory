@@ -13,12 +13,18 @@
 
 import { resolve } from "node:path";
 
-import type { RuntimeSemanticEntityRecord } from "../runtime-semantics/entity-record.js";
 import {
   planRuntimeGraduation,
   type RuntimeGraduationDecision,
   type RuntimeGraduationPlan,
 } from "../runtime-semantics/graduation-planner.js";
+import {
+  RUNTIME_ENTITY_REGISTRY,
+  type RuntimeEntityKind,
+  type RuntimeEntitySchemaName,
+  isRuntimeEntityKind,
+  runtimeEntitySchemaNameForKind,
+} from "../runtime-semantics/schema.js";
 import {
   RuntimeStoreSemanticEntityReader,
   type RuntimeSemanticEntityReader,
@@ -36,6 +42,7 @@ import {
 
 export interface AmpRuntimeGraduationPlanOptions {
   projectRoot?: string;
+  entity?: string;
   generatedAt?: string;
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
@@ -49,6 +56,8 @@ export interface AmpRuntimeGraduationPlanOptions {
 export interface AmpRuntimeGraduationPlanResult {
   projectRoot: string;
   runtimeDbPath?: string;
+  entity?: RuntimeEntityKind;
+  entitySchemaName?: RuntimeEntitySchemaName;
   storageWired: boolean;
   ok: boolean;
   error?: string;
@@ -80,6 +89,20 @@ export function runAmpRuntimeGraduationPlan(
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const env = options.env ?? process.env;
 
+  let entity: RuntimeEntityKind | undefined;
+  if (options.entity !== undefined) {
+    if (!isRuntimeEntityKind(options.entity)) {
+      const expected = RUNTIME_ENTITY_REGISTRY.map((entry) => entry.kind).join(", ");
+      return {
+        projectRoot,
+        storageWired: false,
+        ok: false,
+        error: `Invalid runtime entity kind "${options.entity}" — expected one of: ${expected}.`,
+      };
+    }
+    entity = options.entity;
+  }
+
   const bootstrap = resolveAmpRuntimeCliBootstrap({
     projectRoot: options.projectRoot,
     env,
@@ -105,11 +128,14 @@ export function runAmpRuntimeGraduationPlan(
     bootstrap,
     { deps: { openRuntimeStore: options.deps?.openRuntimeStore } },
     (runtime) => {
-      const records: readonly RuntimeSemanticEntityRecord[] =
-        createReader(runtime).readEntities();
+      const persisted = createReader(runtime).readEntities();
+      const filtered =
+        entity === undefined
+          ? persisted
+          : persisted.filter((record) => record.kind === entity);
 
       return planRuntimeGraduation({
-        records,
+        records: filtered,
         generatedAt,
         projectRef: bootstrap.projectRef,
       });
@@ -119,6 +145,8 @@ export function runAmpRuntimeGraduationPlan(
   return {
     projectRoot: bootstrap.projectRoot,
     runtimeDbPath: bootstrap.runtimeDbPath,
+    entity,
+    entitySchemaName: entity ? runtimeEntitySchemaNameForKind(entity) : undefined,
     storageWired: true,
     ok: true,
     plan,
@@ -143,6 +171,10 @@ export function formatAmpRuntimeGraduationPlanReport(
   }
 
   appendRuntimeDbPathLine(lines, result.runtimeDbPath);
+
+  if (result.entity) {
+    lines.push(`  filter: ${result.entity} (${result.entitySchemaName})`);
+  }
 
   const plan = result.plan;
   if (plan === undefined) {
@@ -178,8 +210,11 @@ export function formatAmpRuntimeGraduationPlanJson(
 ): string {
   return formatRuntimeCliJson({
     ok: result.ok,
-    storageWired: result.storageWired,
+    projectRoot: result.projectRoot,
     runtimeDbPath: result.runtimeDbPath ?? null,
+    entity: result.entity ?? null,
+    entitySchemaName: result.entitySchemaName ?? null,
+    storageWired: result.storageWired,
     error: result.error ?? null,
     plan: result.plan ?? null,
   });

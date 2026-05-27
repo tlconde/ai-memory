@@ -324,7 +324,7 @@ export function registerAmpCommands(
   const runtime = amp
     .command("runtime")
     .description(
-      "Runtime semantics inspection, seeding, and correction (inspect/seed/correct on local typed storage)"
+      "Runtime semantics inspection, seeding, and correction (inspect/seed/correct on local typed storage); read-only graduation review via graduation plan"
     );
 
   runtime
@@ -426,10 +426,12 @@ export function registerAmpCommands(
       "Experimental operator command — review graduation decisions for persisted typed runtime entities (read-only)"
     )
     .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--entity <kind>", "Runtime entity kind slug (e.g. episodic-frame)")
     .option("--json", "Emit JSON instead of human-readable report")
-    .action((opts: { projectRoot?: string; json?: boolean }) => {
+    .action((opts: { projectRoot?: string; entity?: string; json?: boolean }) => {
       const result = runAmpRuntimeGraduationPlan({
         projectRoot: opts.projectRoot,
+        entity: opts.entity,
       });
       writeAmpRuntimeCliResult({
         result,
@@ -448,7 +450,7 @@ export function registerAmpCommands(
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local when AMP_KNOWLEDGE_BACKEND=in-memory; gbrain read-only source with --source gbrain), runtime status/inspect/seed/correct (typed entity inspect/seed/correct on local storage), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local when AMP_KNOWLEDGE_BACKEND=in-memory; gbrain read-only source with --source gbrain), runtime status/inspect/seed/correct/graduation plan (typed entity inspect/seed/correct on local storage; read-only graduation review), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
       );
     });
 
