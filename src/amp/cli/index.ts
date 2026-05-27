@@ -22,11 +22,17 @@ import {
   runAmpAgentSetup,
 } from "./agent-setup.js";
 import {
+  formatAmpKnowledgeStatusJson,
+  formatAmpKnowledgeStatusReport,
+  runAmpKnowledgeStatus,
+} from "./knowledge-status.js";
+import {
   formatAmpProjectionRenderReport,
   runAmpProjectionRender,
 } from "./projection.js";
 import { formatAmpRetrieveMessages, runAmpRetrieve } from "./retrieve.js";
 import { registerAmpRuntimeCommands } from "./runtime-commands.js";
+import { writeAmpRuntimeCliResult } from "./runtime.js";
 import { confirmLiveGbrainWriteFromCliOptions } from "./live-gbrain-safety.js";
 
 export const AMP_CLI_SHELL_VERSION = "1.0.0";
@@ -44,7 +50,7 @@ export function registerAmpCommands(
   const amp = options.atRoot
     ? program
     : program.command("amp").description(
-        "Agent Memory Protocol (AMP) substrate — init, doctor, capture, consolidate, retrieve, propagate, projection, runtime, agent setup"
+        "Agent Memory Protocol (AMP) substrate — init, doctor, capture, consolidate, retrieve, propagate, projection, knowledge, runtime, agent setup"
       );
 
   amp
@@ -299,6 +305,28 @@ export function registerAmpCommands(
       }
     );
 
+  const knowledge = amp
+    .command("knowledge")
+    .description("Local knowledge storage inspection (read-only)");
+
+  knowledge
+    .command("status")
+    .description("Report local knowledge.db frame counts and paths (read-only, no gbrain)")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--json", "Emit JSON instead of human-readable report")
+    .action((opts: { projectRoot?: string; json?: boolean }) => {
+      const result = runAmpKnowledgeStatus({ projectRoot: opts.projectRoot });
+      writeAmpRuntimeCliResult({
+        result,
+        json: opts.json,
+        formatJson: formatAmpKnowledgeStatusJson,
+        formatReport: formatAmpKnowledgeStatusReport,
+      });
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+    });
+
   registerAmpRuntimeCommands(amp);
 
   amp
@@ -307,7 +335,7 @@ export function registerAmpCommands(
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local reads persistent knowledge.db; gbrain read-only source with --source gbrain), runtime status/inspect/seed/correct/graduation plan/apply (typed entity inspect/seed/correct on local storage; read-only graduation review; graduation apply writes durable local knowledge), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local reads persistent knowledge.db; gbrain read-only source with --source gbrain), knowledge status (read-only local knowledge.db summary), runtime status/inspect/seed/correct/graduation plan/apply (typed entity inspect/seed/correct on local storage; read-only graduation review; graduation apply writes durable local knowledge), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
       );
     });
 
