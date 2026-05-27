@@ -1,9 +1,41 @@
-import { describe, it } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
+import { GbrainKnowledgeAdapter } from "../adapters/ssa/gbrain/adapter.js";
+import { FakeGbrainMcpTransport } from "../adapters/ssa/gbrain/fake-transport.js";
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
+import { LocalSqliteKnowledgeStore } from "../adapters/ssa/local-sqlite-knowledge-store.js";
 import { createFrame } from "../core/frame-schema.js";
+import { runAmpInit } from "./init.js";
+import { resolveCliProjectContext } from "./cli-context.js";
+import { resolveLocalKnowledgeDbPath } from "./knowledge-backend.js";
+import { runAmpRuntimeGraduationApply } from "./runtime-graduation-apply.js";
+import { runAmpRuntimeSeed } from "./runtime-seed.js";
 import { formatAmpRetrieveMessages, runAmpRetrieve } from "./retrieve.js";
+
+const GENERATED_AT = "2026-05-27T10:00:00.000Z";
+const ISO = "2026-05-26T12:00:00.000Z";
+
+const ACTIVE_PREFERENCE = {
+  id: "pref-1",
+  statement: "Keep responses short today",
+  mode: "time_bounded" as const,
+  scope: "user" as const,
+  context: {},
+  status: "active" as const,
+  expires_at: ISO,
+  first_observed_at: ISO,
+  last_observed_at: ISO,
+  source_signal_ids: ["signal-3"],
+  confidence: "medium" as const,
+  promotion_evidence: {
+    repetition_count: 0,
+    independent_sessions: 0,
+  },
+};
 
 describe("runAmpRetrieve", () => {
   it("reads preferences from injected in-memory store", async () => {
@@ -67,5 +99,166 @@ describe("runAmpRetrieve", () => {
 
     assert.match(empty.join("\n"), /no matches/i);
     assert.match(empty.join("\n"), /live gbrain read/i);
+
+    const localPersistent = formatAmpRetrieveMessages({
+      projectRoot: "/tmp/project",
+      knowledgeBackend: "local-persistent",
+      scope: "user",
+      preferences: [],
+    });
+    assert.match(localPersistent.join("\n"), /local persistent knowledge\.db/);
+  });
+});
+
+describe("runAmpRetrieve persistent local knowledge", () => {
+  let tempRoot = "";
+
+  before(async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), "amp-retrieve-persistent-local-"));
+  });
+
+  after(async () => {
+    await rm(tempRoot, { recursive: true, force: true });
+  });
+
+  async function initProject(name: string) {
+    const projectRoot = join(tempRoot, name);
+    const fakeHome = join(tempRoot, `home-${name}`);
+    const env = { HOME: fakeHome };
+    await runAmpInit({ projectRoot, env });
+    return { projectRoot, env, fakeHome };
+  }
+
+  async function seedAndGraduatePreference(
+    projectRoot: string,
+    env: NodeJS.ProcessEnv,
+    fakeHome: string,
+    id = "pref-confirmed",
+  ) {
+    const seedPath = join(projectRoot, "seed.json");
+    await writeFile(
+      seedPath,
+      JSON.stringify({
+        id,
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: {
+          ...ACTIVE_PREFERENCE,
+          id,
+          promotion_evidence: {
+            ...ACTIVE_PREFERENCE.promotion_evidence,
+            explicit_confirmation_signal_id: "confirm-1",
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const seedResult = await runAmpRuntimeSeed({
+      projectRoot,
+      file: seedPath,
+      env,
+      homedir: () => fakeHome,
+    });
+    assert.equal(seedResult.ok, true);
+
+    const applyResult = runAmpRuntimeGraduationApply({
+      projectRoot,
+      id,
+      env,
+      homedir: () => fakeHome,
+      generatedAt: GENERATED_AT,
+    });
+    assert.equal(applyResult.ok, true);
+  }
+
+  it("reads a frame written by graduation apply after reopen without in-memory env", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("retrieve-persistent");
+    await seedAndGraduatePreference(projectRoot, env, fakeHome);
+
+    const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const knowledgeDbPath = resolveLocalKnowledgeDbPath(context.runtimeDbPath);
+    const reopened = new LocalSqliteKnowledgeStore({ dbPath: knowledgeDbPath });
+    try {
+      assert.equal(reopened.read("runtime-graduation:pref-confirmed")?.kind, "semantic");
+    } finally {
+      reopened.close();
+    }
+
+    const result = await runAmpRetrieve({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      scope: "user",
+    });
+
+    assert.equal(result.knowledgeBackend, "local-persistent");
+    assert.equal(result.preferences.length, 1);
+    assert.equal(result.preferences[0]?.frame.id, "runtime-graduation:pref-confirmed");
+    const content = result.preferences[0]?.frame.content as { statement?: string };
+    assert.equal(content.statement, ACTIVE_PREFERENCE.statement);
+  });
+
+  it("prefers injected knowledge store over persistent knowledge.db", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("retrieve-injected-over-persistent");
+    await seedAndGraduatePreference(projectRoot, env, fakeHome);
+
+    const injected = new InMemoryKnowledgeStore();
+    injected.write([
+      createFrame({
+        id: "injected-pref",
+        kind: "semantic",
+        content: "Injected retrieve wins.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "user" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const result = await runAmpRetrieve({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      scope: "user",
+      knowledgeStore: injected,
+    });
+
+    assert.equal(result.knowledgeBackend, "local-persistent");
+    assert.equal(result.preferences.length, 1);
+    assert.equal(result.preferences[0]?.frame.id, "injected-pref");
+  });
+
+  it("uses gbrain adapter only when knowledge backend is explicitly gbrain", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("retrieve-explicit-gbrain");
+    const fake = new FakeGbrainMcpTransport();
+    const adapter = new GbrainKnowledgeAdapter({
+      transport: fake,
+      ssaSpecPath: join(process.cwd(), "ssa-files", "gbrain.yaml"),
+    });
+    await adapter.writeFrames([
+      createFrame({
+        id: "gbrain-pref",
+        kind: "semantic",
+        content: "Gbrain explicit retrieve path.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "user" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const result = await runAmpRetrieve({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      scope: "user",
+      knowledge: "fake-gbrain",
+      gbrainAdapter: adapter,
+    });
+
+    assert.equal(result.knowledgeBackend, "fake-gbrain");
+    assert.equal(result.preferences.length, 1);
+    assert.equal(result.preferences[0]?.frame.content, "Gbrain explicit retrieve path.");
   });
 });

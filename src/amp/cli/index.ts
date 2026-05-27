@@ -170,7 +170,7 @@ export function registerAmpCommands(
     .option("--project-root <path>", "Project root (default: current directory)")
     .option(
       "--knowledge <backend>",
-      "Knowledge backend: gbrain (live), fake-gbrain (test-only), or in-memory (default: gbrain)"
+      "Knowledge backend: gbrain (live), fake-gbrain (test-only), in-memory; omit for local persistent knowledge.db"
     )
     .action(
       async (opts: {

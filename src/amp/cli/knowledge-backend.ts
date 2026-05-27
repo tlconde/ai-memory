@@ -201,20 +201,58 @@ function openLocalPersistentKnowledgeStore(
   return { store, cleanup: () => store.close() };
 }
 
-/** Resolve local projection knowledge from injected store or persistent knowledge.db (no gbrain). */
-export function resolveLocalPersistentProjectionKnowledgeStore(
-  options: ResolveLocalPersistentProjectionKnowledgeStoreOptions = {},
-): ResolveLocalPersistentProjectionKnowledgeStoreResult {
+export type ResolveLocalPersistentKnowledgeStoreResult =
+  | { ok: true; store: KnowledgeStore; cleanup: () => void }
+  | { ok: false; error: string };
+
+function resolveLocalPersistentKnowledgeStore(options: {
+  knowledgeStore?: KnowledgeStore;
+  runtimeDbPath?: string;
+  unavailableError: string;
+}): ResolveLocalPersistentKnowledgeStoreResult {
   if (options.knowledgeStore) {
     return { ok: true, store: options.knowledgeStore, cleanup: () => {} };
   }
 
   if (!options.runtimeDbPath) {
-    return { ok: false, error: LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE };
+    return { ok: false, error: options.unavailableError };
   }
 
   const { store, cleanup } = openLocalPersistentKnowledgeStore(options.runtimeDbPath);
   return { ok: true, store, cleanup };
+}
+
+/** Resolve local projection knowledge from injected store or persistent knowledge.db (no gbrain). */
+export function resolveLocalPersistentProjectionKnowledgeStore(
+  options: ResolveLocalPersistentProjectionKnowledgeStoreOptions = {},
+): ResolveLocalPersistentProjectionKnowledgeStoreResult {
+  return resolveLocalPersistentKnowledgeStore({
+    knowledgeStore: options.knowledgeStore,
+    runtimeDbPath: options.runtimeDbPath,
+    unavailableError: LOCAL_PROJECTION_KNOWLEDGE_UNAVAILABLE,
+  });
+}
+
+export const LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE =
+  "Local retrieve knowledge is unavailable. Run `amp init` so retrieve can open persistent knowledge.db beside runtime storage.";
+
+export interface ResolveLocalPersistentRetrieveKnowledgeStoreOptions {
+  knowledgeStore?: KnowledgeStore;
+  runtimeDbPath?: string;
+}
+
+export type ResolveLocalPersistentRetrieveKnowledgeStoreResult =
+  ResolveLocalPersistentKnowledgeStoreResult;
+
+/** Resolve retrieve knowledge from injected store or persistent knowledge.db (no gbrain). */
+export function resolveLocalPersistentRetrieveKnowledgeStore(
+  options: ResolveLocalPersistentRetrieveKnowledgeStoreOptions = {},
+): ResolveLocalPersistentRetrieveKnowledgeStoreResult {
+  return resolveLocalPersistentKnowledgeStore({
+    knowledgeStore: options.knowledgeStore,
+    runtimeDbPath: options.runtimeDbPath,
+    unavailableError: LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE,
+  });
 }
 
 export interface ResolveGraduationApplyKnowledgeStoreOptions {
@@ -238,14 +276,18 @@ export function resolveGraduationApplyKnowledgeStore(
     return { ok: true, store: options.knowledgeStore, cleanup: () => {} };
   }
 
-  if (options.runtimeDbPath) {
-    const { store, cleanup } = openLocalPersistentKnowledgeStore(options.runtimeDbPath);
-    return { ok: true, store, cleanup };
+  const resolved = resolveLocalPersistentKnowledgeStore({
+    runtimeDbPath: options.runtimeDbPath,
+    unavailableError: GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT,
+  });
+
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      reason: "knowledge_backend_not_persistent",
+      error: resolved.error,
+    };
   }
 
-  return {
-    ok: false,
-    reason: "knowledge_backend_not_persistent",
-    error: GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT,
-  };
+  return resolved;
 }

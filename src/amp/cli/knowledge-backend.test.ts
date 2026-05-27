@@ -19,9 +19,11 @@ import {
   resolveKnowledgeBackend,
   resolveLocalKnowledgeDbPath,
   resolveLocalPersistentProjectionKnowledgeStore,
+  resolveLocalPersistentRetrieveKnowledgeStore,
   resolveProjectionKnowledgeStore,
   resolveGraduationApplyKnowledgeStore,
   GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT,
+  LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE,
 } from "./knowledge-backend.js";
 
 describe("resolveKnowledgeBackend", () => {
@@ -225,6 +227,68 @@ describe("resolveLocalPersistentProjectionKnowledgeStore", () => {
     if (!result.ok) {
       assert.match(result.error, /persistent knowledge\.db/);
       assert.doesNotMatch(result.error, /AMP_KNOWLEDGE_BACKEND=in-memory/);
+    }
+  });
+});
+
+describe("resolveLocalPersistentRetrieveKnowledgeStore", () => {
+  it("returns injected store for explicit test/DI boundaries", () => {
+    const injected = new InMemoryKnowledgeStore();
+    const result = resolveLocalPersistentRetrieveKnowledgeStore({ knowledgeStore: injected });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.store, injected);
+      result.cleanup();
+    }
+  });
+
+  it("opens LocalSqliteKnowledgeStore when runtimeDbPath is provided", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-retrieve-knowledge-resolve-"));
+    const runtimeDbPath = join(tempDir, "runtime.db");
+
+    try {
+      const result = resolveLocalPersistentRetrieveKnowledgeStore({ runtimeDbPath });
+
+      assert.equal(result.ok, true);
+      if (result.ok) {
+        assert.ok(result.store instanceof LocalSqliteKnowledgeStore);
+        result.cleanup();
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("closes local SQLite store via cleanup", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-retrieve-knowledge-cleanup-"));
+    const runtimeDbPath = join(tempDir, "runtime.db");
+
+    try {
+      const result = resolveLocalPersistentRetrieveKnowledgeStore({ runtimeDbPath });
+      assert.equal(result.ok, true);
+      if (result.ok) {
+        result.cleanup();
+        const reopened = new LocalSqliteKnowledgeStore({
+          dbPath: resolveLocalKnowledgeDbPath(runtimeDbPath),
+        });
+        try {
+          assert.equal(reopened.list().length, 0);
+        } finally {
+          reopened.close();
+        }
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when neither injected store nor runtimeDbPath is provided", () => {
+    const result = resolveLocalPersistentRetrieveKnowledgeStore();
+
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error, LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE);
     }
   });
 });
