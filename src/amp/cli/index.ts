@@ -36,18 +36,15 @@ import {
   runAmpProjectionRender,
 } from "./projection.js";
 import { formatAmpRetrieveMessages, runAmpRetrieve } from "./retrieve.js";
+import { registerAmpUpstreamCommands } from "./upstream-commands.js";
 import {
-  formatAmpUpstreamApplyReport,
-  formatAmpUpstreamListReport,
-  formatAmpUpstreamPollReport,
-  runAmpUpstreamApply,
-  runAmpUpstreamDismiss,
-  runAmpUpstreamList,
-  runAmpUpstreamPoll,
-  runAmpUpstreamReview,
-  runAmpUpstreamSubscribe,
-  runAmpUpstreamUnsubscribe,
-} from "./upstream.js";
+  formatAmpProceduralImportReport,
+  formatAmpProceduralListReport,
+  formatAmpProceduralRevokeReport,
+  runAmpProceduralImportGstack,
+  runAmpProceduralList,
+  runAmpProceduralRevokeGstack,
+} from "./procedural.js";
 import { registerAmpRuntimeCommands } from "./runtime-commands.js";
 import { writeAmpRuntimeCliResult } from "./runtime.js";
 import { confirmLiveGbrainWriteFromCliOptions } from "./live-gbrain-safety.js";
@@ -283,110 +280,37 @@ export function registerAmpCommands(
       }
     );
 
-  const upstream = amp
-    .command("upstream")
-    .description("Upstream sync — subscribe, poll, review, apply, dismiss");
+  registerAmpUpstreamCommands(amp);
 
-  upstream
-    .command("subscribe")
-    .description("Subscribe to an upstream source (stub: fixture URLs in this release)")
-    .argument("<url>", "Upstream URL (stub:/path/to/fixture for local fixtures)")
-    .option("--ref <ref>", "Pinned upstream ref")
-    .option("--poll <cadence>", "Poll cadence label (e.g. daily)")
-    .option(
-      "--policy <policy>",
-      "Conflict policy: local-wins, upstream-wins, or prompt"
-    )
-    .option("--id <id>", "Subscription id override")
-    .action(
-      async (
-        url: string,
-        opts: { ref?: string; poll?: string; policy?: string; id?: string }
-      ) => {
-        const policy =
-          opts.policy === "local-wins" ||
-          opts.policy === "upstream-wins" ||
-          opts.policy === "prompt"
-            ? opts.policy
-            : undefined;
-        const result = await runAmpUpstreamSubscribe({
-          url,
-          ref: opts.ref,
-          poll: opts.poll,
-          policy,
-          id: opts.id,
-        });
-        process.stdout.write(`Subscribed: ${result.id}\n`);
-      }
-    );
+  const procedural = amp
+    .command("procedural")
+    .description("Import, revoke, and list gstack procedural artifacts (local-first)");
 
-  upstream
-    .command("unsubscribe")
-    .description("Remove an upstream subscription")
-    .argument("<id>", "Subscription id")
-    .action(async (id: string) => {
-      await runAmpUpstreamUnsubscribe({ id });
-      process.stdout.write(`Unsubscribed: ${id}\n`);
-    });
-
-  upstream
-    .command("list")
-    .description("List subscriptions and changesets")
-    .action(async () => {
-      const result = await runAmpUpstreamList();
-      for (const line of formatAmpUpstreamListReport(result)) {
-        process.stdout.write(`${line}\n`);
-      }
-    });
-
-  upstream
-    .command("review")
-    .description("Review a changeset (structured diff)")
-    .argument("<id>", "Changeset id")
-    .option("--json", "Machine-readable JSON output")
-    .action(async (id: string, opts: { json?: boolean }) => {
-      const result = await runAmpUpstreamReview({ id, json: opts.json });
-      if (!result.ok) {
-        process.stderr.write(`${result.error}\n`);
-        process.exitCode = 1;
-        return;
-      }
-      if (opts.json) {
-        process.stdout.write(`${JSON.stringify(result.changeset, null, 2)}\n`);
-        return;
-      }
-      process.stdout.write(`${JSON.stringify(result.changeset, null, 2)}\n`);
-    });
-
-  upstream
-    .command("apply")
-    .description("Apply a pending upstream changeset")
-    .argument("<id>", "Changeset id")
+  procedural
+    .command("import")
+    .description("Import gstack skills from a local checkout directory")
+    .argument("source", "Import source (currently: gstack)")
+    .argument("local-path", "Path to local gstack checkout")
+    .option("--ref <sha>", "Upstream ref label (sha, tag, or local label)")
     .option("--project-root <path>", "Project root")
-    .option("--only <names...>", "Apply only these procedure names")
-    .option("--exclude <patterns...>", "Exclude procedure names matching patterns")
-    .option("--confirm-breaking", "Required for high-risk changesets")
-    .option("--accept-upstream <names...>", "Accept upstream over local concurrent edits")
     .action(
       async (
-        id: string,
-        opts: {
-          projectRoot?: string;
-          only?: string[];
-          exclude?: string[];
-          confirmBreaking?: boolean;
-          acceptUpstream?: string[];
-        }
+        source: string,
+        localPath: string,
+        opts: { ref?: string; projectRoot?: string }
       ) => {
-        const result = await runAmpUpstreamApply({
-          changesetId: id,
+        if (source !== "gstack") {
+          process.stderr.write(`Unsupported import source: ${source}\n`);
+          process.exitCode = 1;
+          return;
+        }
+
+        const result = await runAmpProceduralImportGstack({
+          checkoutPath: localPath,
+          ref: opts.ref,
           projectRoot: opts.projectRoot,
-          only: opts.only,
-          exclude: opts.exclude,
-          confirmBreaking: opts.confirmBreaking ?? false,
-          acceptUpstream: opts.acceptUpstream,
         });
-        for (const line of formatAmpUpstreamApplyReport(result)) {
+        for (const line of formatAmpProceduralImportReport(result)) {
           process.stdout.write(`${line}\n`);
         }
         if (!result.ok) {
@@ -395,31 +319,47 @@ export function registerAmpCommands(
       }
     );
 
-  upstream
-    .command("dismiss")
-    .description("Dismiss a changeset without applying")
-    .argument("<id>", "Changeset id")
-    .action(async (id: string) => {
-      const result = await runAmpUpstreamDismiss({ id });
-      if (!result.ok) {
-        process.stderr.write(`${result.error}\n`);
+  procedural
+    .command("revoke")
+    .description("Revoke gstack-managed procedures")
+    .argument("source", "Revoke source (currently: gstack)")
+    .option("--keep-edited", "Preserve locally edited 1.x entries")
+    .option("--project-root <path>", "Project root")
+    .action(async (source: string, opts: { keepEdited?: boolean; projectRoot?: string }) => {
+      if (source !== "gstack") {
+        process.stderr.write(`Unsupported revoke source: ${source}\n`);
         process.exitCode = 1;
         return;
       }
-      process.stdout.write(`Dismissed: ${id}\n`);
-    });
 
-  upstream
-    .command("poll")
-    .description("Run upstream sync on demand (no scheduler)")
-    .option("--project-root <path>", "Project root")
-    .action(async (opts: { projectRoot?: string }) => {
-      const result = await runAmpUpstreamPoll({ projectRoot: opts.projectRoot });
-      for (const line of formatAmpUpstreamPollReport(result)) {
+      const result = await runAmpProceduralRevokeGstack({
+        projectRoot: opts.projectRoot,
+        keepEdited: opts.keepEdited ?? false,
+      });
+      for (const line of formatAmpProceduralRevokeReport(result)) {
         process.stdout.write(`${line}\n`);
       }
       if (!result.ok) {
         process.exitCode = 1;
+      }
+    });
+
+  procedural
+    .command("list")
+    .description("List gstack import candidates or registry entries")
+    .option("--source <id>", "Filter registry entries by upstream source id")
+    .option("--checkout <path>", "List skills from a local gstack checkout")
+    .option("--ref <sha>", "Ref label when listing from checkout")
+    .option("--project-root <path>", "Project root")
+    .action(async (opts: { source?: string; checkout?: string; ref?: string; projectRoot?: string }) => {
+      const result = await runAmpProceduralList({
+        source: opts.source,
+        checkoutPath: opts.checkout,
+        ref: opts.ref,
+        projectRoot: opts.projectRoot,
+      });
+      for (const line of formatAmpProceduralListReport(result)) {
+        process.stdout.write(`${line}\n`);
       }
     });
 
