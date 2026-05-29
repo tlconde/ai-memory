@@ -143,7 +143,7 @@ export function registerAmpCommands(
     .option("--project-root <path>", "Project root (default: current directory)")
     .option(
       "--knowledge <backend>",
-      "Knowledge backend: gbrain (live), fake-gbrain (test-only), or in-memory (default: gbrain)"
+      "Knowledge backend: gbrain (live), fake-gbrain (test-only), in-memory; omit for local persistent knowledge.db"
     )
     .option(
       "--confirm-live-gbrain-write",
@@ -374,7 +374,7 @@ export function registerAmpCommands(
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate, projection render (placeholder dry-run; local source with --source local reads persistent knowledge.db; gbrain read-only source with --source gbrain), knowledge status/list (read-only local knowledge.db summary and frame listing), runtime status/inspect/seed/correct/graduation plan/apply (typed entity inspect/seed/correct on local storage; read-only graduation review; graduation apply writes durable local knowledge), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate (consolidate defaults to local persistent knowledge.db; explicit gbrain/fake-gbrain/in-memory via --knowledge), projection render (placeholder dry-run; local source with --source local reads persistent knowledge.db; gbrain read-only source with --source gbrain), knowledge status/list (read-only local knowledge.db summary and frame listing), runtime status/inspect/seed/correct/graduation plan/apply (typed entity inspect/seed/correct on local storage; read-only graduation review; graduation apply writes durable local knowledge), agent setup (claude-code, cursor, and codex dry-run/apply).\n"
       );
     });
 
