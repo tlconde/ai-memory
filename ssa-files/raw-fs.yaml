@@ -15,3 +15,5 @@ capability_coverage:
   full_text_search: unsupported
   profile_slots: unsupported
   procedural_registry: unsupported
+  skill_optimization: unsupported
+  action_log: unsupported

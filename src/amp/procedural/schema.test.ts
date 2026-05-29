@@ -83,4 +83,45 @@ describe("CanonicalProcedureSchema", () => {
     assert.ok(procedure.body.length > 0);
     assert.doesNotThrow(() => parseCanonicalProcedure(procedure));
   });
+
+  it("preserves provenance.upstream fields byte-identical on import round-trip", () => {
+    const upstream = {
+      source_id: "gstack-main",
+      ref: "abc123def456",
+      fetched_at: "2026-05-27T10:30:22.000Z",
+      upstream_synced_at: "2026-05-27T10:30:22.000Z",
+    };
+    const input = {
+      frontmatter: {
+        ...createCanonicalProcedure().frontmatter,
+        provenance: {
+          source: "import" as const,
+          created_at: "2026-05-25T00:00:00.000Z",
+          author: "garrytan",
+          notes: "gstack import",
+          upstream,
+        },
+      },
+      body: "# Imported procedure\n",
+    };
+
+    const procedure = parseCanonicalProcedure(input);
+    assert.deepEqual(procedure.frontmatter.provenance?.upstream, upstream);
+  });
+
+  it("does not synthesize provenance.upstream for user-authored procedures", () => {
+    const input = {
+      frontmatter: {
+        ...createCanonicalProcedure().frontmatter,
+        provenance: {
+          source: "user" as const,
+          created_at: "2026-05-25T00:00:00.000Z",
+        },
+      },
+      body: "# User procedure\n",
+    };
+
+    const procedure = parseCanonicalProcedure(input);
+    assert.equal(procedure.frontmatter.provenance?.upstream, undefined);
+  });
 });

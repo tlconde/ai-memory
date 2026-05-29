@@ -73,6 +73,8 @@ capability_coverage:
   full_text_search: unsupported
   profile_slots: unsupported
   procedural_registry: unsupported
+  skill_optimization: unsupported
+  action_log: unsupported
 external_claims:
   - claim: Temp backend uses isolated paths in tests
     label: VERIFIED

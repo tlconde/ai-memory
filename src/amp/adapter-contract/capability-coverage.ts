@@ -27,6 +27,8 @@ export const CapabilityCoverageSchema = z
     full_text_search: CapabilityLevelSchema,
     profile_slots: CapabilityLevelSchema,
     procedural_registry: CapabilityLevelSchema,
+    skill_optimization: CapabilityLevelSchema,
+    action_log: CapabilityLevelSchema,
   })
   .strict();
 
@@ -83,6 +85,8 @@ export function createSliceCapabilityCoverage(
     full_text_search: "unsupported",
     profile_slots: "unsupported",
     procedural_registry: "unsupported",
+    skill_optimization: "unsupported",
+    action_log: "unsupported",
   };
   return CapabilityCoverageSchema.parse({ ...base, ...overrides });
 }

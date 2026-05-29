@@ -73,6 +73,15 @@ export const ProcedureProvenanceSchema = z
     updated_at: z.string().datetime().optional(),
     author: z.string().min(1).optional(),
     notes: z.string().optional(),
+    upstream: z
+      .object({
+        source_id: z.string().min(1),
+        ref: z.string().min(1),
+        fetched_at: z.string().datetime().optional(),
+        upstream_synced_at: z.string().datetime().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
