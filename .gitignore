@@ -24,6 +24,8 @@ docs/*
 !docs/specs/
 docs/specs/*
 !docs/specs/AMP_CONSOLIDATED_SPEC.md
+!docs/specs/AMP_SPEC_UPDATE_OPTIMIZER_AND_UPSTREAM_SYNC.md
+!docs/specs/PR_11_1_SCHEMA_ONLY_INSTRUCTION.md
 !docs/guides/
 docs/guides/*
 !docs/guides/CURSOR_IMPLEMENTATION_GUIDE.md
@@ -42,6 +44,7 @@ docs/plans/*
 !docs/plans/AMP_V1_COMPOSER_PROMPT.md
 !docs/plans/AMP_V1_LAUNCH_BOARD.md
 !docs/plans/AMP_V1_ACCEPTANCE_REPORT.md
+!docs/plans/AMP_POST_V1_OPTIMIZER_UPSTREAM_PLAN.md
 
 # Tool orchestrator scratch artifacts
 tools/cursor-sdk-amp-orchestrator/direct-composer-*-prompt.md
