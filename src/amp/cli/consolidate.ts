@@ -12,6 +12,7 @@ import type { KnowledgeStore } from "../substrate/storage/knowledge-store.js";
 import type { ConsolidationResult } from "../substrate/consolidation/types.js";
 import { openRuntimeStore, resolveCliProjectContext } from "./cli-context.js";
 import {
+  formatKnowledgeSourceLabel,
   resolveConsolidateKnowledgeStore,
   type AmpConsolidateKnowledgeBackend,
   type AmpConsolidateKnowledgeSource,
@@ -44,16 +45,7 @@ export interface AmpConsolidateResult extends ConsolidationResult {
 
 /** Human-readable label for where consolidation wrote frames. */
 export function formatConsolidateKnowledgeSourceLabel(result: AmpConsolidateResult): string {
-  switch (result.knowledgeSource) {
-    case "in-memory":
-      return "in-memory";
-    case "gbrain":
-      return result.knowledgeBackend;
-    case "injected":
-      return "injected knowledge store";
-    case "local-sqlite":
-      return "local persistent knowledge.db";
-  }
+  return formatKnowledgeSourceLabel(result.knowledgeSource, result.knowledgeBackend);
 }
 
 /** Consolidate queued runtime signals into knowledge storage. */

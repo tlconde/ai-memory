@@ -17,6 +17,7 @@ import {
 } from "../substrate/retrieve-preference.js";
 import { resolveCliProjectContext } from "./cli-context.js";
 import {
+  formatKnowledgeSourceLabel,
   resolveRetrieveKnowledgeStore,
   type AmpRetrieveKnowledgeBackend,
   type AmpRetrieveKnowledgeSource,
@@ -52,16 +53,7 @@ export interface AmpRetrieveResult {
 
 /** Human-readable label for where preferences were read from. */
 export function formatRetrieveKnowledgeSourceLabel(result: AmpRetrieveResult): string {
-  switch (result.knowledgeSource) {
-    case "in-memory":
-      return "in-memory";
-    case "gbrain":
-      return result.knowledgeBackend;
-    case "injected":
-      return "injected knowledge store";
-    case "local-sqlite":
-      return "local persistent knowledge.db";
-  }
+  return formatKnowledgeSourceLabel(result.knowledgeSource, result.knowledgeBackend);
 }
 
 /** Retrieve consolidated preferences from knowledge storage. */

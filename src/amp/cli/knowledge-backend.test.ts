@@ -23,9 +23,11 @@ import {
   resolveLocalPersistentProjectionKnowledgeStore,
   resolveLocalPersistentRetrieveKnowledgeStore,
   resolveLegacyInMemoryProjectionKnowledgeStore,
+  resolveCliKnowledgeStore,
   resolveRetrieveKnowledgeStore,
   resolveConsolidateKnowledgeStore,
   resolveGraduationApplyKnowledgeStore,
+  formatKnowledgeSourceLabel,
   GRADUATION_APPLY_KNOWLEDGE_NOT_PERSISTENT,
   LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE,
   LOCAL_CONSOLIDATE_KNOWLEDGE_UNAVAILABLE,
@@ -294,6 +296,197 @@ describe("resolveLocalPersistentRetrieveKnowledgeStore", () => {
     assert.equal(result.ok, false);
     if (!result.ok) {
       assert.equal(result.error, LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE);
+    }
+  });
+});
+
+describe("formatKnowledgeSourceLabel", () => {
+  it("labels each source consistently", () => {
+    assert.equal(formatKnowledgeSourceLabel("in-memory"), "in-memory");
+    assert.equal(formatKnowledgeSourceLabel("gbrain", "fake-gbrain"), "fake-gbrain");
+    assert.equal(formatKnowledgeSourceLabel("injected"), "injected knowledge store");
+    assert.equal(formatKnowledgeSourceLabel("local-sqlite"), "local persistent knowledge.db");
+  });
+});
+
+describe("resolveCliKnowledgeStore", () => {
+  const fakeAdapter = new GbrainKnowledgeAdapter({
+    transport: new FakeGbrainMcpTransport(),
+    ssaSpecPath: join(process.cwd(), "ssa-files", "gbrain.yaml"),
+  });
+
+  it("uses explicit CLI backend over injected knowledgeStore for read access", () => {
+    const injected = new InMemoryKnowledgeStore();
+    const result = resolveCliKnowledgeStore({
+      access: "read",
+      unavailableError: LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE,
+      explicitKnowledge: "fake-gbrain",
+      knowledgeStore: injected,
+      gbrainAdapter: fakeAdapter,
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.backend, "fake-gbrain");
+      assert.equal(result.source, "gbrain");
+      assert.ok(result.gbrain);
+      result.cleanup();
+    }
+  });
+
+  it("uses explicit CLI backend over injected knowledgeStore for write access", () => {
+    const injected = new InMemoryKnowledgeStore();
+    const result = resolveCliKnowledgeStore({
+      access: "write",
+      unavailableError: LOCAL_CONSOLIDATE_KNOWLEDGE_UNAVAILABLE,
+      explicitKnowledge: "fake-gbrain",
+      knowledgeStore: injected,
+      gbrainAdapter: fakeAdapter,
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.backend, "fake-gbrain");
+      assert.equal(result.source, "gbrain");
+      assert.ok(result.gbrain);
+      result.cleanup();
+    }
+  });
+
+  it("prefers inMemoryStore over knowledgeStore when both are injected for read access", () => {
+    const inMemory = new InMemoryKnowledgeStore();
+    const knowledgeStore = new InMemoryKnowledgeStore();
+
+    const result = resolveCliKnowledgeStore({
+      access: "read",
+      unavailableError: LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE,
+      inMemoryStore: inMemory,
+      knowledgeStore,
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.backend, "in-memory");
+      assert.equal(result.source, "in-memory");
+      assert.equal(result.store, inMemory);
+      result.cleanup();
+    }
+  });
+
+  it("prefers inMemoryStore over knowledgeStore when both are injected for write access", () => {
+    const inMemory = new InMemoryKnowledgeStore();
+    const knowledgeStore = new InMemoryKnowledgeStore();
+
+    const result = resolveCliKnowledgeStore({
+      access: "write",
+      unavailableError: LOCAL_CONSOLIDATE_KNOWLEDGE_UNAVAILABLE,
+      inMemoryStore: inMemory,
+      knowledgeStore,
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.backend, "in-memory");
+      assert.equal(result.source, "in-memory");
+      assert.equal(result.store, inMemory);
+      result.cleanup();
+    }
+  });
+
+  it("allows live gbrain reads without write confirmation", () => {
+    const result = resolveCliKnowledgeStore({
+      access: "read",
+      unavailableError: LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE,
+      explicitKnowledge: "gbrain",
+      env: {},
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.backend, "gbrain");
+      assert.equal(result.source, "gbrain");
+      assert.equal(result.liveGbrain, true);
+      assert.ok(result.gbrain);
+      result.cleanup();
+    }
+  });
+
+  it("blocks live gbrain writes without confirmation", () => {
+    assert.throws(
+      () =>
+        resolveCliKnowledgeStore({
+          access: "write",
+          unavailableError: LOCAL_CONSOLIDATE_KNOWLEDGE_UNAVAILABLE,
+          explicitKnowledge: "gbrain",
+          env: {},
+        }),
+      /Live gbrain writes are disabled/,
+    );
+  });
+
+  it("opens persistent local SQLite for read access", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-cli-knowledge-read-persistent-"));
+    const runtimeDbPath = join(tempDir, "runtime.db");
+
+    try {
+      const result = resolveCliKnowledgeStore({
+        access: "read",
+        unavailableError: LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE,
+        runtimeDbPath,
+      });
+
+      assert.equal(result.ok, true);
+      if (result.ok) {
+        assert.equal(result.backend, "local-persistent");
+        assert.equal(result.source, "local-sqlite");
+        assert.ok(result.store instanceof LocalSqliteKnowledgeStore);
+        result.cleanup();
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("opens persistent local SQLite for write access", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-cli-knowledge-write-persistent-"));
+    const runtimeDbPath = join(tempDir, "runtime.db");
+
+    try {
+      const result = resolveCliKnowledgeStore({
+        access: "write",
+        unavailableError: LOCAL_CONSOLIDATE_KNOWLEDGE_UNAVAILABLE,
+        runtimeDbPath,
+      });
+
+      assert.equal(result.ok, true);
+      if (result.ok) {
+        assert.equal(result.backend, "local-persistent");
+        assert.equal(result.source, "local-sqlite");
+        assert.ok(result.store instanceof LocalSqliteKnowledgeStore);
+        result.cleanup();
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns caller-specific unavailable error when runtime context is missing", () => {
+    const retrieveResult = resolveCliKnowledgeStore({
+      access: "read",
+      unavailableError: LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE,
+    });
+    assert.equal(retrieveResult.ok, false);
+    if (!retrieveResult.ok) {
+      assert.equal(retrieveResult.error, LOCAL_RETRIEVE_KNOWLEDGE_UNAVAILABLE);
+    }
+
+    const consolidateResult = resolveCliKnowledgeStore({
+      access: "write",
+      unavailableError: LOCAL_CONSOLIDATE_KNOWLEDGE_UNAVAILABLE,
+    });
+    assert.equal(consolidateResult.ok, false);
+    if (!consolidateResult.ok) {
+      assert.equal(consolidateResult.error, LOCAL_CONSOLIDATE_KNOWLEDGE_UNAVAILABLE);
     }
   });
 });
