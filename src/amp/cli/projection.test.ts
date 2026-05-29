@@ -163,19 +163,18 @@ describe("runAmpProjectionRender", () => {
     await rm(tempRoot, { recursive: true, force: true });
   });
 
-  it("dry-run plans all four projection paths without writing files", async () => {
+  it("default dry-run plans all four projection paths without writing files", async () => {
     const projectRoot = join(tempRoot, "dry-run-all");
     const fakeHome = join(tempRoot, "home-dry-run-all");
     await runAmpInit({ projectRoot, env: { HOME: fakeHome } });
 
     const result = await runAmpProjectionRender({
       projectRoot,
-      dryRun: true,
       homedir: () => fakeHome,
     });
 
     assert.equal(result.ok, true);
-    assert.equal(result.source, "placeholder");
+    assert.equal(result.source, "local");
     assert.equal(result.dryRun, true);
     assert.equal(result.projectRef, "dry-run-all");
     assert.equal(result.writes.length, 4);
@@ -204,11 +203,32 @@ describe("runAmpProjectionRender", () => {
     assert.equal(result.budget.combined.status, "ok");
   });
 
-  it("refuses non-dry-run apply when placeholder source does not support apply", async () => {
+  it("placeholder dry-run plans fixture projection paths without writing files", async () => {
+    const projectRoot = join(tempRoot, "placeholder-dry-run-all");
+    const fakeHome = join(tempRoot, "home-placeholder-dry-run-all");
+    await runAmpInit({ projectRoot, env: { HOME: fakeHome } });
+
+    const result = await runAmpProjectionRender({
+      projectRoot,
+      source: "placeholder",
+      homedir: () => fakeHome,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.source, "placeholder");
+    assert.equal(result.dryRun, true);
+    assert.equal(result.writes.length, 4);
+  });
+
+  it("refuses placeholder apply when placeholder source does not support apply", async () => {
     const projectRoot = join(tempRoot, "no-dry-run");
     await runAmpInit({ projectRoot });
 
-    const result = await runAmpProjectionRender({ projectRoot, dryRun: false });
+    const result = await runAmpProjectionRender({
+      projectRoot,
+      source: "placeholder",
+      apply: true,
+    });
 
     assert.equal(result.ok, false);
     assert.equal(result.source, "placeholder");
@@ -241,7 +261,7 @@ describe("runAmpProjectionRender", () => {
 
     const result = await runAmpProjectionRender({
       projectRoot,
-      dryRun: true,
+      source: "placeholder",
       homedir: () => fakeHome,
     });
     const lines = formatAmpProjectionRenderReport(result);
@@ -263,12 +283,114 @@ describe("runAmpProjectionRender", () => {
 
     await runAmpProjectionRender({
       projectRoot,
-      dryRun: true,
       homedir: () => fakeHome,
     });
 
     assert.equal(existsSync(join(fakeHome, ".amp", "projection", "global.md")), false);
     assert.equal(existsSync(join(projectRoot, ".amp", "local", "projection.md")), false);
+  });
+
+  it("default dry-run reads local knowledge without explicit --source local", async () => {
+    const projectRoot = join(tempRoot, "default-local-dry-run");
+    const ampUserRoot = join(tempRoot, "amp-user-default-local-dry-run");
+    const fakeHome = join(tempRoot, "home-default-local-dry-run");
+    const env = {
+      HOME: fakeHome,
+      AMP_USER_ROOT: ampUserRoot,
+      AMP_KNOWLEDGE_BACKEND: "in-memory",
+    };
+    await runAmpInit({ projectRoot, env });
+
+    const knowledge = new InMemoryKnowledgeStore();
+    knowledge.write([
+      createFrame({
+        id: "default-local-pref",
+        kind: "semantic",
+        content: "Default local dry-run preference.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "project", project_ref: "default-local-dry-run" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const result = await runAmpProjectionRender({
+      projectRoot,
+      homedir: () => fakeHome,
+      env,
+      knowledgeStore: knowledge,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.source, "local");
+    assert.equal(result.dryRun, true);
+    assert.equal(result.writes.length, 4);
+
+    const resolved = createProjectionRenderSource({
+      sourceKind: "local",
+      projectRef: "default-local-dry-run",
+      runtimeDbPath: resolveCliProjectContext({
+        projectRoot,
+        env,
+        homedir: () => fakeHome,
+      }).runtimeDbPath,
+      knowledgeStore: knowledge,
+      env,
+    });
+    assert.ok(!("error" in resolved));
+    try {
+      const documents = await Promise.resolve(
+        resolved.source.loadProjectionDocuments({ projectRef: "default-local-dry-run" }),
+      );
+      const projectProjection = documents.find((doc) => doc.metadata.kind === "project_projection");
+      assert.match(projectProjection?.body ?? "", /Default local dry-run preference\./);
+    } finally {
+      resolved.cleanup();
+    }
+  });
+
+  it("default apply writes projection files without explicit --source local", async () => {
+    const projectRoot = join(tempRoot, "default-local-apply");
+    const ampUserRoot = join(tempRoot, "amp-user-default-local-apply");
+    const fakeHome = join(tempRoot, "home-default-local-apply");
+    const env = {
+      HOME: fakeHome,
+      AMP_USER_ROOT: ampUserRoot,
+      AMP_KNOWLEDGE_BACKEND: "in-memory",
+    };
+    await runAmpInit({ projectRoot, env });
+
+    const knowledge = new InMemoryKnowledgeStore();
+    knowledge.write([
+      createFrame({
+        id: "default-apply-pref",
+        kind: "semantic",
+        content: "Default local apply preference.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T00:00:00.000Z",
+        scope: { kind: "project", project_ref: "default-local-apply" },
+        curation_mode: "personal",
+      }),
+    ]);
+
+    const result = await runAmpProjectionRender({
+      projectRoot,
+      apply: true,
+      homedir: () => fakeHome,
+      env,
+      knowledgeStore: knowledge,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.source, "local");
+    assert.equal(result.dryRun, false);
+    assert.equal(result.writes.length, 4);
+
+    const projectProjection = await readFile(
+      join(projectRoot, ".amp", "local", "projection.md"),
+      "utf8",
+    );
+    assert.match(projectProjection, /Default local apply preference\./);
   });
 
   it("local dry-run plans four writes with injected knowledge store", async () => {
@@ -659,8 +781,8 @@ describe("formatAmpProjectionRenderReport", () => {
 
     const text = lines.join("\n");
     assert.match(text, /source=placeholder/);
-    assert.match(text, /not wired yet/);
-    assert.match(text, /materialization is not available yet/);
+    assert.match(text, /does not support apply/);
+    assert.doesNotMatch(text, /materialization is not available yet/);
     assert.equal(text.includes("AMP-PROJ"), false);
   });
 });

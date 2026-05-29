@@ -109,7 +109,8 @@ describe("registerAmpCommands", () => {
     }
 
     const output = chunks.join("");
-    assert.match(output, /--source local/);
+    assert.match(output, /defaults to local source/i);
+    assert.match(output, /--source placeholder/);
     assert.match(output, /--source gbrain/);
     assert.match(output, /persistent knowledge\.db/);
     assert.doesNotMatch(

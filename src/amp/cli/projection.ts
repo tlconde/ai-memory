@@ -2,7 +2,8 @@
  * `amp projection render` — plan projection artifact writes via materialization pipeline.
  *
  * Falsifiable claim: config discovery plus materializeProjections reports canonical
- * paths in dry-run without disk writes; apply requires explicit local source + apply.
+ * paths in dry-run without disk writes; default source is local knowledge.db;
+ * apply requires explicit --apply (placeholder source refuses apply).
  */
 
 import { existsSync } from "node:fs";
@@ -51,13 +52,7 @@ export interface AmpProjectionRenderResult {
 }
 
 function resolveMaterializationMode(options: AmpProjectionRenderOptions): "dry-run" | "apply" {
-  if (options.apply === true) {
-    return "apply";
-  }
-  if (options.dryRun === true) {
-    return "dry-run";
-  }
-  return "apply";
+  return options.apply === true ? "apply" : "dry-run";
 }
 
 /** Plan or render projection artifacts through the materialization pipeline. */
@@ -66,7 +61,7 @@ export async function runAmpProjectionRender(
 ): Promise<AmpProjectionRenderResult> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const env = options.env ?? process.env;
-  const source = options.source ?? "placeholder";
+  const source = options.source ?? "local";
   const mode = resolveMaterializationMode(options);
   const dryRun = mode === "dry-run";
 
@@ -160,7 +155,7 @@ export function formatAmpProjectionRenderReport(result: AmpProjectionRenderResul
     lines.push(`  ERROR ${result.error}`);
     lines.push("");
     if (result.blocked) {
-      lines.push("ERROR Projection materialization is not available yet.");
+      // Specific blocked reason is already in result.error above.
     } else {
       lines.push(
         result.dryRun

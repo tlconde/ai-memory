@@ -103,7 +103,8 @@ describe("Projection materialization safety gates E2E", () => {
 
     const applyResult = await runAmpProjectionRender({
       projectRoot,
-      dryRun: false,
+      source: "placeholder",
+      apply: true,
       homedir: rejectRealHomedir,
       env: injectedEnv,
     });

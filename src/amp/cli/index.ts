@@ -233,9 +233,9 @@ export function registerAmpCommands(
     .command("render")
     .description("Plan or apply projection artifacts on disk")
     .option("--project-root <path>", "Project root (default: current directory)")
-    .option("--source <kind>", "Projection source: placeholder (default), local, or gbrain")
-    .option("--dry-run", "Plan writes without touching disk")
-    .option("--apply", "Apply writes (requires --source local or gbrain)")
+    .option("--source <kind>", "Projection source: local (default), placeholder, or gbrain")
+    .option("--dry-run", "Plan writes without touching disk (default when --apply omitted)")
+    .option("--apply", "Apply writes to disk")
     .action(
       async (opts: {
         projectRoot?: string;
@@ -260,7 +260,6 @@ export function registerAmpCommands(
         const result = await runAmpProjectionRender({
           projectRoot: opts.projectRoot,
           source,
-          dryRun: opts.dryRun ?? false,
           apply: opts.apply ?? false,
         });
         for (const line of formatAmpProjectionRenderReport(result)) {
@@ -374,7 +373,7 @@ export function registerAmpCommands(
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate (consolidate defaults to local persistent knowledge.db; explicit gbrain/fake-gbrain/in-memory via --knowledge), projection render (placeholder dry-run; local source with --source local reads persistent knowledge.db; gbrain read-only source with --source gbrain), knowledge status/list (read-only local knowledge.db summary and frame listing), runtime status/inspect/seed/correct/graduation plan/apply (typed entity inspect/seed/correct on local storage; read-only graduation review; graduation apply writes durable local knowledge), agent setup (claude-code, cursor, and codex dry-run/apply). Offline acceptance (`npm run amp:acceptance`) includes the durable local capture → consolidate → retrieve → projection loop against isolated knowledge.db.\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate (consolidate defaults to local persistent knowledge.db; explicit gbrain/fake-gbrain/in-memory via --knowledge), projection render (defaults to local source dry-run against persistent knowledge.db and runtime queue; --source placeholder for fixture dry-run; --source gbrain for read-only cloud source; --apply writes files), knowledge status/list (read-only local knowledge.db summary and frame listing), runtime status/inspect/seed/correct/graduation plan/apply (typed entity inspect/seed/correct on local storage; read-only graduation review; graduation apply writes durable local knowledge), agent setup (claude-code, cursor, and codex dry-run/apply). Offline acceptance (`npm run amp:acceptance`) includes the durable local capture → consolidate → retrieve → projection loop against isolated knowledge.db.\n"
       );
     });
 
