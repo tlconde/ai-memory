@@ -178,6 +178,55 @@ function parseSearchHitRef(entry: unknown): GbrainSearchHitRef | undefined {
   return { slug, score };
 }
 
+export type GbrainGraphEdge = {
+  fromSlug: string;
+  toSlug: string;
+  linkType?: string;
+  context?: string;
+  depth?: number;
+};
+
+/**
+ * Parse gbrain link/graph payloads (`get_links`, `get_backlinks`, `traverse_graph`).
+ * Live shape (probed 2026-05-29): an array of
+ * `{ from_slug, to_slug, link_type, context, depth? }`.
+ */
+export function extractGraphEdges(toolResult: unknown): GbrainGraphEdge[] {
+  let rows: unknown[] = [];
+  if (Array.isArray(toolResult)) {
+    rows = toolResult;
+  } else if (typeof toolResult === "object" && toolResult !== null) {
+    const record = toolResult as Record<string, unknown>;
+    for (const key of ["edges", "links", "backlinks", "results", "paths"] as const) {
+      if (Array.isArray(record[key])) {
+        rows = record[key] as unknown[];
+        break;
+      }
+    }
+  }
+
+  const edges: GbrainGraphEdge[] = [];
+  for (const row of rows) {
+    if (typeof row !== "object" || row === null) {
+      continue;
+    }
+    const r = row as Record<string, unknown>;
+    const fromSlug = typeof r.from_slug === "string" ? r.from_slug : undefined;
+    const toSlug = typeof r.to_slug === "string" ? r.to_slug : undefined;
+    if (!fromSlug || !toSlug) {
+      continue;
+    }
+    edges.push({
+      fromSlug,
+      toSlug,
+      linkType: typeof r.link_type === "string" ? r.link_type : undefined,
+      context: typeof r.context === "string" ? r.context : undefined,
+      depth: typeof r.depth === "number" ? r.depth : undefined,
+    });
+  }
+  return edges;
+}
+
 export function slugFromListEntry(entry: unknown): string | undefined {
   if (typeof entry === "string") {
     return entry;

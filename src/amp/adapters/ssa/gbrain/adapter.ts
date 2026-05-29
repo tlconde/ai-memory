@@ -58,6 +58,7 @@ import {
 } from "./frame-codec.js";
 import { FakeGbrainMcpTransport } from "./fake-transport.js";
 import {
+  extractGraphEdges,
   extractListedSlugs,
   extractSearchHitRefs,
   GbrainServeStdioTransport,
@@ -76,6 +77,28 @@ export type GbrainSearchOptions = {
   mode?: GbrainSearchMode;
   limit?: number;
 };
+
+export type GbrainGraphDirection = "in" | "out" | "both";
+
+export type GbrainGraphTraversalOptions = {
+  /** Max traversal depth (gbrain default 5, capped 10). */
+  depth?: number;
+  /** Edge direction relative to the start frame. Default "out". */
+  direction?: GbrainGraphDirection;
+  /** Restrict traversal to a single gbrain link_type. */
+  linkType?: string;
+};
+
+/**
+ * AMP typed cross-reference → gbrain `link_type`. Namespaced with the `amp:`
+ * prefix so substrate edges never collide with the user's domain links
+ * (e.g. invested_in, works_at).
+ */
+export const AMP_FRAME_LINK_TYPES = {
+  supersedes: "amp:supersedes",
+  superseded_by: "amp:superseded_by",
+  correction_of: "amp:correction_of",
+} as const;
 
 export type GbrainKnowledgeAdapterOptions = {
   transport?: GbrainMcpTransport;
@@ -128,10 +151,46 @@ export class GbrainKnowledgeAdapter {
         return writeFailure(toTransportAmpError(cause, "put_page"));
       }
 
+      if (isCapabilitySupported(this.coverage, "graph_traversal")) {
+        await this.emitFrameLinks(frame, slug);
+      }
+
       ids.push(frame.id);
     }
 
     return writeSuccess(ids.length, ids);
+  }
+
+  /**
+   * Emit typed graph edges for a frame's cross-references via gbrain `add_link`.
+   *
+   * Deterministic alternative to relying on gbrain's `auto_link` wikilink
+   * inference (which is config-gated). Best-effort at the wrapped level: a
+   * missing target page or transport hiccup must never fail the frame write.
+   */
+  private async emitFrameLinks(frame: Frame, fromSlug: string): Promise<void> {
+    const targets: Array<{ refId: string; linkType: string }> = [];
+    for (const refId of frame.supersedes ?? []) {
+      targets.push({ refId, linkType: AMP_FRAME_LINK_TYPES.supersedes });
+    }
+    if (frame.superseded_by) {
+      targets.push({ refId: frame.superseded_by, linkType: AMP_FRAME_LINK_TYPES.superseded_by });
+    }
+    if (frame.correction_of) {
+      targets.push({ refId: frame.correction_of, linkType: AMP_FRAME_LINK_TYPES.correction_of });
+    }
+
+    for (const { refId, linkType } of targets) {
+      try {
+        await this.transport.callTool("add_link", {
+          from: fromSlug,
+          to: frameIdToSlug(refId),
+          link_type: linkType,
+        });
+      } catch {
+        // best-effort typed-edge emission (wrapped level)
+      }
+    }
   }
 
   /**
@@ -270,8 +329,121 @@ export class GbrainKnowledgeAdapter {
     return unsupportedMutateResult("mutate.delete");
   }
 
-  async graphTraversal(_startId: string): Promise<SearchResult<Frame>> {
-    return unsupportedSearchResult("graph_traversal");
+  /**
+   * Traverse the gbrain link graph from a frame via MCP `traverse_graph`,
+   * resolving reachable nodes back into AMP frames.
+   *
+   * PROVISIONAL against live gbrain: covered offline by {@link FakeGbrainMcpTransport};
+   * live parity asserted by `src/amp/integration/gbrain-graph-live.test.ts`
+   * (opt-in `AMP_LIVE_GBRAIN=1`).
+   */
+  async graphTraversal(
+    startId: string,
+    options: GbrainGraphTraversalOptions = {}
+  ): Promise<SearchResult<Frame>> {
+    if (!isCapabilitySupported(this.coverage, "graph_traversal")) {
+      return unsupportedSearchResult("graph_traversal");
+    }
+
+    const direction = options.direction ?? "out";
+    const startSlug = frameIdToSlug(startId);
+    const args: Record<string, unknown> = { slug: startSlug, direction };
+    if (options.depth !== undefined) {
+      args.depth = options.depth;
+    }
+    if (options.linkType !== undefined) {
+      args.link_type = options.linkType;
+    }
+
+    let toolResult: unknown;
+    try {
+      toolResult = await this.transport.callTool("traverse_graph", args);
+    } catch (cause) {
+      return searchFailure(toTransportAmpError(cause, "traverse_graph"));
+    }
+
+    // Resolve the node on the far side of each edge relative to the start,
+    // dedupe by slug, preserve traversal order (shallowest first).
+    const ordered: Array<{ slug: string; depth: number }> = [];
+    const seen = new Set<string>();
+    for (const edge of extractGraphEdges(toolResult)) {
+      let otherSlug: string;
+      if (direction === "in") {
+        otherSlug = edge.fromSlug;
+      } else if (direction === "out") {
+        otherSlug = edge.toSlug;
+      } else {
+        otherSlug = edge.fromSlug === startSlug ? edge.toSlug : edge.fromSlug;
+      }
+      if (otherSlug === startSlug || !isAmpFrameSlug(otherSlug) || seen.has(otherSlug)) {
+        continue;
+      }
+      seen.add(otherSlug);
+      ordered.push({ slug: otherSlug, depth: edge.depth ?? 1 });
+    }
+
+    const decodedHits = await Promise.all(
+      ordered.map(async ({ slug, depth }, rank) => {
+        let pageResult: unknown;
+        try {
+          pageResult = await this.transport.callTool("get_page", { slug });
+        } catch (cause) {
+          return { success: false as const, error: toTransportAmpError(cause, "get_page") };
+        }
+        const decoded = pageResultToFrame(slug, pageResult);
+        if (!decoded.success) {
+          return decoded;
+        }
+        if (decoded.frame === undefined) {
+          return { success: true as const, hit: undefined };
+        }
+        return {
+          success: true as const,
+          hit: { item: decoded.frame, score: 1 / depth, rank } satisfies SearchHit<Frame>,
+        };
+      })
+    );
+
+    const hits: SearchHit<Frame>[] = [];
+    for (const decoded of decodedHits) {
+      if (!decoded.success) {
+        return searchFailure(decoded.error);
+      }
+      if (decoded.hit !== undefined) {
+        hits.push(decoded.hit);
+      }
+    }
+
+    return searchSuccess(hits);
+  }
+
+  /**
+   * Create a typed graph edge between two frames via gbrain `add_link`.
+   * `linkType` is freeform; prefer the namespaced {@link AMP_FRAME_LINK_TYPES}.
+   */
+  async addLink(
+    fromId: string,
+    toId: string,
+    linkType: string,
+    context?: string
+  ): Promise<WriteResult> {
+    if (!isCapabilitySupported(this.coverage, "graph_traversal")) {
+      return unsupportedWriteResult("graph_traversal");
+    }
+    const args: Record<string, unknown> = {
+      from: frameIdToSlug(fromId),
+      to: frameIdToSlug(toId),
+      link_type: linkType,
+    };
+    if (context !== undefined) {
+      args.context = context;
+    }
+    try {
+      await this.transport.callTool("add_link", args);
+    } catch (cause) {
+      return writeFailure(toTransportAmpError(cause, "add_link"));
+    }
+    return writeSuccess(1, [`${fromId} -> ${toId}`]);
   }
 
   async readProfileSlot(_slot: string): Promise<ReadResult<Frame>> {

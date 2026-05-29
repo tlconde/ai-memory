@@ -9,7 +9,7 @@ capability_coverage:
     crystal: wrapped
   curation_mode: native
   vector_search: wrapped
-  graph_traversal: unsupported
+  graph_traversal: wrapped
   transactions: unsupported
   embedding_storage: wrapped
   full_text_search: wrapped

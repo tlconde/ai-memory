@@ -84,7 +84,7 @@ describe("GbrainKnowledgeAdapter with FakeGbrainMcpTransport", () => {
       ssaSpecPath: GBRAIN_SPEC,
     });
     const coverage = adapter.capabilities();
-    assert.equal(coverage.graph_traversal, "unsupported");
+    assert.equal(coverage.graph_traversal, "wrapped");
     assert.equal(coverage.transactions, "unsupported");
     assert.equal(coverage.vector_search, "wrapped");
     assert.equal(coverage.profile_slots, "unsupported");
@@ -127,8 +127,7 @@ describe("GbrainKnowledgeAdapter with FakeGbrainMcpTransport", () => {
     const mutate = await adapter.mutateFrame("frame-001", { content: "x" });
     assert.equal(isUnsupportedCapabilityResult(mutate), true);
 
-    const graph = await adapter.graphTraversal("frame-001");
-    assert.equal(isUnsupportedCapabilityResult(graph), true);
+    // graph_traversal is wrapped as of §10.4.1 — positive coverage in adapter-graph.test.ts.
 
     const profile = await adapter.readProfileSlot("active_intent");
     assert.equal(isUnsupportedCapabilityResult(profile), true);
