@@ -24,6 +24,18 @@ export {
 } from "./compile-skill-md.js";
 
 export {
+  GSTACK_UPSTREAM_SOURCE_ID,
+  gstackImportVersion,
+  inferSupportedHarnesses,
+  isUntouchedGstackImport,
+  mapGstackToCanonicalProcedure,
+  parseSkillMd,
+  promoteGstackImportToUserVersion,
+  type MapGstackOptions,
+  type ParsedSkillMd,
+} from "./parse-skill-md.js";
+
+export {
   AMP_PROCEDURE_ARTIFACT_VERSION,
   AmpCompatibilitySchema,
   CanonicalProcedureSchema,
