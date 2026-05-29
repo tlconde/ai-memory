@@ -16,8 +16,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { LocalSqliteKnowledgeStore } from "../adapters/ssa/local-sqlite-knowledge-store.js";
-import { runAmpCapture } from "../cli/capture.js";
-import { runAmpConsolidate } from "../cli/consolidate.js";
 import { runAmpInit } from "../cli/init.js";
 import { openRuntimeStore, resolveCliProjectContext } from "../cli/cli-context.js";
 import { resolveLocalKnowledgeDbPath } from "../cli/knowledge-backend.js";
@@ -28,6 +26,7 @@ import { runAmpRuntimeGraduationPlan } from "../cli/runtime-graduation-plan.js";
 import { runAmpRuntimeSeed } from "../cli/runtime-seed.js";
 import { formatAmpRetrieveMessages, runAmpRetrieve } from "../cli/retrieve.js";
 import { ACTIVE_PREFERENCE } from "../runtime-semantics/runtime-semantics.test-fixture.js";
+import { runDurableLocalCaptureLoop } from "./_helpers/durable-local-capture-loop.js";
 import {
   canonicalLocalProjectionPaths,
   createIsolatedAmpTestEnv,
@@ -70,24 +69,22 @@ describe("Local durable dogfood E2E", () => {
     const initResult = await runAmpInit({ projectRoot, env });
     assert.equal(initResult.configCreated, true);
 
-    runAmpCapture({
+    const loop = await runDurableLocalCaptureLoop({
       projectRoot,
-      content: CAPTURE_PREFERENCE_TEXT,
-      scope: "project",
       env,
+      captureContent: CAPTURE_PREFERENCE_TEXT,
+      captureScope: "project",
+      retrieveQuery: "typecheck before every AMP commit",
       homedir: rejectRealHomedir,
     });
 
-    const consolidateResult = await runAmpConsolidate({
-      projectRoot,
-      env,
-      homedir: rejectRealHomedir,
-    });
+    const { consolidateResult, retrieveResult, projectionDryRunResult: dryRunResult } = loop;
 
     assert.equal(consolidateResult.processed, 1);
     assert.equal(consolidateResult.knowledgeBackend, "local-persistent");
     assert.equal(consolidateResult.knowledgeSource, "local-sqlite");
     assert.equal(consolidateResult.liveGbrain, undefined);
+    assert.equal(loop.queueDrained, true);
 
     const context = resolveCliProjectContext({
       projectRoot,
@@ -95,38 +92,16 @@ describe("Local durable dogfood E2E", () => {
       homedir: rejectRealHomedir,
     });
 
-    const runtimeAfterConsolidate = openRuntimeStore(context.runtimeDbPath);
-    try {
-      assert.equal(runtimeAfterConsolidate.queueList().length, 0);
-    } finally {
-      runtimeAfterConsolidate.close();
-    }
-
     const knowledgeDbPath = resolveLocalKnowledgeDbPath(context.runtimeDbPath);
     assert.equal(existsSync(knowledgeDbPath), true);
-
-    const retrieveResult = await runAmpRetrieve({
-      projectRoot,
-      env,
-      homedir: rejectRealHomedir,
-      scope: "project",
-      query: "typecheck before every AMP commit",
-    });
 
     assert.equal(retrieveResult.knowledgeBackend, "local-persistent");
     assert.equal(retrieveResult.knowledgeSource, "local-sqlite");
     assert.equal(retrieveResult.liveGbrain, undefined);
     assert.equal(retrieveResult.preferences.length, 1);
     assert.equal(retrieveResult.preferences[0]?.frame.content, CAPTURE_PREFERENCE_TEXT);
-    assert.equal(retrieveResult.preferences[0]?.frame.id, consolidateResult.frameIds[0]);
+    assert.equal(loop.retrievedFrameId, consolidateResult.frameIds[0]);
 
-    const dryRunResult = await runAmpProjectionRender({
-      projectRoot,
-      source: "local",
-      dryRun: true,
-      env,
-      homedir: rejectRealHomedir,
-    });
     assert.equal(dryRunResult.ok, true);
     assert.equal(dryRunResult.source, "local");
     assert.equal(dryRunResult.dryRun, true);
@@ -146,24 +121,7 @@ describe("Local durable dogfood E2E", () => {
       assert.equal(existsSync(write.path), false);
     }
 
-    const resolved = createProjectionRenderSource({
-      sourceKind: "local",
-      projectRef: context.projectRef,
-      runtimeDbPath: context.runtimeDbPath,
-      env,
-    });
-    assert.ok(!("error" in resolved));
-    try {
-      const documents = resolved.source.loadProjectionDocuments({
-        projectRef: context.projectRef,
-      });
-      const projectProjection = documents.find(
-        (doc) => doc.metadata.kind === "project_projection",
-      );
-      assert.match(projectProjection?.body ?? "", new RegExp(escapeRegex(CAPTURE_PREFERENCE_TEXT)));
-    } finally {
-      resolved.cleanup();
-    }
+    assert.equal(loop.projectionBodyContainsCapturedContent, true);
   });
 
   it("runs seed → graduation plan/apply → retrieve → local projection against persistent knowledge.db", async () => {
