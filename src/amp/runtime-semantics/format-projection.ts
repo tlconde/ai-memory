@@ -132,6 +132,8 @@ function formatEpisodicFrameHeading(
       return metadataOnly
         ? EPISODIC_CORRECTION_METADATA_PROJECTION_HEADING
         : EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING;
+    case "upstream_applied":
+      return metadataOnly ? "Upstream sync (metadata only)" : "Upstream sync applied";
     case "signal_observed":
     case "goal_event":
     case "decision_event":

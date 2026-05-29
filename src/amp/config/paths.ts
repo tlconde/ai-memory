@@ -11,6 +11,7 @@ import { join } from "node:path";
 export const AMP_RUNTIME_PATH_ENV = "AMP_RUNTIME_PATH";
 export const AMP_PROJECT_CONFIG_PATH_ENV = "AMP_PROJECT_CONFIG_PATH";
 export const AMP_USER_CONFIG_PATH_ENV = "AMP_USER_CONFIG_PATH";
+export const AMP_USER_UPSTREAM_PATH_ENV = "AMP_USER_UPSTREAM_PATH";
 
 export const PROJECT_CONFIG_DIR = ".amp";
 export const PROJECT_CONFIG_FILENAME = "config.yaml";
@@ -58,6 +59,27 @@ export function defaultUserConfigPath(options: PathContext = {}): string {
   const xdgConfigHome = env.XDG_CONFIG_HOME?.trim();
   const base = xdgConfigHome && xdgConfigHome.length > 0 ? xdgConfigHome : join(home(), ".config");
   return join(base, "amp", PROJECT_CONFIG_FILENAME);
+}
+
+/** Default user-level upstream sync directory (~/.amp/upstream or platform equivalent). */
+export function defaultUserUpstreamDir(options: PathContext = {}): string {
+  const { env } = ctx(options);
+  const override = env[AMP_USER_UPSTREAM_PATH_ENV]?.trim();
+  if (override) return override;
+
+  const configPath = defaultUserConfigPath(options);
+  const parent = configPath.replace(/[/\\][^/\\]+$/, "");
+  return join(parent, "upstream");
+}
+
+/** Default upstream changesets directory. */
+export function defaultUpstreamChangesetsDir(options: PathContext = {}): string {
+  return join(defaultUserUpstreamDir(options), "changesets");
+}
+
+/** Default upstream subscriptions file path. */
+export function defaultUpstreamSubscriptionsPath(options: PathContext = {}): string {
+  return join(defaultUserUpstreamDir(options), "subscriptions.json");
 }
 
 /** Resolve project-level config path under a project root. */

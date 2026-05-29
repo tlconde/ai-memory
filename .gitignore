@@ -26,6 +26,7 @@ docs/specs/*
 !docs/specs/AMP_CONSOLIDATED_SPEC.md
 !docs/specs/AMP_SPEC_UPDATE_OPTIMIZER_AND_UPSTREAM_SYNC.md
 !docs/specs/PR_11_1_SCHEMA_ONLY_INSTRUCTION.md
+!docs/specs/PR_11_2_UPSTREAM_SYNC_SKELETON_INSTRUCTION.md
 !docs/guides/
 docs/guides/*
 !docs/guides/CURSOR_IMPLEMENTATION_GUIDE.md

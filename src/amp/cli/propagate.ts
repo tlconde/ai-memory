@@ -115,7 +115,8 @@ export function parseVerifiedHarnessTargets(
   return tokens as VerifiedHarnessTarget[];
 }
 
-async function loadProcedureRegistryFromDirectory(dir: string): Promise<ProcedureRegistry> {
+/** Load canonical procedures from a project-local directory into a registry. */
+export async function loadProcedureRegistryFromDirectory(dir: string): Promise<ProcedureRegistry> {
   const registry = new ProcedureRegistry();
 
   if (!existsSync(dir)) {

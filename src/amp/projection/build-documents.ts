@@ -22,6 +22,8 @@ import {
   type ProjectionContentSectionKey,
   type ProjectionTextBlock,
 } from "./content.js";
+import { appendUpstreamSyncProjectionBlock } from "../upstream/projection-block.js";
+import type { PersistedUpstreamChangeset } from "../upstream/types.js";
 import { createProjectionDocument, type ProjectionDocument } from "./schema.js";
 
 const PROJECTION_KIND_TO_SECTION: Record<
@@ -202,6 +204,7 @@ export interface BuildProjectionDocumentsOptions {
   generatedAt?: string;
   revisionPrefix: string;
   runtimeSemanticSource?: RuntimeSemanticEntitySource;
+  pendingUpstreamChangesets?: readonly PersistedUpstreamChangeset[];
 }
 
 export interface BuildProjectionDocumentsReport {
@@ -230,6 +233,9 @@ export function buildProjectionDocumentsWithReport(
     projectRef,
     materialization.items
   );
+  if (options.pendingUpstreamChangesets && options.pendingUpstreamChangesets.length > 0) {
+    appendUpstreamSyncProjectionBlock(model, options.pendingUpstreamChangesets);
+  }
   const bodies = renderProjectionContentModel(model);
 
   const documents = PROJECTION_FILE_KINDS.map((kind) => {

@@ -26,6 +26,7 @@ export const EpisodicEventTypeSchema = z.enum([
   "goal_event",
   "decision_event",
   "correction",
+  "upstream_applied",
   "hypothesis_event",
   "preference_event",
   "tool_attempt",
