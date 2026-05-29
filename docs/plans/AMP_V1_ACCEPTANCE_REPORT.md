@@ -67,7 +67,7 @@ These behaviors are exercised by the acceptance gate and its underlying test sui
 - **Preference vertical slice:** capture → runtime queue → consolidate → retrieve (in-memory)
 - **gbrain-backed slice:** capture → runtime → `consolidateToGbrain` → harness-style read (fake transport)
 - **Procedure propagation:** canonical registry → Cursor, Claude Code, Hermes `from-amp` emit with path guards and readback
-- **Capability honesty:** gbrain SSA declares unsupported features (transactions, profile_slots, graph_traversal, etc.)
+- **Capability honesty:** gbrain SSA declares unsupported features (transactions, profile_slots); graph_traversal now wrapped (promoted 2026-05-29, commit eaea475)
 - **CLI commands:** `amp init`, `doctor`, `capture`, `consolidate`, `retrieve`, `propagate`, `status` — full command coverage in unit tests; acceptance gate smoke-tests `init`/`doctor` only after conformance pass
 
 Hermes filesystem adapter is in verified offline scope (same acceptance-gated path guards and propagation E2E as Cursor and Claude Code).
