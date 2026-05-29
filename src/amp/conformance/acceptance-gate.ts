@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { runDurableLocalLoopAcceptanceStep } from "./acceptance-durable-local-loop.js";
 import {
   formatConformanceReport,
   runConformance,
@@ -42,8 +43,11 @@ export interface AcceptanceGateOptions {
   projectRoot?: string;
   /** When true, skip typecheck/build/test (for unit tests of evaluation logic). */
   skipBuildSteps?: boolean;
+  /** When true, skip durable local loop step (for unit tests of evaluation logic). */
+  skipDurableLocalLoopStep?: boolean;
   runConformanceFn?: typeof runConformance;
   runNpmScriptFn?: (cwd: string, script: string) => AcceptanceStepResult;
+  runDurableLocalLoopStepFn?: typeof runDurableLocalLoopAcceptanceStep;
 }
 
 function resolveRepoRoot(projectRoot?: string): string {
@@ -242,6 +246,11 @@ export async function runAcceptanceGate(
 
   if (conformanceMeetsAcceptancePolicy(conformance)) {
     steps.push(...runCliSmokeChecks(projectRoot));
+    if (!options.skipDurableLocalLoopStep) {
+      const runLoop =
+        options.runDurableLocalLoopStepFn ?? runDurableLocalLoopAcceptanceStep;
+      steps.push(await runLoop());
+    }
   }
 
   const report: AcceptanceGateReport = {

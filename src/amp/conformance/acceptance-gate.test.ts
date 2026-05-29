@@ -10,6 +10,7 @@ import {
   runAcceptanceGate,
   type AcceptanceGateReport,
 } from "./acceptance-gate.js";
+import { DURABLE_LOCAL_LOOP_ACCEPTANCE_STEP } from "./acceptance-durable-local-loop.js";
 import type { ConformanceReport } from "./conformance-runner.js";
 
 function baseReport(overrides: Partial<AcceptanceGateReport> = {}): AcceptanceGateReport {
@@ -28,6 +29,7 @@ function baseReport(overrides: Partial<AcceptanceGateReport> = {}): AcceptanceGa
       { step: "test", passed: true },
       { step: "conformance", passed: true },
       { step: "cli: amp --help", passed: true },
+      { step: DURABLE_LOCAL_LOOP_ACCEPTANCE_STEP, passed: true },
     ],
     conformance,
     conformanceOutput: "PASS INV-1\nDEFERRED INV-3\nOverall: PASS",
@@ -150,6 +152,34 @@ describe("acceptance gate", () => {
     assert.match(formatted, /AMP v1 ACCEPTANCE: PASS/);
     assert.match(formatted, /DEFERRED INV-3/);
     assert.match(formatted, /cli: amp --help/);
+    assert.match(formatted, new RegExp(DURABLE_LOCAL_LOOP_ACCEPTANCE_STEP.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  });
+
+  it("includes durable local loop step when conformance passes", async () => {
+    const report = await runAcceptanceGate({
+      skipBuildSteps: true,
+      skipDurableLocalLoopStep: true,
+      runConformanceFn: async () => baseReport().conformance,
+    });
+
+    assert.equal(
+      report.steps.some((step) => step.step === DURABLE_LOCAL_LOOP_ACCEPTANCE_STEP),
+      false,
+    );
+
+    const withLoop = await runAcceptanceGate({
+      skipBuildSteps: true,
+      runConformanceFn: async () => baseReport().conformance,
+      runDurableLocalLoopStepFn: async () => ({
+        step: DURABLE_LOCAL_LOOP_ACCEPTANCE_STEP,
+        passed: true,
+      }),
+    });
+
+    assert.equal(
+      withLoop.steps.find((step) => step.step === DURABLE_LOCAL_LOOP_ACCEPTANCE_STEP)?.passed,
+      true,
+    );
   });
 
   it("formats FAIL summary when steps fail", () => {

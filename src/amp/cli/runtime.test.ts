@@ -123,6 +123,8 @@ describe("registerAmpCommands runtime group", () => {
     assert.match(output, /read-only graduation review/i);
     assert.match(output, /graduation apply writes durable local knowledge/i);
     assert.match(output, /persistent knowledge\.db/);
+    assert.match(output, /npm run amp:acceptance/);
+    assert.match(output, /durable local capture/);
     assert.doesNotMatch(
       output,
       /AMP_KNOWLEDGE_BACKEND=in-memory.*--source local|--source local.*AMP_KNOWLEDGE_BACKEND=in-memory/,
