@@ -241,7 +241,7 @@ describe("Local durable dogfood E2E", () => {
     assert.equal(applyResult.ok, true);
     assert.equal(applyResult.appliedFrameId, `runtime-graduation:${CANDIDATE_ID}`);
     assert.equal(applyResult.persistentLocalKnowledgeWritten, true);
-    assert.equal(applyResult.runtimeRowMutated, false);
+    assert.equal(applyResult.runtimeRowMutated, true);
 
     const knowledgeDbPath = resolveLocalKnowledgeDbPath(context.runtimeDbPath);
     assert.equal(existsSync(knowledgeDbPath), true);
@@ -263,8 +263,24 @@ describe("Local durable dogfood E2E", () => {
       assert.equal(entityAfterApply?.kind, entityBefore?.kind);
       assert.equal(entityAfterApply?.scope, entityBefore?.scope);
       assert.equal(entityAfterApply?.id, entityBefore?.id);
+      assert.equal(entityAfterApply?.graduation_status, "graduated");
+      assert.equal(entityAfterApply?.graduated_at, GENERATED_AT);
     } finally {
       runtimeAfterApply.close();
+    }
+
+    const replanResult = runAmpRuntimeGraduationPlan({
+      projectRoot,
+      env,
+      homedir: rejectRealHomedir,
+      generatedAt: GENERATED_AT,
+    });
+    assert.equal(replanResult.ok, true);
+    assert.equal(replanResult.plan?.summary.graduate, 0);
+    assert.equal(replanResult.plan?.summary.skip, 1);
+    assert.equal(replanResult.plan?.decisions[0]?.status, "skip");
+    if (replanResult.plan?.decisions[0]?.status === "skip") {
+      assert.equal(replanResult.plan.decisions[0].reason, "already_graduated");
     }
 
     const retrieveResult = await runAmpRetrieve({
