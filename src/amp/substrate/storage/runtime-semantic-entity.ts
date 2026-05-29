@@ -5,6 +5,8 @@
  * Parsing and projection policy live in runtime-semantics materialization.
  */
 
+export type RuntimeSemanticEntityGraduationStatus = "graduated";
+
 export interface RuntimeSemanticEntityRow {
   id: string;
   kind: string;
@@ -12,4 +14,6 @@ export interface RuntimeSemanticEntityRow {
   project_ref?: string;
   payload: unknown;
   observed_at?: string;
+  graduation_status?: RuntimeSemanticEntityGraduationStatus;
+  graduated_at?: string;
 }

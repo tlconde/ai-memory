@@ -2,7 +2,8 @@
  * Runtime graduation apply orchestration (RUNTIME-GRAD-03).
  *
  * Falsifiable claim: a single explicit operator apply writes one semantic frame
- * from a graduate preference-candidate decision without RuntimeStore mutation.
+ * from a graduate preference-candidate decision, then optionally promotes the
+ * matching runtime row after durable knowledge write succeeds.
  */
 
 import { parseFrame } from "../core/frame-schema.js";
@@ -25,6 +26,11 @@ export interface ApplyRuntimeGraduationInput {
   recordId: string;
   plan: RuntimeGraduationPlan;
   knowledgeStore: KnowledgeStore;
+  graduatedAt?: string;
+  promoteRuntimeRow?: (
+    recordId: string,
+    graduatedAt: string,
+  ) => { ok: true } | { ok: false; error: string };
 }
 
 export interface ApplyRuntimeGraduationSuccess {
@@ -32,7 +38,8 @@ export interface ApplyRuntimeGraduationSuccess {
   recordId: string;
   appliedFrameId: string;
   decision: Extract<RuntimeGraduationDecision, { status: "graduate" }>;
-  runtimeRowMutated: false;
+  runtimeRowMutated: boolean;
+  runtimePromotionError?: string;
 }
 
 export interface ApplyRuntimeGraduationFailure {
@@ -52,6 +59,23 @@ function findDecisionForRecord(
   recordId: string,
 ): RuntimeGraduationDecision | undefined {
   return plan.decisions.find((decision) => decision.recordId === recordId);
+}
+
+/** Fail closed when a durable graduation frame already exists for `recordId`. */
+export function findGraduationDuplicateFrameFailure(
+  knowledgeStore: KnowledgeStore,
+  recordId: string,
+): ApplyRuntimeGraduationFailure | undefined {
+  const frameId = `runtime-graduation:${recordId}`;
+  if (knowledgeStore.read(frameId) !== undefined) {
+    return {
+      ok: false,
+      recordId,
+      reason: "duplicate_frame_id",
+      error: `Durable frame "${frameId}" already exists; graduation apply will not overwrite existing knowledge.`,
+    };
+  }
+  return undefined;
 }
 
 /** Apply one graduate preference-candidate decision to durable knowledge storage. */
@@ -135,11 +159,25 @@ export function applyRuntimeGraduationDecision(
     };
   }
 
+  let runtimeRowMutated = false;
+  let runtimePromotionError: string | undefined;
+
+  if (input.promoteRuntimeRow) {
+    const graduatedAt = input.graduatedAt ?? new Date().toISOString();
+    const promotion = input.promoteRuntimeRow(recordId, graduatedAt);
+    if (promotion.ok) {
+      runtimeRowMutated = true;
+    } else {
+      runtimePromotionError = promotion.error;
+    }
+  }
+
   return {
     ok: true,
     recordId,
     appliedFrameId: frameId,
     decision,
-    runtimeRowMutated: false,
+    runtimeRowMutated,
+    ...(runtimePromotionError ? { runtimePromotionError } : {}),
   };
 }

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Database from "better-sqlite3";
 
 import {
   RuntimeStore,
@@ -93,6 +94,30 @@ describe("RuntimeStore", () => {
       ["pref-a", "pref-b"]
     );
   });
+
+  it("marks semantic entity rows as graduated without changing payload", () => {
+    store.semanticEntityInsert({
+      id: "pref-graduate",
+      kind: "runtime-preference-candidate",
+      scope: "user",
+      payload: { id: "pref-graduate", statement: "graduate me" },
+    });
+
+    const marked = store.semanticEntityMarkGraduated("pref-graduate", "2026-05-29T12:00:00.000Z");
+    assert.equal(marked, true);
+
+    const row = store.semanticEntityList().find((entry) => entry.id === "pref-graduate");
+    assert.equal(row?.graduation_status, "graduated");
+    assert.equal(row?.graduated_at, "2026-05-29T12:00:00.000Z");
+    assert.deepEqual(row?.payload, { id: "pref-graduate", statement: "graduate me" });
+  });
+
+  it("returns false when marking an unknown semantic entity id", () => {
+    assert.equal(
+      store.semanticEntityMarkGraduated("missing-id", "2026-05-29T12:00:00.000Z"),
+      false,
+    );
+  });
 });
 
 describe("RuntimeStore semanticEntityHas", () => {
@@ -110,6 +135,65 @@ describe("RuntimeStore semanticEntityHas", () => {
       assert.equal(isolated.semanticEntityHas("pref-probe"), true);
     } finally {
       isolated.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("RuntimeStore semantic entity graduation migration", () => {
+  it("adds graduation columns without changing existing rows", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-runtime-graduation-migrate-"));
+    const dbPath = join(tempDir, "runtime.db");
+
+    const legacy = new Database(dbPath);
+    try {
+      legacy.exec(`
+        CREATE TABLE runtime_semantic_entity (
+          id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL,
+          scope TEXT NOT NULL,
+          project_ref TEXT,
+          payload_json TEXT NOT NULL,
+          observed_at TEXT,
+          position INTEGER NOT NULL
+        );
+      `);
+      legacy
+        .prepare(
+          `INSERT INTO runtime_semantic_entity (
+             id, kind, scope, project_ref, payload_json, observed_at, position
+           ) VALUES (?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          "pref-legacy",
+          "runtime-preference-candidate",
+          "user",
+          null,
+          JSON.stringify({ id: "pref-legacy", statement: "legacy row" }),
+          null,
+          1,
+        );
+    } finally {
+      legacy.close();
+    }
+
+    const reopened = new RuntimeStore({ dbPath });
+    try {
+      const row = reopened.semanticEntityList()[0];
+      assert.equal(row?.id, "pref-legacy");
+      assert.equal(row?.graduation_status, undefined);
+      assert.equal(row?.graduated_at, undefined);
+
+      assert.equal(
+        reopened.semanticEntityMarkGraduated("pref-legacy", "2026-05-29T12:00:00.000Z"),
+        true,
+      );
+      const promoted = reopened.semanticEntityList()[0];
+      assert.equal(promoted?.graduation_status, "graduated");
+      assert.equal(promoted?.graduated_at, "2026-05-29T12:00:00.000Z");
+      assert.deepEqual(promoted?.payload, { id: "pref-legacy", statement: "legacy row" });
+    } finally {
+      reopened.close();
       await rm(tempDir, { recursive: true, force: true });
     }
   });

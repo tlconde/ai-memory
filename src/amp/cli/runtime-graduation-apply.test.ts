@@ -16,7 +16,9 @@ import {
   formatAmpRuntimeGraduationApplyReport,
   runAmpRuntimeGraduationApply,
 } from "./runtime-graduation-apply.js";
+import { runAmpRuntimeGraduationPlan } from "./runtime-graduation-plan.js";
 import { runAmpRuntimeSeed } from "./runtime-seed.js";
+import { runAmpRuntimeInspect } from "./runtime-inspect.js";
 
 const ISO = "2026-05-26T12:00:00.000Z";
 const GENERATED_AT = "2026-05-27T10:00:00.000Z";
@@ -163,7 +165,7 @@ describe("runAmpRuntimeGraduationApply", () => {
 
     assert.equal(result.ok, true);
     assert.equal(result.appliedFrameId, "runtime-graduation:pref-confirmed");
-    assert.equal(result.runtimeRowMutated, false);
+    assert.equal(result.runtimeRowMutated, true);
     if (result.decision?.status === "graduate") {
       assert.equal(result.decision.reason, "explicit_confirmation");
     }
@@ -176,6 +178,8 @@ describe("runAmpRuntimeGraduationApply", () => {
       assert.deepEqual(entityAfter?.payload, entityBefore?.payload);
       assert.equal(entityAfter?.kind, entityBefore?.kind);
       assert.equal(entityAfter?.scope, entityBefore?.scope);
+      assert.equal(entityAfter?.graduation_status, "graduated");
+      assert.equal(entityAfter?.graduated_at, GENERATED_AT);
     } finally {
       runtimeAfter.close();
     }
@@ -185,7 +189,7 @@ describe("runAmpRuntimeGraduationApply", () => {
     assert.match(text, /target_id: pref-confirmed/);
     assert.match(text, /durable_frame_id: runtime-graduation:pref-confirmed/);
     assert.match(text, /explicit_confirmation/);
-    assert.match(text, /Runtime semantic entity row was not mutated/);
+    assert.match(text, /marked graduated after durable knowledge write/);
   });
 
   it("applies repetition-threshold preference candidates with repetition_threshold_met reason", async () => {
@@ -394,6 +398,17 @@ describe("runAmpRuntimeGraduationApply", () => {
     assert.equal(duplicate.ok, false);
     assert.match(duplicate.error ?? "", /already exists/i);
     assert.equal(knowledge.list().length, 1);
+
+    const runtimeAfterDuplicate = openRuntimeStore(
+      resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome }).runtimeDbPath,
+    );
+    try {
+      const entityAfterDuplicate = runtimeAfterDuplicate.semanticEntityList()[0];
+      assert.equal(entityAfterDuplicate?.graduation_status, "graduated");
+      assert.equal(entityAfterDuplicate?.graduated_at, GENERATED_AT);
+    } finally {
+      runtimeAfterDuplicate.close();
+    }
   });
 
   it("preserves project scope and project_ref on written frames", async () => {
@@ -534,7 +549,7 @@ describe("runAmpRuntimeGraduationApply", () => {
     assert.equal(result.ok, true);
     assert.equal(result.appliedFrameId, "runtime-graduation:pref-confirmed");
     assert.equal(result.persistentLocalKnowledgeWritten, true);
-    assert.equal(result.runtimeRowMutated, false);
+    assert.equal(result.runtimeRowMutated, true);
 
     const knowledgeDbPath = resolveLocalKnowledgeDbPath(context.runtimeDbPath);
     const reopened = new LocalSqliteKnowledgeStore({ dbPath: knowledgeDbPath });
@@ -552,13 +567,43 @@ describe("runAmpRuntimeGraduationApply", () => {
       assert.deepEqual(entityAfter?.payload, entityBefore?.payload);
       assert.equal(entityAfter?.kind, entityBefore?.kind);
       assert.equal(entityAfter?.scope, entityBefore?.scope);
+      assert.equal(entityAfter?.graduation_status, "graduated");
+      assert.equal(entityAfter?.graduated_at, GENERATED_AT);
     } finally {
       runtimeAfter.close();
     }
 
     const text = formatAmpRuntimeGraduationApplyReport(result).join("\n");
-    assert.match(text, /durable local knowledge was written/);
-    assert.doesNotMatch(text, /only durable knowledge was written/);
+    assert.match(text, /marked graduated after durable knowledge write/);
+  });
+
+  it("skips already-graduated rows on subsequent graduation plan runs", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("apply-plan-skip-graduated");
+    await seedConfirmedPreference(projectRoot, env, fakeHome, "pref-plan-skip");
+
+    const applyResult = runAmpRuntimeGraduationApply({
+      projectRoot,
+      id: "pref-plan-skip",
+      env,
+      homedir: () => fakeHome,
+      generatedAt: GENERATED_AT,
+    });
+    assert.equal(applyResult.ok, true);
+    assert.equal(applyResult.runtimeRowMutated, true);
+
+    const planResult = runAmpRuntimeGraduationPlan({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      generatedAt: GENERATED_AT,
+    });
+    assert.equal(planResult.ok, true);
+    assert.equal(planResult.plan?.summary.graduate, 0);
+    assert.equal(planResult.plan?.summary.skip, 1);
+    assert.equal(planResult.plan?.decisions[0]?.status, "skip");
+    if (planResult.plan?.decisions[0]?.status === "skip") {
+      assert.equal(planResult.plan.decisions[0].reason, "already_graduated");
+    }
   });
 
   it("fails duplicate apply across reopened persistent knowledge store", async () => {
@@ -586,6 +631,15 @@ describe("runAmpRuntimeGraduationApply", () => {
     assert.match(second.error ?? "", /already exists/i);
 
     const context = resolveCliProjectContext({ projectRoot, env, homedir: () => fakeHome });
+    const runtimeAfterDuplicate = openRuntimeStore(context.runtimeDbPath);
+    try {
+      const entityAfterDuplicate = runtimeAfterDuplicate.semanticEntityList()[0];
+      assert.equal(entityAfterDuplicate?.graduation_status, "graduated");
+      assert.equal(entityAfterDuplicate?.graduated_at, GENERATED_AT);
+    } finally {
+      runtimeAfterDuplicate.close();
+    }
+
     const reopened = new LocalSqliteKnowledgeStore({
       dbPath: resolveLocalKnowledgeDbPath(context.runtimeDbPath),
     });

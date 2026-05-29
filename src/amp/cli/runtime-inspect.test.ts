@@ -5,9 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { RuntimeStore } from "../substrate/storage/runtime-store.js";
+import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
 import { runAmpInit } from "./init.js";
 import { resolveCliProjectContext } from "./cli-context.js";
 import { runAmpRuntimeSeed } from "./runtime-seed.js";
+import { runAmpRuntimeGraduationApply } from "./runtime-graduation-apply.js";
 import {
   formatAmpRuntimeInspectJson,
   formatAmpRuntimeInspectReport,
@@ -15,6 +17,8 @@ import {
 } from "./runtime-inspect.js";
 
 const ISO = "2026-05-26T12:00:00.000Z";
+
+const GENERATED_AT = "2026-05-27T10:00:00.000Z";
 
 const ACTIVE_PREFERENCE = {
   id: "pref-1",
@@ -138,6 +142,67 @@ describe("runAmpRuntimeInspect", () => {
     assert.equal(payload.records.length, 1);
     assert.equal(payload.records[0]?.id, "pref-1");
     assert.equal(payload.records[0]?.ok, true);
+  });
+
+  it("includes graduated status in inspect text and JSON after graduation apply", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("graduated-inspect");
+    const seedPath = join(projectRoot, "seed.json");
+    await writeFile(
+      seedPath,
+      JSON.stringify({
+        id: "pref-graduated",
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: {
+          ...ACTIVE_PREFERENCE,
+          id: "pref-graduated",
+          promotion_evidence: {
+            ...ACTIVE_PREFERENCE.promotion_evidence,
+            explicit_confirmation_signal_id: "confirm-1",
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const seedResult = await runAmpRuntimeSeed({
+      projectRoot,
+      file: seedPath,
+      env,
+      homedir: () => fakeHome,
+    });
+    assert.equal(seedResult.ok, true);
+
+    const applyResult = runAmpRuntimeGraduationApply({
+      projectRoot,
+      id: "pref-graduated",
+      env,
+      homedir: () => fakeHome,
+      generatedAt: GENERATED_AT,
+      deps: { knowledgeStore: new InMemoryKnowledgeStore() },
+    });
+    assert.equal(applyResult.ok, true);
+    assert.equal(applyResult.runtimeRowMutated, true);
+
+    const result = runAmpRuntimeInspect({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.records.length, 1);
+    assert.equal(result.records[0]?.graduation_status, "graduated");
+    assert.equal(result.records[0]?.graduated_at, GENERATED_AT);
+
+    const text = formatAmpRuntimeInspectReport(result).join("\n");
+    assert.match(text, /graduated at 2026-05-27T10:00:00.000Z/);
+
+    const payload = JSON.parse(formatAmpRuntimeInspectJson(result)) as {
+      records: Array<{ graduation_status: string | null; graduated_at: string | null }>;
+    };
+    assert.equal(payload.records[0]?.graduation_status, "graduated");
+    assert.equal(payload.records[0]?.graduated_at, GENERATED_AT);
   });
 
   it("filters by --entity runtime-preference-candidate", async () => {

@@ -6,6 +6,7 @@
 
 import type { ScopeKind } from "../core/frame-schema.js";
 import type { FormatterRegistryKind } from "./formatter-registry.js";
+import type { RuntimeSemanticEntityGraduationStatus } from "../substrate/storage/runtime-semantic-entity.js";
 
 export type RuntimeFormatterRegistryKind = FormatterRegistryKind;
 
@@ -16,6 +17,8 @@ export interface RuntimeSemanticEntityRecord {
   project_ref?: string;
   payload: unknown;
   observed_at?: string;
+  graduation_status?: RuntimeSemanticEntityGraduationStatus;
+  graduated_at?: string;
 }
 
 export interface RuntimeSemanticEntitySource {

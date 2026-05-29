@@ -78,6 +78,37 @@ describe("planRuntimeGraduation", () => {
     planRuntimeGraduation({ records, generatedAt: GENERATED_AT });
     assert.deepEqual(records, snapshot);
   });
+
+  it("skips rows already marked graduated in runtime storage", () => {
+    const plan = planRuntimeGraduation({
+      records: [
+        {
+          ...record("pref-graduated", "runtime-preference-candidate", {
+            ...ACTIVE_PREFERENCE,
+            id: "pref-graduated",
+            promotion_evidence: {
+              ...ACTIVE_PREFERENCE.promotion_evidence,
+              explicit_confirmation_signal_id: "confirm-1",
+            },
+          }),
+          graduation_status: "graduated",
+          graduated_at: GENERATED_AT,
+        },
+      ],
+      generatedAt: GENERATED_AT,
+    });
+
+    assert.equal(plan.decisions[0]?.status, "skip");
+    if (plan.decisions[0]?.status === "skip") {
+      assert.equal(plan.decisions[0].reason, "already_graduated");
+    }
+    assert.deepEqual(plan.summary, {
+      graduate: 0,
+      defer: 0,
+      proposal_required: 0,
+      skip: 1,
+    });
+  });
 });
 
 describe("RuntimePreferenceCandidate graduation rules", () => {

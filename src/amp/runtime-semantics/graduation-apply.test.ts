@@ -1,11 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { InMemoryKnowledgeStore } from "../adapters/ssa/in-memory-knowledge-store.js";
 import { parseFrame } from "../core/frame-schema.js";
 import type { RuntimeSemanticEntityRecord } from "./entity-record.js";
 import { applyRuntimeGraduationDecision } from "./graduation-apply.js";
 import { planRuntimeGraduation } from "./graduation-planner.js";
+import { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import {
   ACTIVE_PREFERENCE,
   FIXTURE_ISO,
@@ -262,6 +266,101 @@ describe("applyRuntimeGraduationDecision", () => {
     assert.equal(frame?.scope.kind, "project");
     if (frame?.scope.kind === "project") {
       assert.equal(frame.scope.project_ref, FIXTURE_PROJECT_REF);
+    }
+  });
+
+  it("promotes runtime row after durable write when promoteRuntimeRow is provided", async () => {
+    const knowledge = new InMemoryKnowledgeStore();
+    const tempDir = await mkdtemp(join(tmpdir(), "amp-graduation-apply-promote-"));
+    const runtime = new RuntimeStore({ dbPath: join(tempDir, "runtime.db") });
+    try {
+      runtime.semanticEntityInsert({
+        id: "pref-confirmed",
+        kind: "runtime-preference-candidate",
+        scope: "user",
+        payload: {
+          ...ACTIVE_PREFERENCE,
+          id: "pref-confirmed",
+          promotion_evidence: {
+            ...ACTIVE_PREFERENCE.promotion_evidence,
+            explicit_confirmation_signal_id: "confirm-1",
+          },
+        },
+      });
+
+      const plan = planRuntimeGraduation({
+        records: [
+          record("pref-confirmed", "runtime-preference-candidate", {
+            ...ACTIVE_PREFERENCE,
+            id: "pref-confirmed",
+            promotion_evidence: {
+              ...ACTIVE_PREFERENCE.promotion_evidence,
+              explicit_confirmation_signal_id: "confirm-1",
+            },
+          }),
+        ],
+        generatedAt: GENERATED_AT,
+      });
+
+      const result = applyRuntimeGraduationDecision({
+        recordId: "pref-confirmed",
+        plan,
+        knowledgeStore: knowledge,
+        graduatedAt: GENERATED_AT,
+        promoteRuntimeRow: (recordId, graduatedAt) => {
+          const marked = runtime.semanticEntityMarkGraduated(recordId, graduatedAt);
+          return marked
+            ? { ok: true }
+            : { ok: false, error: `Failed to mark "${recordId}" as graduated.` };
+        },
+      });
+
+      assert.equal(result.ok, true);
+      if (result.ok) {
+        assert.equal(result.runtimeRowMutated, true);
+      }
+
+      const row = runtime.semanticEntityList()[0];
+      assert.equal(row?.graduation_status, "graduated");
+      assert.equal(row?.graduated_at, GENERATED_AT);
+    } finally {
+      runtime.close();
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves durable write when runtime promotion fails", () => {
+    const knowledge = new InMemoryKnowledgeStore();
+    const plan = planRuntimeGraduation({
+      records: [
+        record("pref-confirmed", "runtime-preference-candidate", {
+          ...ACTIVE_PREFERENCE,
+          id: "pref-confirmed",
+          promotion_evidence: {
+            ...ACTIVE_PREFERENCE.promotion_evidence,
+            explicit_confirmation_signal_id: "confirm-1",
+          },
+        }),
+      ],
+      generatedAt: GENERATED_AT,
+    });
+
+    const result = applyRuntimeGraduationDecision({
+      recordId: "pref-confirmed",
+      plan,
+      knowledgeStore: knowledge,
+      graduatedAt: GENERATED_AT,
+      promoteRuntimeRow: () => ({
+        ok: false,
+        error: "Simulated runtime promotion failure.",
+      }),
+    });
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.runtimeRowMutated, false);
+      assert.match(result.runtimePromotionError ?? "", /Simulated runtime promotion failure/);
+      assert.equal(knowledge.list().length, 1);
     }
   });
 

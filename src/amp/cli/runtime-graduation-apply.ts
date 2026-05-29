@@ -2,7 +2,8 @@
  * `amp runtime graduation apply` — explicit preference-candidate graduation (RUNTIME-GRAD-03).
  *
  * Falsifiable claim: one operator-confirmed runtime-preference-candidate decision
- * writes one semantic frame to an injected or persistent KnowledgeStore without RuntimeStore mutation.
+ * writes one semantic frame to an injected or persistent KnowledgeStore, then
+ * promotes the matching runtime row after durable knowledge write succeeds.
  *
  * Boundary ownership:
  * - runtime-graduation-apply (this module): CLI orchestration and reporting.
@@ -16,6 +17,7 @@ import { resolve } from "node:path";
 import type { KnowledgeStore } from "../substrate/storage/knowledge-store.js";
 import {
   applyRuntimeGraduationDecision,
+  findGraduationDuplicateFrameFailure,
 } from "../runtime-semantics/graduation-apply.js";
 import {
   planRuntimeGraduation,
@@ -65,7 +67,8 @@ export interface AmpRuntimeGraduationApplyResult {
   ok: boolean;
   appliedFrameId?: string;
   decision?: RuntimeGraduationDecision;
-  runtimeRowMutated: false;
+  runtimeRowMutated: boolean;
+  runtimePromotionError?: string;
   persistentLocalKnowledgeWritten?: boolean;
   reason?: AmpRuntimeGraduationApplyFailureReason;
   error?: string;
@@ -165,6 +168,14 @@ export function runAmpRuntimeGraduationApply(
           };
         }
 
+        const duplicateFailure = findGraduationDuplicateFrameFailure(
+          knowledgeResult.store,
+          recordId,
+        );
+        if (duplicateFailure) {
+          return duplicateFailure;
+        }
+
         const plan = planRuntimeGraduation({
           records: [record],
           generatedAt,
@@ -175,6 +186,17 @@ export function runAmpRuntimeGraduationApply(
           recordId,
           plan,
           knowledgeStore: knowledgeResult.store,
+          graduatedAt: generatedAt,
+          promoteRuntimeRow: (targetId, graduatedAt) => {
+            const marked = runtime.semanticEntityMarkGraduated(targetId, graduatedAt);
+            if (marked) {
+              return { ok: true as const };
+            }
+            return {
+              ok: false as const,
+              error: `Failed to mark runtime semantic entity "${targetId}" as graduated.`,
+            };
+          },
         });
       },
     );
@@ -200,7 +222,8 @@ export function runAmpRuntimeGraduationApply(
       ok: true,
       appliedFrameId: applyResult.appliedFrameId,
       decision: applyResult.decision,
-      runtimeRowMutated: false,
+      runtimeRowMutated: applyResult.runtimeRowMutated,
+      runtimePromotionError: applyResult.runtimePromotionError,
       persistentLocalKnowledgeWritten: usingPersistentLocalKnowledge,
     };
   } finally {
@@ -239,10 +262,22 @@ export function formatAmpRuntimeGraduationApplyReport(
     lines.push(`  durable_frame_id: ${result.appliedFrameId}`);
   }
 
+  if (result.runtimePromotionError) {
+    lines.push(`  runtime_promotion_error: ${result.runtimePromotionError}`);
+  }
+
   lines.push("");
-  if (result.persistentLocalKnowledgeWritten) {
+  if (result.runtimeRowMutated) {
     lines.push(
-      "NOTE Runtime semantic entity row was not mutated; durable local knowledge was written.",
+      "NOTE Runtime semantic entity row was marked graduated after durable knowledge write.",
+    );
+  } else if (result.persistentLocalKnowledgeWritten) {
+    lines.push(
+      "NOTE Durable local knowledge was written, but the runtime row graduation marker was not updated.",
+    );
+  } else if (result.ok) {
+    lines.push(
+      "NOTE Durable knowledge was written, but the runtime row graduation marker was not updated.",
     );
   } else {
     lines.push(
@@ -266,6 +301,8 @@ export function formatAmpRuntimeGraduationApplyJson(
     recordId: result.recordId,
     appliedFrameId: result.appliedFrameId ?? null,
     decision: result.decision ?? null,
+    runtimeRowMutated: result.runtimeRowMutated,
+    runtimePromotionError: result.runtimePromotionError ?? null,
     reason: result.reason ?? null,
     error: result.error ?? null,
   });

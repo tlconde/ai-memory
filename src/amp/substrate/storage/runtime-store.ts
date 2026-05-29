@@ -11,7 +11,10 @@ import { dirname } from "node:path";
 
 import { defaultRuntimeDbPath } from "../../config/paths.js";
 import type { EpisodicSignal, RuntimeQueueItem } from "./episodic-signal.js";
-import type { RuntimeSemanticEntityRow } from "./runtime-semantic-entity.js";
+import type {
+  RuntimeSemanticEntityGraduationStatus,
+  RuntimeSemanticEntityRow,
+} from "./runtime-semantic-entity.js";
 
 export interface RuntimeStoreOptions {
   dbPath: string;
@@ -157,7 +160,7 @@ export class RuntimeStore {
   semanticEntityList(): RuntimeSemanticEntityRow[] {
     const rows = this.db
       .prepare(
-        `SELECT id, kind, scope, project_ref, payload_json, observed_at
+        `SELECT id, kind, scope, project_ref, payload_json, observed_at, graduation_status, graduated_at
          FROM runtime_semantic_entity
          ORDER BY position ASC`
       )
@@ -168,6 +171,8 @@ export class RuntimeStore {
       project_ref: string | null;
       payload_json: string;
       observed_at: string | null;
+      graduation_status: RuntimeSemanticEntityGraduationStatus | null;
+      graduated_at: string | null;
     }>;
 
     return rows.map((row) => ({
@@ -177,7 +182,21 @@ export class RuntimeStore {
       ...(row.project_ref ? { project_ref: row.project_ref } : {}),
       payload: JSON.parse(row.payload_json) as unknown,
       ...(row.observed_at ? { observed_at: row.observed_at } : {}),
+      ...(row.graduation_status ? { graduation_status: row.graduation_status } : {}),
+      ...(row.graduated_at ? { graduated_at: row.graduated_at } : {}),
     }));
+  }
+
+  /** Mark a typed runtime semantic entity row as graduated after durable knowledge write. */
+  semanticEntityMarkGraduated(id: string, graduatedAt: string): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE runtime_semantic_entity
+         SET graduation_status = ?, graduated_at = ?
+         WHERE id = ?`
+      )
+      .run("graduated", graduatedAt, id);
+    return result.changes > 0;
   }
 
   private migrate(): void {
@@ -206,6 +225,21 @@ export class RuntimeStore {
         position INTEGER NOT NULL
       );
     `);
+    this.ensureSemanticEntityGraduationColumns();
+  }
+
+  private ensureSemanticEntityGraduationColumns(): void {
+    const columns = this.db
+      .prepare(`PRAGMA table_info(runtime_semantic_entity)`)
+      .all() as Array<{ name: string }>;
+    const names = new Set(columns.map((column) => column.name));
+
+    if (!names.has("graduation_status")) {
+      this.db.exec(`ALTER TABLE runtime_semantic_entity ADD COLUMN graduation_status TEXT`);
+    }
+    if (!names.has("graduated_at")) {
+      this.db.exec(`ALTER TABLE runtime_semantic_entity ADD COLUMN graduated_at TEXT`);
+    }
   }
 }
 

@@ -19,6 +19,8 @@ export function recordToRow(record: RuntimeSemanticEntityRecord): RuntimeSemanti
     ...(record.project_ref ? { project_ref: record.project_ref } : {}),
     payload: record.payload,
     ...(record.observed_at ? { observed_at: record.observed_at } : {}),
+    ...(record.graduation_status ? { graduation_status: record.graduation_status } : {}),
+    ...(record.graduated_at ? { graduated_at: record.graduated_at } : {}),
   };
 }
 
@@ -32,5 +34,7 @@ export function rowToRuntimeSemanticEntityRecord(
     ...(row.project_ref ? { project_ref: row.project_ref } : {}),
     payload: row.payload,
     ...(row.observed_at ? { observed_at: row.observed_at } : {}),
+    ...(row.graduation_status ? { graduation_status: row.graduation_status } : {}),
+    ...(row.graduated_at ? { graduated_at: row.graduated_at } : {}),
   };
 }

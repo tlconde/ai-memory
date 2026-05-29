@@ -121,6 +121,27 @@ function parseRuntimeSemanticEntityRecordEnvelope(
     };
   }
 
+  if (
+    candidate.graduation_status !== undefined &&
+    candidate.graduation_status !== "graduated"
+  ) {
+    return {
+      ok: false,
+      reason: "invalid_record_shape",
+      message: 'Record graduation_status must be "graduated" when provided.',
+      id,
+    };
+  }
+
+  if (candidate.graduated_at !== undefined && typeof candidate.graduated_at !== "string") {
+    return {
+      ok: false,
+      reason: "invalid_record_shape",
+      message: "Record graduated_at must be a string when provided.",
+      id,
+    };
+  }
+
   const record: RuntimeSemanticEntityRecord = {
     id,
     kind: candidate.kind as RuntimeSemanticEntityRecord["kind"],
@@ -131,6 +152,12 @@ function parseRuntimeSemanticEntityRecordEnvelope(
       : {}),
     ...(typeof candidate.observed_at === "string"
       ? { observed_at: candidate.observed_at }
+      : {}),
+    ...(candidate.graduation_status === "graduated"
+      ? { graduation_status: "graduated" as const }
+      : {}),
+    ...(typeof candidate.graduated_at === "string"
+      ? { graduated_at: candidate.graduated_at }
       : {}),
   };
 

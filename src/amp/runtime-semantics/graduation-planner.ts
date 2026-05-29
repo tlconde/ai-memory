@@ -57,6 +57,7 @@ export type RuntimeGraduationSkipReason =
   | "retrieval_beacon_only"
   | "sub_entity_only"
   | "already_promoted"
+  | "already_graduated"
   | "abandoned"
   | "refuted_hypothesis";
 
@@ -609,6 +610,17 @@ export function planRuntimeGraduation(input: PlanRuntimeGraduationInput): Runtim
   const decisions: RuntimeGraduationDecision[] = [];
 
   for (const record of input.records) {
+    if (record.graduation_status === "graduated" || record.graduated_at !== undefined) {
+      decisions.push(
+        skipDecision(
+          record,
+          "already_graduated",
+          "Runtime semantic entity was already graduated to durable knowledge.",
+        ),
+      );
+      continue;
+    }
+
     const parsed = parseRuntimeEntityAtBoundary(record.kind, record.payload);
     if (!parsed.success) {
       decisions.push(

@@ -55,6 +55,8 @@ export interface AmpRuntimeInspectRecordEntry {
   scope: string;
   project_ref?: string;
   observed_at?: string;
+  graduation_status?: string;
+  graduated_at?: string;
   payload: unknown;
   ok: boolean;
   reason?: RuntimeSemanticEntityRecordParseFailureReason;
@@ -81,6 +83,8 @@ function toInspectRecordEntry(
     scope: record.scope,
     ...(record.project_ref ? { project_ref: record.project_ref } : {}),
     ...(record.observed_at ? { observed_at: record.observed_at } : {}),
+    ...(record.graduation_status ? { graduation_status: record.graduation_status } : {}),
+    ...(record.graduated_at ? { graduated_at: record.graduated_at } : {}),
     payload: record.payload,
   };
   const parseResult = safeParseRuntimeSemanticEntityRecordFromUnknown(record);
@@ -100,8 +104,12 @@ function toInspectRecordEntry(
 }
 
 function formatInspectRecordLine(entry: AmpRuntimeInspectRecordEntry): string {
+  const graduationLabel =
+    entry.graduation_status === "graduated"
+      ? `, graduated${entry.graduated_at ? ` at ${entry.graduated_at}` : ""}`
+      : "";
   return entry.ok
-    ? `  OK ${entry.id} (${entry.kind}, ${entry.scope})`
+    ? `  OK ${entry.id} (${entry.kind}, ${entry.scope}${graduationLabel})`
     : `  SKIP ${entry.id} (${entry.kind}, ${entry.scope}): ${entry.reason} — ${entry.message}`;
 }
 
@@ -112,6 +120,8 @@ function inspectRecordToJson(entry: AmpRuntimeInspectRecordEntry) {
     scope: entry.scope,
     project_ref: entry.project_ref ?? null,
     observed_at: entry.observed_at ?? null,
+    graduation_status: entry.graduation_status ?? null,
+    graduated_at: entry.graduated_at ?? null,
     payload: entry.payload,
     ok: entry.ok,
     ...(entry.ok
