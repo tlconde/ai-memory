@@ -1,11 +1,10 @@
 /**
- * Durable local dogfood E2E — seed, graduation plan/apply, persistent knowledge, projection.
+ * Durable local dogfood E2E — capture/consolidate and graduation paths against knowledge.db.
  *
- * Falsifiable claim: the explicit operator path init → seed → graduation plan →
- * graduation apply → local projection dry-run/apply works against real CLI
- * functions and persistent `.amp/runtime/knowledge.db` without gbrain transport
- * or injected knowledge stores. Retrieve reads the same durable knowledge store
- * by default after graduation apply.
+ * Falsifiable claim: the simpler operator path init → capture → consolidate → retrieve
+ * and the graduation path init → seed → graduation plan/apply → retrieve both work
+ * against real CLI functions and persistent `.amp/runtime/knowledge.db` without gbrain
+ * transport or injected knowledge stores.
  */
 
 import { describe, it, before, after } from "node:test";
@@ -17,6 +16,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { LocalSqliteKnowledgeStore } from "../adapters/ssa/local-sqlite-knowledge-store.js";
+import { runAmpCapture } from "../cli/capture.js";
+import { runAmpConsolidate } from "../cli/consolidate.js";
 import { runAmpInit } from "../cli/init.js";
 import { openRuntimeStore, resolveCliProjectContext } from "../cli/cli-context.js";
 import { resolveLocalKnowledgeDbPath } from "../cli/knowledge-backend.js";
@@ -36,6 +37,8 @@ import {
 const GENERATED_AT = "2026-05-27T10:00:00.000Z";
 const CANDIDATE_ID = "pref-dogfood-e2e";
 const PREFERENCE_STATEMENT = ACTIVE_PREFERENCE.statement;
+const CAPTURE_PREFERENCE_TEXT =
+  "Run npm run typecheck before every AMP commit in this project.";
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -50,6 +53,117 @@ describe("Local durable dogfood E2E", () => {
 
   after(async () => {
     await rm(tempRoot, { recursive: true, force: true });
+  });
+
+  it("runs capture → consolidate → retrieve → local projection against persistent knowledge.db", async () => {
+    const projectRoot = join(tempRoot, "local-durable-dogfood-capture");
+    const { env, rejectRealHomedir } = createIsolatedAmpTestEnv(
+      tempRoot,
+      "local-durable-dogfood-capture",
+      { knowledgeBackend: false },
+    );
+
+    assert.equal(env.AMP_KNOWLEDGE_BACKEND, undefined);
+
+    await mkdir(projectRoot, { recursive: true });
+
+    const initResult = await runAmpInit({ projectRoot, env });
+    assert.equal(initResult.configCreated, true);
+
+    runAmpCapture({
+      projectRoot,
+      content: CAPTURE_PREFERENCE_TEXT,
+      scope: "project",
+      env,
+      homedir: rejectRealHomedir,
+    });
+
+    const consolidateResult = await runAmpConsolidate({
+      projectRoot,
+      env,
+      homedir: rejectRealHomedir,
+    });
+
+    assert.equal(consolidateResult.processed, 1);
+    assert.equal(consolidateResult.knowledgeBackend, "local-persistent");
+    assert.equal(consolidateResult.knowledgeSource, "local-sqlite");
+    assert.equal(consolidateResult.liveGbrain, undefined);
+
+    const context = resolveCliProjectContext({
+      projectRoot,
+      env,
+      homedir: rejectRealHomedir,
+    });
+
+    const runtimeAfterConsolidate = openRuntimeStore(context.runtimeDbPath);
+    try {
+      assert.equal(runtimeAfterConsolidate.queueList().length, 0);
+    } finally {
+      runtimeAfterConsolidate.close();
+    }
+
+    const knowledgeDbPath = resolveLocalKnowledgeDbPath(context.runtimeDbPath);
+    assert.equal(existsSync(knowledgeDbPath), true);
+
+    const retrieveResult = await runAmpRetrieve({
+      projectRoot,
+      env,
+      homedir: rejectRealHomedir,
+      scope: "project",
+      query: "typecheck before every AMP commit",
+    });
+
+    assert.equal(retrieveResult.knowledgeBackend, "local-persistent");
+    assert.equal(retrieveResult.knowledgeSource, "local-sqlite");
+    assert.equal(retrieveResult.liveGbrain, undefined);
+    assert.equal(retrieveResult.preferences.length, 1);
+    assert.equal(retrieveResult.preferences[0]?.frame.content, CAPTURE_PREFERENCE_TEXT);
+    assert.equal(retrieveResult.preferences[0]?.frame.id, consolidateResult.frameIds[0]);
+
+    const dryRunResult = await runAmpProjectionRender({
+      projectRoot,
+      source: "local",
+      dryRun: true,
+      env,
+      homedir: rejectRealHomedir,
+    });
+    assert.equal(dryRunResult.ok, true);
+    assert.equal(dryRunResult.source, "local");
+    assert.equal(dryRunResult.dryRun, true);
+    assert.equal(dryRunResult.writes.length, 4);
+    assert.deepEqual(
+      dryRunResult.writes.map((write) => write.kind),
+      [...PROJECTION_FILE_KINDS],
+    );
+
+    const projectProjectionWrite = dryRunResult.writes.find(
+      (write) => write.kind === "project_projection",
+    );
+    assert.ok(projectProjectionWrite);
+    assert.ok(projectProjectionWrite.bytes > 0);
+    for (const write of dryRunResult.writes) {
+      assert.equal(write.dryRun, true);
+      assert.equal(existsSync(write.path), false);
+    }
+
+    const resolved = createProjectionRenderSource({
+      sourceKind: "local",
+      projectRef: context.projectRef,
+      runtimeDbPath: context.runtimeDbPath,
+      env,
+    });
+    assert.ok(!("error" in resolved));
+    try {
+      const documents = resolved.source.loadProjectionDocuments({
+        projectRef: context.projectRef,
+      });
+      const projectProjection = documents.find(
+        (doc) => doc.metadata.kind === "project_projection",
+      );
+      assert.match(projectProjection?.body ?? "", new RegExp(escapeRegex(CAPTURE_PREFERENCE_TEXT)));
+    } finally {
+      resolved.cleanup();
+    }
   });
 
   it("runs seed → graduation plan/apply → retrieve → local projection against persistent knowledge.db", async () => {
