@@ -20,6 +20,16 @@ import {
 
 const VERIFIED_HARNESS_SET = new Set<string>(VERIFIED_HARNESS_TARGETS);
 
+function declaresHarnessSupport(
+  harness: VerifiedHarnessTarget,
+  supportedHarnesses: readonly string[]
+): boolean {
+  if (supportedHarnesses.includes("any")) {
+    return true;
+  }
+  return supportedHarnesses.includes(harness);
+}
+
 function supportsFilesystemPropagation(injectionPath: InjectionPath): boolean {
   return injectionPath === "filesystem-native" || injectionPath === "either";
 }
@@ -45,6 +55,9 @@ function collectUnsupportedDeclaredTargets(
   }
 
   for (const harness of supportedHarnesses) {
+    if (harness === "any") {
+      continue;
+    }
     if (!VERIFIED_HARNESS_SET.has(harness)) {
       conflicts.push({
         procedureName,
@@ -76,13 +89,12 @@ export async function propagateProcedures(
       ...collectUnsupportedDeclaredTargets(procedureName, supportedHarnesses, injectionPath)
     );
 
-    const supportedSet = new Set(supportedHarnesses);
     if (!supportsFilesystemPropagation(injectionPath)) {
       continue;
     }
 
     for (const harness of targets) {
-      if (!supportedSet.has(harness)) {
+      if (!declaresHarnessSupport(harness, supportedHarnesses)) {
         writes.push({
           procedureName,
           harness,
