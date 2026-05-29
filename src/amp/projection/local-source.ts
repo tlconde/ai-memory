@@ -48,6 +48,7 @@ export class LocalProjectionSource implements ProjectionSource {
       generatedAt: this.options.generatedAt,
       revisionPrefix: "local",
       runtimeSemanticSource: this.options.runtimeSemanticSource,
+      pendingUpstreamChangesets: options.pendingUpstreamChangesets,
     });
   }
 }

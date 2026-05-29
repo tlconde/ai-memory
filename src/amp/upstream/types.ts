@@ -125,7 +125,12 @@ export const UpstreamChangesetSchema = z
 
 export type UpstreamChangeset = z.infer<typeof UpstreamChangesetSchema>;
 
-export const UpstreamChangesetStatusSchema = z.enum(["pending", "applied", "dismissed"]);
+export const UpstreamChangesetStatusSchema = z.enum([
+  "pending",
+  "partially-applied",
+  "applied",
+  "dismissed",
+]);
 export type UpstreamChangesetStatus = z.infer<typeof UpstreamChangesetStatusSchema>;
 
 export const PersistedUpstreamChangesetSchema = UpstreamChangesetSchema.extend({

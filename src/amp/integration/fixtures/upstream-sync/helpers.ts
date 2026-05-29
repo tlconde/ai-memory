@@ -6,6 +6,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { AMP_USER_UPSTREAM_PATH_ENV } from "../../../config/paths.js";
+import { InMemoryKnowledgeStore } from "../../../adapters/ssa/in-memory-knowledge-store.js";
+import {
+  createProjectionRenderSource,
+  materializeProjectionRenderSource,
+} from "../../../cli/projection-source.js";
 import { createCanonicalProcedure, type CanonicalProcedure } from "../../../procedural/schema.js";
 import { ProcedureRegistry } from "../../../procedural/registry.js";
 import { procedureChecksum } from "../../../upstream/checksum.js";
@@ -117,4 +122,35 @@ export async function destroyUpstreamIntegrationEnv(env: UpstreamIntegrationEnv)
 
 export function stubSubscriptionUrl(fixtureRoot: string): string {
   return `stub:${fixtureRoot}`;
+}
+
+const DEFAULT_FIXTURE_PROJECT_REF = "amp-v1-fixture";
+
+/** Load project_runtime body through the real projection materialize pipeline. */
+export async function loadProjectRuntimeViaMaterialize(
+  env: UpstreamIntegrationEnv,
+  projectRef: string = DEFAULT_FIXTURE_PROJECT_REF
+): Promise<string | undefined> {
+  const resolved = createProjectionRenderSource({
+    sourceKind: "local",
+    projectRef,
+    runtimeDbPath: env.fixture.runtimeDbPath,
+    knowledgeStore: new InMemoryKnowledgeStore(),
+    env: env.env,
+  });
+  if ("error" in resolved) {
+    throw new Error(resolved.error);
+  }
+
+  try {
+    const plan = await materializeProjectionRenderSource(resolved, {
+      projectRoot: env.fixture.root,
+      mode: "dry-run",
+      projectRef,
+      env: env.env,
+    });
+    return plan.documents.find((doc) => doc.metadata.kind === "project_runtime")?.body;
+  } finally {
+    resolved.cleanup();
+  }
 }

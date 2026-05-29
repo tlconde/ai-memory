@@ -27,7 +27,7 @@ import {
   StubUpstreamSource,
 } from "../upstream/stub-source.js";
 import { runUpstreamSync } from "../upstream/sync.js";
-import type { UpstreamSource, UpstreamSourceKind } from "../upstream/types.js";
+import type { UpstreamSource, UpstreamSourceKind, PersistedUpstreamChangeset } from "../upstream/types.js";
 import {
   createPropagationHarnessWriters,
   loadProcedureRegistryFromDirectory,
@@ -141,7 +141,74 @@ export async function runAmpUpstreamReview(options: AmpUpstreamReviewOptions) {
   if (!changeset) {
     return { ok: false as const, error: `Changeset not found: ${options.id}` };
   }
-  return { ok: true as const, changeset };
+  return { ok: true as const, changeset, json: options.json ?? false };
+}
+
+/** Human-readable review lines for a changeset. */
+export function formatAmpUpstreamReviewHuman(changeset: PersistedUpstreamChangeset): string[] {
+  const lines = [
+    `Changeset: ${changeset.id}`,
+    `Source: ${changeset.sourceId} (${changeset.ref.local} → ${changeset.ref.upstream})`,
+    `Status: ${changeset.status}`,
+    `Risk: ${changeset.riskClass}`,
+    "",
+  ];
+
+  if (changeset.added.length > 0) {
+    lines.push(`Added (${changeset.added.length}):`);
+    for (const entry of changeset.added) {
+      lines.push(`  + ${entry.id} @ ${entry.version}`);
+    }
+    lines.push("");
+  }
+
+  if (changeset.updated.length > 0) {
+    lines.push(`Updated (${changeset.updated.length}):`);
+    for (const entry of changeset.updated) {
+      lines.push(
+        `  ~ ${entry.id}: ${entry.localVersion} → ${entry.upstreamVersion} (${entry.riskClass})`
+      );
+      lines.push(`    ${entry.diffSummary}`);
+    }
+    lines.push("");
+  }
+
+  if (changeset.removed.length > 0) {
+    lines.push(`Removed (${changeset.removed.length}):`);
+    for (const entry of changeset.removed) {
+      lines.push(`  - ${entry.id} @ ${entry.version}`);
+    }
+    lines.push("");
+  }
+
+  if (changeset.breakingChanges.length > 0) {
+    lines.push("Breaking changes:");
+    for (const entry of changeset.breakingChanges) {
+      lines.push(`  ! ${entry.description}`);
+    }
+    lines.push("");
+  }
+
+  if (changeset.conflictsWithLocalEdits.length > 0) {
+    lines.push("Conflicts with local edits:");
+    for (const entry of changeset.conflictsWithLocalEdits) {
+      lines.push(`  * ${entry.procedureId}: ${entry.conflict.reason}`);
+    }
+  }
+
+  return lines;
+}
+
+export function formatAmpUpstreamReviewReport(
+  result: Awaited<ReturnType<typeof runAmpUpstreamReview>>
+): string[] {
+  if (!result.ok) {
+    return [result.error ?? "upstream review failed"];
+  }
+  if (result.json) {
+    return [JSON.stringify(result.changeset, null, 2)];
+  }
+  return formatAmpUpstreamReviewHuman(result.changeset);
 }
 
 export interface AmpUpstreamPollOptions extends AmpUpstreamPathOptions {

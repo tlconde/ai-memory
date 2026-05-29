@@ -123,7 +123,9 @@ export async function updateChangesetStatus(
   const updated = PersistedUpstreamChangesetSchema.parse({
     ...existing,
     status,
-    ...(status === "applied" ? { appliedAt: timestamp } : {}),
+    ...(status === "applied" || status === "partially-applied"
+      ? { appliedAt: timestamp }
+      : {}),
     ...(status === "dismissed" ? { dismissedAt: timestamp } : {}),
   });
 
@@ -148,11 +150,14 @@ export async function hasExistingChangesetForRefPair(
   );
 }
 
-/** Pending changesets that should surface in projection (excludes applied). */
+/** Changesets that should surface in runtime projection (pending or partially applied). */
 export async function listPendingChangesets(
   options: PathContext = {}
 ): Promise<PersistedUpstreamChangeset[]> {
-  return listChangesets(options, "pending");
+  const all = await listChangesets(options);
+  return all.filter(
+    (entry) => entry.status === "pending" || entry.status === "partially-applied"
+  );
 }
 
 /** Latest dismissed upstream ref for a source (for re-surface logic). */

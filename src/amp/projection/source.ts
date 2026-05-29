@@ -6,11 +6,13 @@
  * documents only and refuses apply mode.
  */
 
+import type { PersistedUpstreamChangeset } from "../upstream/types.js";
 import { PROJECTION_FILE_KINDS } from "./constants.js";
 import { createProjectionDocument, type ProjectionDocument } from "./schema.js";
 
 export interface ProjectionSourceLoadOptions {
   projectRef?: string;
+  pendingUpstreamChangesets?: readonly PersistedUpstreamChangeset[];
 }
 
 export interface ProjectionSource {

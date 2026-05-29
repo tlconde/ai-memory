@@ -7,6 +7,7 @@
 
 import { resolve } from "node:path";
 
+import { listPendingChangesets } from "../upstream/changesets.js";
 import {
   evaluateProjectionBudget,
   type EvaluateProjectionBudgetResult,
@@ -88,6 +89,7 @@ async function runLoadReconcileBudget(
   if (options.projectRef !== undefined) {
     loadOptions.projectRef = options.projectRef;
   }
+  loadOptions.pendingUpstreamChangesets = await listPendingChangesets(options);
 
   let raw: ProjectionDocument[];
   try {

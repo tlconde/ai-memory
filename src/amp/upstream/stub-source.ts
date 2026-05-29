@@ -10,7 +10,7 @@ import { join } from "node:path";
 
 import { safeParseCanonicalProcedure, type CanonicalProcedure } from "../procedural/schema.js";
 import type { ProcedureRegistry } from "../procedural/registry.js";
-import { manifestFromRegistry } from "./manifest.js";
+import { filterManifestProceduresForSource, manifestFromRegistry } from "./manifest.js";
 import {
   UpstreamManifestSchema,
   UpstreamPayloadSchema,
@@ -50,7 +50,8 @@ export class StubUpstreamSource implements UpstreamSource {
   }
 
   async manifest(): Promise<UpstreamManifest> {
-    return manifestFromRegistry(this.id, this.registry, this.localRef);
+    const snapshot = manifestFromRegistry(this.id, this.registry, this.localRef);
+    return filterManifestProceduresForSource(snapshot, this.id, this.registry);
   }
 
   async pollUpstream(): Promise<UpstreamManifest> {

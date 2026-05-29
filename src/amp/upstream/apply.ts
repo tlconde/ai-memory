@@ -12,10 +12,23 @@ import {
 import type { RuntimeStore } from "../substrate/storage/runtime-store.js";
 import { propagateProcedures } from "../substrate/propagation/service.js";
 import type { HarnessWriterRegistry } from "../substrate/propagation/types.js";
-import { writeRuntimeSemanticEntity } from "../runtime-semantics/storage-writer.js";
+import type { RuntimeSemanticEntityRecord } from "../runtime-semantics/entity-record.js";
+import {
+  writeRuntimeSemanticEntity,
+} from "../runtime-semantics/storage-writer.js";
+import type { RuntimeSemanticEntityWriteResult } from "../runtime-semantics/storage-validation.js";
+import {
+  changesetHasRemainingApplyTargets,
+  resolveApplyTargetNames,
+} from "./apply-filters.js";
 import { mapUpstreamAppliedToEntityRecord } from "./audit-mapper.js";
 import { readChangeset, updateChangesetStatus } from "./changesets.js";
 import type { ApplyResult, UpstreamSource } from "./types.js";
+
+export type ApplyAuditWriter = (
+  runtime: RuntimeStore,
+  record: RuntimeSemanticEntityRecord
+) => RuntimeSemanticEntityWriteResult;
 
 export interface ApplyChangesetOptions extends PathContext {
   changesetId: string;
@@ -29,16 +42,7 @@ export interface ApplyChangesetOptions extends PathContext {
   acceptUpstream?: readonly string[];
   projectRef?: string;
   syncedAt?: string;
-}
-
-function matchesFilter(name: string, only?: readonly string[], exclude?: readonly string[]): boolean {
-  if (only && only.length > 0 && !only.includes(name)) {
-    return false;
-  }
-  if (exclude && exclude.some((pattern) => name.includes(pattern.replace(/\*/g, "")))) {
-    return false;
-  }
-  return true;
+  writeAudit?: ApplyAuditWriter;
 }
 
 function bumpPatchVersion(version: string): string {
@@ -125,7 +129,11 @@ function restoreRegistrySnapshot(
   }
 }
 
-/** Apply a persisted upstream changeset to the registry and propagate. */
+interface ValidatedApplyEntry {
+  name: string;
+  stamped: CanonicalProcedure;
+}
+
 export async function applyChangeset(options: ApplyChangesetOptions): Promise<ApplyResult> {
   const changeset = await readChangeset(options.changesetId, options);
   if (!changeset) {
@@ -138,7 +146,7 @@ export async function applyChangeset(options: ApplyChangesetOptions): Promise<Ap
     };
   }
 
-  if (changeset.status !== "pending") {
+  if (changeset.status !== "pending" && changeset.status !== "partially-applied") {
     return {
       changesetId: options.changesetId,
       applied: [],
@@ -174,32 +182,29 @@ export async function applyChangeset(options: ApplyChangesetOptions): Promise<Ap
 
   const payload = await options.source.fetch(changeset.ref.upstream);
   const syncedAt = options.syncedAt ?? new Date().toISOString();
-  const targetNames = [
-    ...changeset.added.map((entry) => entry.id),
-    ...changeset.updated.map((entry) => entry.id),
-  ].filter((name) => matchesFilter(name, options.only, options.exclude));
+  const targetNames = resolveApplyTargetNames(changeset, options.only, options.exclude);
 
-  const applied: string[] = [];
+  const validatedEntries: ValidatedApplyEntry[] = [];
   const skipped: string[] = [];
-  const snapshot = snapshotRegistry(options.registry);
 
-  try {
-    for (const name of targetNames) {
-      const upstreamProcedure = payload.procedures[name];
-      if (!upstreamProcedure) {
-        skipped.push(name);
-        continue;
-      }
+  for (const name of targetNames) {
+    const upstreamProcedure = payload.procedures[name];
+    if (!upstreamProcedure) {
+      skipped.push(name);
+      continue;
+    }
 
-      ProcedureFrontmatterSchema.parse(upstreamProcedure.frontmatter);
+    ProcedureFrontmatterSchema.parse(upstreamProcedure.frontmatter);
 
-      const conflictReason = detectRegistryConflicts(options.registry, upstreamProcedure);
-      if (conflictReason) {
-        skipped.push(name);
-        continue;
-      }
+    const conflictReason = detectRegistryConflicts(options.registry, upstreamProcedure);
+    if (conflictReason) {
+      skipped.push(name);
+      continue;
+    }
 
-      const stamped = withUpstreamProvenance(
+    validatedEntries.push({
+      name,
+      stamped: withUpstreamProvenance(
         {
           ...upstreamProcedure,
           frontmatter: {
@@ -212,23 +217,22 @@ export async function applyChangeset(options: ApplyChangesetOptions): Promise<Ap
         changeset.sourceId,
         changeset.ref.upstream,
         syncedAt
-      );
+      ),
+    });
+  }
 
-      if (options.registry.get(name)) {
-        options.registry.update(name, stamped);
+  const snapshot = snapshotRegistry(options.registry);
+
+  try {
+    for (const entry of validatedEntries) {
+      if (options.registry.get(entry.name)) {
+        options.registry.update(entry.name, entry.stamped);
       } else {
-        options.registry.register(stamped);
+        options.registry.register(entry.stamped);
       }
-      applied.push(name);
     }
 
-    if (options.writers) {
-      await propagateProcedures({
-        registry: options.registry,
-        writers: options.writers,
-        syncedAt,
-      });
-    }
+    const applied = validatedEntries.map((entry) => entry.name);
 
     if (options.runtime) {
       const auditRecord = mapUpstreamAppliedToEntityRecord({
@@ -241,13 +245,26 @@ export async function applyChangeset(options: ApplyChangesetOptions): Promise<Ap
         occurredAt: syncedAt,
         recordedAt: syncedAt,
       });
-      const writeResult = writeRuntimeSemanticEntity(options.runtime, auditRecord);
+      const writeAudit = options.writeAudit ?? writeRuntimeSemanticEntity;
+      const writeResult = writeAudit(options.runtime, auditRecord);
       if (!writeResult.ok) {
         throw new Error(writeResult.message);
       }
     }
 
-    await updateChangesetStatus(changeset.id, "applied", syncedAt, options);
+    if (options.writers) {
+      await propagateProcedures({
+        registry: options.registry,
+        writers: options.writers,
+        syncedAt,
+      });
+    }
+
+    const finalStatus = changesetHasRemainingApplyTargets(changeset, applied)
+      ? "partially-applied"
+      : "applied";
+    await updateChangesetStatus(changeset.id, finalStatus, syncedAt, options);
+
     return { changesetId: changeset.id, applied, skipped, ok: true };
   } catch (error: unknown) {
     restoreRegistrySnapshot(options.registry, snapshot);
