@@ -33,6 +33,11 @@ import {
   type GstackListResult,
   type GstackRevokeResult,
 } from "../upstream/gstack-import.js";
+import {
+  GBRAIN_PROCEDURAL_SOURCE_ID,
+  listGbrainProcedures,
+  resolveGbrainSkillsDir,
+} from "../upstream/gbrain-skills-source.js";
 
 export interface AmpProceduralImportGstackOptions {
   checkoutPath: string;
@@ -56,6 +61,7 @@ export interface AmpProceduralListOptions {
   projectRoot?: string;
   source?: string;
   checkoutPath?: string;
+  skillsPath?: string;
   ref?: string;
   registry?: ProcedureRegistry;
   env?: NodeJS.ProcessEnv;
@@ -167,12 +173,21 @@ export async function runAmpProceduralRevokeGstack(
   return result;
 }
 
-/** List gstack import candidates or registry entries. */
+/** List gstack import candidates, gbrain discovery overlay, or registry entries. */
 export async function runAmpProceduralList(
   options: AmpProceduralListOptions = {}
 ): Promise<GstackListResult> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const env = options.env ?? process.env;
+  const source = options.source?.trim();
+
+  if (source === GBRAIN_PROCEDURAL_SOURCE_ID) {
+    const skillsDir = resolve(resolveGbrainSkillsDir(options.skillsPath, env));
+    return listGbrainProcedures({
+      skillsDir,
+      ref: options.ref,
+    });
+  }
 
   if (options.checkoutPath) {
     return listGstackProcedures({
@@ -181,10 +196,16 @@ export async function runAmpProceduralList(
     });
   }
 
+  if (source && source !== GSTACK_UPSTREAM_SOURCE_ID) {
+    throw new Error(
+      `Unsupported procedural list source: ${source}. Use --source gbrain with --path, or omit for gstack registry.`
+    );
+  }
+
   const { registry } = await resolveProjectContext(projectRoot, env, options.registry);
   return listGstackProcedures({
     registry,
-    sourceFilter: options.source ?? GSTACK_UPSTREAM_SOURCE_ID,
+    sourceFilter: source ?? GSTACK_UPSTREAM_SOURCE_ID,
   });
 }
 

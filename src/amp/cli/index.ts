@@ -347,22 +347,38 @@ export function registerAmpCommands(
 
   procedural
     .command("list")
-    .description("List gstack import candidates or registry entries")
-    .option("--source <id>", "Filter registry entries by upstream source id")
+    .description("List gstack import candidates, gbrain skill discovery, or registry entries")
+    .option("--source <id>", "Upstream source: gstack (default registry) or gbrain (discovery)")
+    .option("--path <dir>", "Gbrain skills directory (requires --source gbrain; or GBRAIN_SKILLS_DIR)")
     .option("--checkout <path>", "List skills from a local gstack checkout")
-    .option("--ref <sha>", "Ref label when listing from checkout")
+    .option("--ref <sha>", "Ref label when listing from checkout or gbrain skills dir")
     .option("--project-root <path>", "Project root")
-    .action(async (opts: { source?: string; checkout?: string; ref?: string; projectRoot?: string }) => {
-      const result = await runAmpProceduralList({
-        source: opts.source,
-        checkoutPath: opts.checkout,
-        ref: opts.ref,
-        projectRoot: opts.projectRoot,
-      });
-      for (const line of formatAmpProceduralListReport(result)) {
-        process.stdout.write(`${line}\n`);
+    .action(
+      async (opts: {
+        source?: string;
+        path?: string;
+        checkout?: string;
+        ref?: string;
+        projectRoot?: string;
+      }) => {
+        try {
+          const result = await runAmpProceduralList({
+            source: opts.source,
+            skillsPath: opts.path,
+            checkoutPath: opts.checkout,
+            ref: opts.ref,
+            projectRoot: opts.projectRoot,
+          });
+          for (const line of formatAmpProceduralListReport(result)) {
+            process.stdout.write(`${line}\n`);
+          }
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          process.stderr.write(`${message}\n`);
+          process.exitCode = 1;
+        }
       }
-    });
+    );
 
   const agent = amp.command("agent").description("Local agent-access setup for materialized projections");
 
