@@ -87,7 +87,7 @@ describe("runAmpDoctor", () => {
     const gap = result.findings.find((f) => f.category === "capability-gaps");
     assert.ok(gap);
     assert.equal(gap.level, "warning");
-    assert.match(gap.message, /graph_traversal/);
+    assert.match(gap.message, /transactions/);
     assert.match(gap.message, /procedural_registry/);
   });
 

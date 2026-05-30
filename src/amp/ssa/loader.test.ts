@@ -40,7 +40,7 @@ describe("loadSsaSpecFromYaml", () => {
     assert.equal(spec.capability_coverage.frame_kinds.semantic, "native");
     assert.equal(spec.capability_coverage.frame_kinds.crystal, "wrapped");
     assert.equal(spec.capability_coverage.vector_search, "wrapped");
-    assert.equal(spec.capability_coverage.graph_traversal, "unsupported");
+    assert.equal(spec.capability_coverage.graph_traversal, "wrapped");
     assert.equal(spec.capability_coverage.transactions, "unsupported");
     assert.equal(spec.capability_coverage.embedding_storage, "wrapped");
     assert.equal(spec.capability_coverage.full_text_search, "wrapped");
