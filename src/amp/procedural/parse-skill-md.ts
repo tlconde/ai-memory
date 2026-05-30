@@ -15,6 +15,7 @@ import {
 } from "./schema.js";
 
 export const GSTACK_UPSTREAM_SOURCE_ID = "gstack-main";
+export const GBRAIN_UPSTREAM_SOURCE_ID = "gbrain-skills-main";
 
 export interface ParsedSkillMd {
   frontmatter: unknown;
@@ -174,6 +175,66 @@ export function mapGstackToCanonicalProcedure(
       created_at: options.mtime,
       upstream: {
         source_id: GSTACK_UPSTREAM_SOURCE_ID,
+        ref: options.ref,
+        fetched_at: options.mtime,
+        upstream_synced_at: options.mtime,
+      },
+    },
+    conflicts: [],
+  };
+
+  return parseCanonicalProcedure({ frontmatter, body: parsed.body });
+}
+
+export interface MapGbrainOptions {
+  ref: string;
+  mtime: string;
+  skillDirName: string;
+}
+
+/** Map parsed gbrain SKILL.md to a canonical AMP procedure (discovery overlay). */
+export function mapGbrainToCanonicalProcedure(
+  parsed: ParsedSkillMd,
+  options: MapGbrainOptions
+): CanonicalProcedure {
+  const raw = asRecord(parsed.frontmatter);
+  const name = asString(raw.name, options.skillDirName);
+  const description = asString(raw.description, `Discovered gbrain skill ${name}`);
+  const gbrainVersion = asString(raw.version, "1.0.0");
+
+  const frontmatter: ProcedureFrontmatter = {
+    name,
+    description,
+    version: gstackImportVersion(gbrainVersion),
+    triggers: asStringArray(raw.triggers),
+    tools: asStringArray(raw.tools),
+    mutating: asBoolean(raw.mutating, false),
+    writes_pages: asBoolean(raw.writes_pages, false),
+    writes_to: asStringArray(raw.writes_to),
+    amp_artifact_version: AMP_PROCEDURE_ARTIFACT_VERSION,
+    scope: "user",
+    curation_mode: "llm_curated",
+    amp_compatibility: {
+      min_amp_version: "1.0",
+      required_frame_kinds: [],
+      required_profile_slots: [],
+      required_audiences: [],
+    },
+    harness_compatibility: {
+      supported_harnesses: inferSupportedHarnesses(parsed.body),
+      injection_path: "filesystem-native",
+    },
+    harness_overlays: {},
+    extends: asStringArray(raw.extends),
+    required_by: asStringArray(raw.required_by),
+    conflicts_with: asStringArray(raw.conflicts_with),
+    provenance: {
+      source: "import",
+      author: "gbrain",
+      notes: "gbrain skill discovery",
+      created_at: options.mtime,
+      upstream: {
+        source_id: GBRAIN_UPSTREAM_SOURCE_ID,
         ref: options.ref,
         fetched_at: options.mtime,
         upstream_synced_at: options.mtime,
