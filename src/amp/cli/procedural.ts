@@ -205,6 +205,10 @@ export async function runAmpProceduralList(
 
   if (source === GBRAIN_PROCEDURAL_SOURCE_ID) {
     const pathContext = proceduralUpstreamPathContext(env, options.upstreamDir);
+    const explicitPath = options.skillsPath?.trim();
+    if (explicitPath && !existsSync(resolve(explicitPath))) {
+      throw new Error(`Gbrain skills path ${explicitPath} does not exist`);
+    }
     const gbrainSource = new GbrainSkillsSource(() =>
       resolveGbrainSkillsDir({
         pathFlag: options.skillsPath,
