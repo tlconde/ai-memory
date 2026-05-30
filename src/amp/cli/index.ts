@@ -349,7 +349,10 @@ export function registerAmpCommands(
     .command("list")
     .description("List gstack import candidates, gbrain skill discovery, or registry entries")
     .option("--source <id>", "Upstream source: gstack (default registry) or gbrain (discovery)")
-    .option("--path <dir>", "Gbrain skills directory (requires --source gbrain; or GBRAIN_SKILLS_DIR)")
+    .option(
+      "--path <dir>",
+      "Gbrain skills directory (--source gbrain; else GBRAIN_SKILLS_DIR or upstream subscribe --id gbrain-skills)"
+    )
     .option("--checkout <path>", "List skills from a local gstack checkout")
     .option("--ref <sha>", "Ref label when listing from checkout or gbrain skills dir")
     .option("--project-root <path>", "Project root")
