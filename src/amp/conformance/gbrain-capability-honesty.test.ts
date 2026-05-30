@@ -27,19 +27,31 @@ describe("gbrain capability honesty conformance", () => {
     const spec = loadSsaSpecFromFile(GBRAIN_SPEC);
     assert.equal(spec.capability_coverage.graph_traversal, "wrapped");
     assert.equal(isCapabilitySupported(spec.capability_coverage, "graph_traversal"), true);
+    assert.equal(spec.capability_coverage.transactions, "unsupported");
 
     const adapter = new GbrainKnowledgeAdapter({
       transport: new FakeGbrainMcpTransport(),
       ssaSpecPath: GBRAIN_SPEC,
     });
 
-    const graphSearch = await adapter.searchFrames("anything", { mode: "graph" });
-    assert.equal(isUnsupportedCapabilityResult(graphSearch), true);
-    if (graphSearch.success) return;
-    assert.equal(graphSearch.error.code, AmpErrorCode.CAPABILITY_NOT_SUPPORTED);
+    await adapter.writeFrames([
+      createFrame({
+        id: "frame-001",
+        kind: "semantic",
+        content: "Conformance graph probe.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T12:00:00.000Z",
+        scope: { kind: "project", project_ref: "ai-memory" },
+        curation_mode: "personal",
+      }),
+    ]);
 
     const graphTraversal = await adapter.graphTraversal("frame-001");
     assert.equal(isUnsupportedCapabilityResult(graphTraversal), false);
+    assert.equal(graphTraversal.success, true);
+    if (graphTraversal.success) {
+      assert.equal(graphTraversal.hits.length, 0);
+    }
   });
 
   it("supports keyword search via MCP search when full_text_search is wrapped", async () => {
