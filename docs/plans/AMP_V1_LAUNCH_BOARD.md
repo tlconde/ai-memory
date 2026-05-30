@@ -1,3 +1,5 @@
+> **HISTORICAL — 2026-05-31.** V1 launch board is complete (`82962bf` gate green). Active work is tracked in `docs/specs/AMP_ROADMAP.md`. Historical reference only.
+
 # AMP v1 Launch Board
 
 > **Branch:** `ralph/amp-v1-v1-31` (docs complete; base `ralph/amp-v1-v1-30`)
@@ -34,6 +36,8 @@ All Wave 2 tasks merged through V1-30. Acceptance gate passes at `82962bf`.
 ## Remaining Work
 
 V1-01 through V1-31 are complete. No implementation lanes remain for v1 offline acceptance.
+
+Post-v1 optimizer/upstream-sync work is tracked separately in `docs/plans/AMP_POST_V1_OPTIMIZER_UPSTREAM_PLAN.md`; it does not extend the v1 offline acceptance scope.
 
 ## Evaluator Gate — Wave 2 Complete
 

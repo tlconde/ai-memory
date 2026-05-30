@@ -10,7 +10,9 @@ import { existsSync } from "node:fs";
 import { discoverAmpConfig } from "../config/discovery.js";
 import {
   AMP_USER_CONFIG_PATH_ENV,
+  AMP_USER_UPSTREAM_PATH_ENV,
   projectConfigPath,
+  type PathContext,
 } from "../config/paths.js";
 import { ProcedureRegistry } from "../procedural/registry.js";
 import {
@@ -30,9 +32,16 @@ import {
   revokeGstackImports,
   snapshotHarnessFromAmp,
   type GstackImportResult,
-  type GstackListResult,
+  type ProceduralListResult,
   type GstackRevokeResult,
 } from "../upstream/gstack-import.js";
+import {
+  GBRAIN_PROCEDURAL_SOURCE_ID,
+  GBRAIN_SKILLS_DIR_ENV,
+  GBRAIN_SKILLS_SUBSCRIPTION_ID,
+  listGbrainProcedures,
+  resolveGbrainSkillsDir,
+} from "../upstream/gbrain-skills-source.js";
 
 export interface AmpProceduralImportGstackOptions {
   checkoutPath: string;
@@ -56,9 +65,27 @@ export interface AmpProceduralListOptions {
   projectRoot?: string;
   source?: string;
   checkoutPath?: string;
+  skillsPath?: string;
   ref?: string;
   registry?: ProcedureRegistry;
   env?: NodeJS.ProcessEnv;
+  /** Isolated ~/.amp/upstream root for tests (`AMP_USER_UPSTREAM_PATH`). */
+  upstreamDir?: string;
+}
+
+function proceduralUpstreamPathContext(
+  env: NodeJS.ProcessEnv,
+  upstreamDir?: string
+): PathContext {
+  if (!upstreamDir) {
+    return { env };
+  }
+  return {
+    env: {
+      ...env,
+      [AMP_USER_UPSTREAM_PATH_ENV]: upstreamDir,
+    },
+  };
 }
 
 async function resolveProjectContext(
@@ -167,12 +194,30 @@ export async function runAmpProceduralRevokeGstack(
   return result;
 }
 
-/** List gstack import candidates or registry entries. */
+/** List gstack import candidates, gbrain discovery overlay, or registry entries. */
 export async function runAmpProceduralList(
   options: AmpProceduralListOptions = {}
-): Promise<GstackListResult> {
+): Promise<ProceduralListResult> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const env = options.env ?? process.env;
+  const source = options.source?.trim();
+
+  if (source === GBRAIN_PROCEDURAL_SOURCE_ID) {
+    const pathContext = proceduralUpstreamPathContext(env, options.upstreamDir);
+    const explicitPath = options.skillsPath?.trim();
+    if (explicitPath && !existsSync(resolve(explicitPath))) {
+      throw new Error(`Gbrain skills path ${explicitPath} does not exist`);
+    }
+    const skillsDir = await resolveGbrainSkillsDir({
+      pathFlag: options.skillsPath,
+      env,
+      pathContext,
+    });
+    return listGbrainProcedures({
+      skillsDir,
+      ref: options.ref ?? "local-gbrain-skills",
+    });
+  }
 
   if (options.checkoutPath) {
     return listGstackProcedures({
@@ -181,10 +226,16 @@ export async function runAmpProceduralList(
     });
   }
 
+  if (source && source !== GSTACK_UPSTREAM_SOURCE_ID) {
+    throw new Error(
+      `Unsupported procedural list source: ${source}. Use --source gbrain (--path, ${GBRAIN_SKILLS_DIR_ENV}, or upstream subscribe --id ${GBRAIN_SKILLS_SUBSCRIPTION_ID}), or omit for gstack registry.`
+    );
+  }
+
   const { registry } = await resolveProjectContext(projectRoot, env, options.registry);
   return listGstackProcedures({
     registry,
-    sourceFilter: options.source ?? GSTACK_UPSTREAM_SOURCE_ID,
+    sourceFilter: source ?? GSTACK_UPSTREAM_SOURCE_ID,
   });
 }
 
@@ -238,7 +289,7 @@ export function formatAmpProceduralRevokeReport(result: GstackRevokeResult): str
   return lines;
 }
 
-export function formatAmpProceduralListReport(result: GstackListResult): string[] {
+export function formatAmpProceduralListReport(result: ProceduralListResult): string[] {
   const lines = ["AMP procedural list", ""];
 
   for (const entry of result.entries) {
@@ -258,6 +309,6 @@ export function formatAmpProceduralListReport(result: GstackListResult): string[
   return lines;
 }
 
-export function formatAmpProceduralListJson(result: GstackListResult): string {
+export function formatAmpProceduralListJson(result: ProceduralListResult): string {
   return `${JSON.stringify(result, null, 2)}\n`;
 }

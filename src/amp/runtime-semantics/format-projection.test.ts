@@ -549,6 +549,39 @@ describe("formatEpisodicFrameForRuntime", () => {
     assert.match(text, /details omitted/i);
     assert.doesNotMatch(text, /still-hidden-detail/);
   });
+
+  it("renders skill_optimized frames with optimization heading", () => {
+    const formatted = formatEpisodicFrameForRuntime({
+      ...ACTIVE_EPISODIC_FRAME,
+      event_type: "skill_optimized",
+      summary: 'Skill "test-skill" optimized (1.0.0 -> 1.0.1).',
+      details: {
+        skill_name: "test-skill",
+        version_before: "1.0.0",
+        version_after: "1.0.1",
+      },
+    });
+    assert.ok(formatted);
+    const text = textOf(formatted);
+    assert.match(text, /Skill optimized/);
+    assert.match(text, /1\.0\.0 -> 1\.0\.1/);
+  });
+
+  it("renders skill_optimization_rejected frames with rejection heading", () => {
+    const formatted = formatEpisodicFrameForRuntime({
+      ...ACTIVE_EPISODIC_FRAME,
+      event_type: "skill_optimization_rejected",
+      summary: 'Skill "test-skill" optimization rejected at cycle 1.',
+      details: {
+        skill_name: "test-skill",
+        reject_reason: "Holdout score did not strictly improve",
+      },
+    });
+    assert.ok(formatted);
+    const text = textOf(formatted);
+    assert.match(text, /Skill optimization rejected/);
+    assert.match(text, /optimization rejected at cycle 1/);
+  });
 });
 
 describe("formatRejectedSignalLogForRuntime", () => {

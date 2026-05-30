@@ -18,6 +18,7 @@ import {
   promoteGstackImportToUserVersion,
 } from "../procedural/parse-skill-md.js";
 import type { ProcedureRegistry } from "../procedural/registry.js";
+import type { ProceduralListResult } from "../procedural/list-types.js";
 import {
   parseCanonicalProcedure,
   safeParseCanonicalProcedure,
@@ -90,17 +91,7 @@ export interface GstackRevokeResult {
   error?: string;
 }
 
-export interface GstackListEntry {
-  name: string;
-  version: string;
-  supported_harnesses: string[];
-  validation_error?: string;
-  frontmatter?: CanonicalProcedure["frontmatter"];
-}
-
-export interface GstackListResult {
-  entries: GstackListEntry[];
-}
+export type { ProceduralListEntry, ProceduralListResult } from "../procedural/list-types.js";
 
 export type HarnessFromAmpSnapshot = Map<string, Buffer>;
 
@@ -433,7 +424,7 @@ export async function listGstackProcedures(options: {
   ref?: string;
   registry?: ProcedureRegistry;
   sourceFilter?: string;
-}): Promise<GstackListResult> {
+}): Promise<ProceduralListResult> {
   if (options.checkoutDir) {
     const parsed = await parseGstackCheckoutSkills(
       options.checkoutDir,

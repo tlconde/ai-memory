@@ -31,3 +31,14 @@ export {
   type PropagationWriteStatus,
   type VerifiedHarnessTarget,
 } from "./propagation/index.js";
+export {
+  runOptimizationCycle,
+  createRuleBasedOptimizer,
+  createDeterministicEval,
+  createDeterministicValidationGate,
+  DEFAULT_EDIT_BUDGET,
+  type CorrectionCorpusEntry,
+  type OptimizationCycleOutcome,
+  type ProposedEdit,
+  type ValidationResult,
+} from "./optimization/index.js";

@@ -15,6 +15,7 @@ import {
 } from "./schema.js";
 
 export const GSTACK_UPSTREAM_SOURCE_ID = "gstack-main";
+export const GBRAIN_UPSTREAM_SOURCE_ID = "gbrain-skills-main";
 
 export interface ParsedSkillMd {
   frontmatter: unknown;
@@ -25,6 +26,83 @@ export interface MapGstackOptions {
   ref: string;
   mtime: string;
   skillDirName: string;
+}
+
+export interface ImportedSkillProvenance {
+  upstreamSourceId: string;
+  author: string;
+  notes: string;
+  descriptionFallback: (name: string) => string;
+}
+
+/** Map parsed SKILL.md to a canonical AMP procedure with caller-supplied provenance. */
+export function mapImportedSkillToCanonicalProcedure(
+  parsed: ParsedSkillMd,
+  options: MapGstackOptions & { provenance: ImportedSkillProvenance }
+): CanonicalProcedure {
+  const raw = asRecord(parsed.frontmatter);
+  const name = asString(raw.name, options.skillDirName);
+  const description = asString(raw.description, options.provenance.descriptionFallback(name));
+  const rawVersion = asString(raw.version, "1.0.0");
+
+  const frontmatter: ProcedureFrontmatter = {
+    name,
+    description,
+    version: gstackImportVersion(rawVersion),
+    triggers: asStringArray(raw.triggers),
+    tools: asStringArray(raw.tools),
+    mutating: asBoolean(raw.mutating, false),
+    writes_pages: asBoolean(raw.writes_pages, false),
+    writes_to: asStringArray(raw.writes_to),
+    amp_artifact_version: AMP_PROCEDURE_ARTIFACT_VERSION,
+    scope: "user",
+    curation_mode: "llm_curated",
+    amp_compatibility: {
+      min_amp_version: "1.0",
+      required_frame_kinds: [],
+      required_profile_slots: [],
+      required_audiences: [],
+    },
+    harness_compatibility: {
+      supported_harnesses: inferSupportedHarnesses(parsed.body),
+      injection_path: "filesystem-native",
+    },
+    harness_overlays: {},
+    extends: asStringArray(raw.extends),
+    required_by: asStringArray(raw.required_by),
+    conflicts_with: asStringArray(raw.conflicts_with),
+    provenance: {
+      source: "import",
+      author: options.provenance.author,
+      notes: options.provenance.notes,
+      created_at: options.mtime,
+      upstream: {
+        source_id: options.provenance.upstreamSourceId,
+        ref: options.ref,
+        fetched_at: options.mtime,
+        upstream_synced_at: options.mtime,
+      },
+    },
+    conflicts: [],
+  };
+
+  return parseCanonicalProcedure({ frontmatter, body: parsed.body });
+}
+
+/** Map parsed gstack SKILL.md to a canonical AMP procedure. */
+export function mapGstackToCanonicalProcedure(
+  parsed: ParsedSkillMd,
+  options: MapGstackOptions
+): CanonicalProcedure {
+  return mapImportedSkillToCanonicalProcedure(parsed, {
+    ...options,
+    provenance: {
+      upstreamSourceId: GSTACK_UPSTREAM_SOURCE_ID,
+      author: "garrytan",
+      notes: "gstack import",
+      descriptionFallback: (name) => `Imported gstack skill ${name}`,
+    },
+  });
 }
 
 /** Split YAML frontmatter fence and markdown body (mirror of compileProcedureToSkillMd). */
@@ -131,56 +209,24 @@ export function inferSupportedHarnesses(body: string): string[] {
   return [...harnesses].sort();
 }
 
-/** Map parsed gstack SKILL.md to a canonical AMP procedure. */
-export function mapGstackToCanonicalProcedure(
+export interface MapGbrainOptions {
+  ref: string;
+  mtime: string;
+  skillDirName: string;
+}
+
+/** Map parsed gbrain SKILL.md to a canonical AMP procedure (discovery overlay). */
+export function mapGbrainToCanonicalProcedure(
   parsed: ParsedSkillMd,
-  options: MapGstackOptions
+  options: MapGbrainOptions
 ): CanonicalProcedure {
-  const raw = asRecord(parsed.frontmatter);
-  const name = asString(raw.name, options.skillDirName);
-  const description = asString(raw.description, `Imported gstack skill ${name}`);
-  const gstackVersion = asString(raw.version, "1.0.0");
-
-  const frontmatter: ProcedureFrontmatter = {
-    name,
-    description,
-    version: gstackImportVersion(gstackVersion),
-    triggers: asStringArray(raw.triggers),
-    tools: asStringArray(raw.tools),
-    mutating: asBoolean(raw.mutating, false),
-    writes_pages: asBoolean(raw.writes_pages, false),
-    writes_to: asStringArray(raw.writes_to),
-    amp_artifact_version: AMP_PROCEDURE_ARTIFACT_VERSION,
-    scope: "user",
-    curation_mode: "llm_curated",
-    amp_compatibility: {
-      min_amp_version: "1.0",
-      required_frame_kinds: [],
-      required_profile_slots: [],
-      required_audiences: [],
-    },
-    harness_compatibility: {
-      supported_harnesses: inferSupportedHarnesses(parsed.body),
-      injection_path: "filesystem-native",
-    },
-    harness_overlays: {},
-    extends: asStringArray(raw.extends),
-    required_by: asStringArray(raw.required_by),
-    conflicts_with: asStringArray(raw.conflicts_with),
+  return mapImportedSkillToCanonicalProcedure(parsed, {
+    ...options,
     provenance: {
-      source: "import",
-      author: "garrytan",
-      notes: "gstack import",
-      created_at: options.mtime,
-      upstream: {
-        source_id: GSTACK_UPSTREAM_SOURCE_ID,
-        ref: options.ref,
-        fetched_at: options.mtime,
-        upstream_synced_at: options.mtime,
-      },
+      upstreamSourceId: GBRAIN_UPSTREAM_SOURCE_ID,
+      author: "gbrain",
+      notes: "gbrain skill discovery",
+      descriptionFallback: (name) => `Discovered gbrain skill ${name}`,
     },
-    conflicts: [],
-  };
-
-  return parseCanonicalProcedure({ frontmatter, body: parsed.body });
+  });
 }

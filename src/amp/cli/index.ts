@@ -46,6 +46,7 @@ import {
   runAmpProceduralRevokeGstack,
 } from "./procedural.js";
 import { registerAmpRuntimeCommands } from "./runtime-commands.js";
+import { formatAmpOptimizeReport, runAmpOptimize } from "./optimize.js";
 import { writeAmpRuntimeCliResult } from "./runtime.js";
 import { confirmLiveGbrainWriteFromCliOptions } from "./live-gbrain-safety.js";
 
@@ -346,22 +347,41 @@ export function registerAmpCommands(
 
   procedural
     .command("list")
-    .description("List gstack import candidates or registry entries")
-    .option("--source <id>", "Filter registry entries by upstream source id")
+    .description("List gstack import candidates, gbrain skill discovery, or registry entries")
+    .option("--source <id>", "Upstream source: gstack (default registry) or gbrain (discovery)")
+    .option(
+      "--path <dir>",
+      "Gbrain skills directory (--source gbrain; else GBRAIN_SKILLS_DIR or upstream subscribe --id gbrain-skills)"
+    )
     .option("--checkout <path>", "List skills from a local gstack checkout")
-    .option("--ref <sha>", "Ref label when listing from checkout")
+    .option("--ref <sha>", "Ref label when listing from checkout or gbrain skills dir")
     .option("--project-root <path>", "Project root")
-    .action(async (opts: { source?: string; checkout?: string; ref?: string; projectRoot?: string }) => {
-      const result = await runAmpProceduralList({
-        source: opts.source,
-        checkoutPath: opts.checkout,
-        ref: opts.ref,
-        projectRoot: opts.projectRoot,
-      });
-      for (const line of formatAmpProceduralListReport(result)) {
-        process.stdout.write(`${line}\n`);
+    .action(
+      async (opts: {
+        source?: string;
+        path?: string;
+        checkout?: string;
+        ref?: string;
+        projectRoot?: string;
+      }) => {
+        try {
+          const result = await runAmpProceduralList({
+            source: opts.source,
+            skillsPath: opts.path,
+            checkoutPath: opts.checkout,
+            ref: opts.ref,
+            projectRoot: opts.projectRoot,
+          });
+          for (const line of formatAmpProceduralListReport(result)) {
+            process.stdout.write(`${line}\n`);
+          }
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          process.stderr.write(`${message}\n`);
+          process.exitCode = 1;
+        }
       }
-    });
+    );
 
   const agent = amp.command("agent").description("Local agent-access setup for materialized projections");
 
@@ -460,12 +480,32 @@ export function registerAmpCommands(
   registerAmpRuntimeCommands(amp);
 
   amp
+    .command("optimize")
+    .description("Run offline skill optimization against the correction corpus")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .option("--dry-run", "Plan optimization without registry, propagation, or audit writes")
+    .option("--verbose", "Emit per-skill optimization details")
+    .action(async (opts: { projectRoot?: string; dryRun?: boolean; verbose?: boolean }) => {
+      const result = await runAmpOptimize({
+        projectRoot: opts.projectRoot,
+        dryRun: opts.dryRun ?? false,
+        verbose: opts.verbose ?? false,
+      });
+      for (const line of formatAmpOptimizeReport(result, opts.verbose ?? false)) {
+        process.stdout.write(`${line}\n`);
+      }
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+    });
+
+  amp
     .command("status")
     .description("Show AMP CLI shell status")
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate (consolidate defaults to local persistent knowledge.db; explicit gbrain/fake-gbrain/in-memory via --knowledge), projection render (defaults to local source dry-run against persistent knowledge.db and runtime queue; --source placeholder for fixture dry-run; --source gbrain for read-only cloud source; --apply writes files), knowledge status/list (read-only local knowledge.db summary and frame listing), runtime status/inspect/seed/correct/graduation plan/apply (typed entity inspect/seed/correct on local storage; read-only graduation review; graduation apply writes durable local knowledge), agent setup (claude-code, cursor, and codex dry-run/apply). Offline acceptance (`npm run amp:acceptance`) includes the durable local capture → consolidate → retrieve → projection loop against isolated knowledge.db.\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate (consolidate defaults to local persistent knowledge.db; explicit gbrain/fake-gbrain/in-memory via --knowledge), projection render (defaults to local source dry-run against persistent knowledge.db and runtime queue; --source placeholder for fixture dry-run; --source gbrain for read-only cloud source; --apply writes files), knowledge status/list (read-only local knowledge.db summary and frame listing), runtime status/inspect/seed/correct/graduation plan/apply (typed entity inspect/seed/correct on local storage; read-only graduation review; graduation apply writes durable local knowledge), optimize (offline skill optimization loop; --dry-run suppresses registry/propagation/audit writes), agent setup (claude-code, cursor, and codex dry-run/apply). Offline acceptance (`npm run amp:acceptance`) includes the durable local capture → consolidate → retrieve → projection loop against isolated knowledge.db.\n"
       );
     });
 

@@ -5,8 +5,12 @@ import { join } from "node:path";
 import {
   AMP_RUNTIME_PATH_ENV,
   AMP_USER_CONFIG_PATH_ENV,
+  AMP_USER_ROOT_ENV,
+  AMP_USER_UPSTREAM_PATH_ENV,
   defaultRuntimeDbPath,
+  defaultUpstreamChangesetsDir,
   defaultUserConfigPath,
+  defaultUserUpstreamDir,
   projectConfigPath,
 } from "./paths.js";
 
@@ -72,5 +76,37 @@ describe("projectConfigPath", () => {
   it("resolves under project root .amp/config.yaml", () => {
     const path = projectConfigPath("/repo/project", { env: {} });
     assert.equal(path, join("/repo/project", ".amp", "config.yaml"));
+  });
+});
+
+describe("defaultUserUpstreamDir", () => {
+  it("uses AMP_USER_ROOT/upstream when AMP_USER_ROOT is set", () => {
+    const path = defaultUserUpstreamDir({
+      env: { [AMP_USER_ROOT_ENV]: "/tmp/isolated-amp-user" },
+      homedir: () => {
+        throw new Error("must not resolve homedir when AMP_USER_ROOT is set");
+      },
+    });
+    assert.equal(path, "/tmp/isolated-amp-user/upstream");
+  });
+
+  it("uses AMP_USER_UPSTREAM_PATH when set", () => {
+    const path = defaultUserUpstreamDir({
+      env: { [AMP_USER_UPSTREAM_PATH_ENV]: "/tmp/custom-upstream" },
+      homedir: () => "/Users/test",
+    });
+    assert.equal(path, "/tmp/custom-upstream");
+  });
+});
+
+describe("defaultUpstreamChangesetsDir", () => {
+  it("uses AMP_USER_ROOT/upstream/changesets when AMP_USER_ROOT is set", () => {
+    const path = defaultUpstreamChangesetsDir({
+      env: { [AMP_USER_ROOT_ENV]: "/tmp/isolated-amp-user" },
+      homedir: () => {
+        throw new Error("must not resolve homedir when AMP_USER_ROOT is set");
+      },
+    });
+    assert.equal(path, "/tmp/isolated-amp-user/upstream/changesets");
   });
 });

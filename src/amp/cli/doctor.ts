@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import type { CapabilityCoverage } from "../adapter-contract/capability-coverage.js";
 import { appendAgentSetupStatusFindings } from "./checks/agent-setup-status.js";
+import { appendDogfoodReadyFindings } from "./checks/dogfood-ready.js";
 import { appendGitignoreProtectionFindings } from "./checks/gitignore-protection.js";
 import {
   appendHermesDiscoveryFindings,
@@ -308,6 +309,12 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
   if (configExists) {
     appendAgentSetupStatusFindings(findings, projectRoot);
   }
+  appendDogfoodReadyFindings(findings, {
+    projectRoot,
+    env,
+    homedir: resolveHome,
+    configExists,
+  });
 
   if (hasCommandInPath("gbrain", env)) {
     findings.push(

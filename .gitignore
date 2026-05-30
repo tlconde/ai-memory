@@ -29,10 +29,12 @@ docs/specs/*
 !docs/specs/PR_11_2_UPSTREAM_SYNC_SKELETON_INSTRUCTION.md
 !docs/specs/PR_11_4_GSTACK_IMPORTER_INSTRUCTION.md
 !docs/specs/PR_11_5_OPTIMIZER_INSTRUCTION.md
+!docs/specs/AMP_ROADMAP.md
 !docs/guides/
 docs/guides/*
 !docs/guides/CURSOR_IMPLEMENTATION_GUIDE.md
 !docs/guides/AMP_LOCAL_TESTING.md
+!docs/guides/AMP_SHAPE_A_DOGFOOD.md
 !docs/architecture/
 docs/architecture/*
 !docs/architecture/AMP_ARCHITECTURE.html

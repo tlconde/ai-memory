@@ -2,8 +2,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  GBRAIN_UPSTREAM_SOURCE_ID,
   gstackImportVersion,
   inferSupportedHarnesses,
+  mapGbrainToCanonicalProcedure,
   mapGstackToCanonicalProcedure,
   parseSkillMd,
   promoteGstackImportToUserVersion,
@@ -99,6 +101,33 @@ Run /mem-compound after each session in Claude Code.
     assert.deepEqual(procedure.frontmatter.harness_compatibility.supported_harnesses, [
       "claude-code",
     ]);
+  });
+});
+
+describe("mapGbrainToCanonicalProcedure", () => {
+  it("maps gbrain fields with gbrain-skills-main upstream provenance", () => {
+    const procedure = mapGbrainToCanonicalProcedure(
+      parseSkillMd(`---
+name: gbrain-mem
+description: Gbrain bundled skill.
+version: 1.3.0
+---
+# Gbrain skill
+`),
+      {
+        ref: "local-gbrain",
+        mtime: "2026-05-29T10:00:00.000Z",
+        skillDirName: "gbrain-mem",
+      }
+    );
+
+    assert.equal(procedure.frontmatter.name, "gbrain-mem");
+    assert.equal(procedure.frontmatter.version, "0.1.3.0.0");
+    assert.equal(
+      procedure.frontmatter.provenance?.upstream?.source_id,
+      GBRAIN_UPSTREAM_SOURCE_ID
+    );
+    assert.equal(ProcedureFrontmatterSchema.safeParse(procedure.frontmatter).success, true);
   });
 });
 

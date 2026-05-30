@@ -85,7 +85,7 @@ export function createSliceCapabilityCoverage(
     full_text_search: "unsupported",
     profile_slots: "unsupported",
     procedural_registry: "unsupported",
-    skill_optimization: "unsupported",
+    skill_optimization: "wrapped",
     action_log: "unsupported",
   };
   return CapabilityCoverageSchema.parse({ ...base, ...overrides });
