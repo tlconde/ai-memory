@@ -11,6 +11,8 @@ import {
 import { createFrame } from "../../../core/frame-schema.js";
 import { decodePageContentToFrame, decodePageResultToFrame, frameIdToSlug } from "./frame-codec.js";
 import { FakeGbrainMcpTransport } from "./fake-transport.js";
+import { loadSsaSpecFromFile } from "../../../ssa/loader.js";
+import { isCapabilitySupported } from "../../../adapter-contract/capability-coverage.js";
 import { GbrainKnowledgeAdapter } from "./adapter.js";
 import { GbrainServeStdioTransport, extractListedSlugs, extractSearchHitRefs } from "./transport.js";
 
@@ -131,6 +133,9 @@ describe("GbrainKnowledgeAdapter with FakeGbrainMcpTransport", () => {
 
     const profile = await adapter.readProfileSlot("active_intent");
     assert.equal(isUnsupportedCapabilityResult(profile), true);
+
+    const spec = loadSsaSpecFromFile(GBRAIN_SPEC);
+    assert.equal(isCapabilitySupported(spec.capability_coverage, "procedural_registry"), true);
 
     const registry = await adapter.listProceduralRegistry();
     assert.equal(isUnsupportedCapabilityResult(registry), true);

@@ -45,7 +45,7 @@ describe("loadSsaSpecFromYaml", () => {
     assert.equal(spec.capability_coverage.embedding_storage, "wrapped");
     assert.equal(spec.capability_coverage.full_text_search, "wrapped");
     assert.equal(spec.capability_coverage.profile_slots, "unsupported");
-    assert.equal(spec.capability_coverage.procedural_registry, "unsupported");
+    assert.equal(spec.capability_coverage.procedural_registry, "wrapped");
     assert.equal(
       spec.external_claims?.find((c) => c.claim.includes("gbrain serve"))?.label,
       "VERIFIED"

@@ -14,7 +14,7 @@ capability_coverage:
   embedding_storage: wrapped
   full_text_search: wrapped
   profile_slots: unsupported
-  procedural_registry: unsupported
+  procedural_registry: wrapped
   skill_optimization: unsupported
   action_log: unsupported
 external_claims:
