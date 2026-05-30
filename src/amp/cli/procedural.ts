@@ -10,7 +10,9 @@ import { existsSync } from "node:fs";
 import { discoverAmpConfig } from "../config/discovery.js";
 import {
   AMP_USER_CONFIG_PATH_ENV,
+  AMP_USER_UPSTREAM_PATH_ENV,
   projectConfigPath,
+  type PathContext,
 } from "../config/paths.js";
 import { ProcedureRegistry } from "../procedural/registry.js";
 import {
@@ -35,7 +37,10 @@ import {
 } from "../upstream/gstack-import.js";
 import {
   GBRAIN_PROCEDURAL_SOURCE_ID,
-  listGbrainProcedures,
+  GBRAIN_SKILLS_DIR_ENV,
+  GBRAIN_SKILLS_SUBSCRIPTION_ID,
+  GbrainSkillsSource,
+  gbrainParseResultsToListEntries,
   resolveGbrainSkillsDir,
 } from "../upstream/gbrain-skills-source.js";
 
@@ -65,6 +70,23 @@ export interface AmpProceduralListOptions {
   ref?: string;
   registry?: ProcedureRegistry;
   env?: NodeJS.ProcessEnv;
+  /** Isolated ~/.amp/upstream root for tests (`AMP_USER_UPSTREAM_PATH`). */
+  upstreamDir?: string;
+}
+
+function proceduralUpstreamPathContext(
+  env: NodeJS.ProcessEnv,
+  upstreamDir?: string
+): PathContext {
+  if (!upstreamDir) {
+    return { env };
+  }
+  return {
+    env: {
+      ...env,
+      [AMP_USER_UPSTREAM_PATH_ENV]: upstreamDir,
+    },
+  };
 }
 
 async function resolveProjectContext(
@@ -182,11 +204,16 @@ export async function runAmpProceduralList(
   const source = options.source?.trim();
 
   if (source === GBRAIN_PROCEDURAL_SOURCE_ID) {
-    const skillsDir = resolve(resolveGbrainSkillsDir(options.skillsPath, env));
-    return listGbrainProcedures({
-      skillsDir,
-      ref: options.ref,
-    });
+    const pathContext = proceduralUpstreamPathContext(env, options.upstreamDir);
+    const gbrainSource = new GbrainSkillsSource(() =>
+      resolveGbrainSkillsDir({
+        pathFlag: options.skillsPath,
+        env,
+        pathContext,
+      })
+    );
+    const parsed = await gbrainSource.list(options.ref ?? "local-gbrain-skills");
+    return { entries: gbrainParseResultsToListEntries(parsed) };
   }
 
   if (options.checkoutPath) {
@@ -198,7 +225,7 @@ export async function runAmpProceduralList(
 
   if (source && source !== GSTACK_UPSTREAM_SOURCE_ID) {
     throw new Error(
-      `Unsupported procedural list source: ${source}. Use --source gbrain with --path, or omit for gstack registry.`
+      `Unsupported procedural list source: ${source}. Use --source gbrain (--path, ${GBRAIN_SKILLS_DIR_ENV}, or upstream subscribe --id ${GBRAIN_SKILLS_SUBSCRIPTION_ID}), or omit for gstack registry.`
     );
   }
 
