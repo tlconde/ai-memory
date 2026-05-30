@@ -100,6 +100,51 @@ describe("AMP optimizer vertical slice §2.5", () => {
     assert.equal(afterScore, 1);
   });
 
+  it("rolls the registry back atomically when propagation fails after accept", async () => {
+    const registry = new ProcedureRegistry();
+    registerBuggySkill(registry);
+
+    const corpus = [
+      createCorpusEntry({
+        id: "train-fix-hooks",
+        skillName: SKILL_NAME,
+        summary: "Do not bypass git hooks",
+        avoidPhrase: "Use the --no-verify flag",
+        expectedBehavior: "Never use --no-verify; always run hooks",
+      }),
+      createCorpusEntry({
+        id: "holdout-qrels",
+        skillName: SKILL_NAME,
+        summary: "Holdout qrels for safe test guidance",
+        mustContain: ["Never use --no-verify"],
+        mustNotContain: ["Use the --no-verify flag"],
+        holdout: true,
+      }),
+    ];
+
+    const boom = {
+      writeProcedure: async () => {
+        throw new Error("propagation boom");
+      },
+    };
+
+    const result = await runOptimizationCycle({
+      skillName: SKILL_NAME,
+      registry,
+      corpus,
+      maxCycles: 1,
+      scoreThreshold: 1,
+      writers: { cursor: boom, "claude-code": boom, hermes: boom },
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.acceptedCount, 0);
+
+    const after = registry.get(SKILL_NAME)!.procedure;
+    assert.equal(after.frontmatter.version, "1.0.0");
+    assert.match(after.body, /Use the --no-verify flag/);
+  });
+
   it("round-trips reject_reason through the optimization audit log", async () => {
     const fixture = await createV1FixtureProject();
     envStack.push(fixture);
