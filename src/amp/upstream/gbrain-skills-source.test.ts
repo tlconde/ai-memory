@@ -10,7 +10,6 @@ import type { UpstreamSubscription } from "./subscriptions.js";
 import {
   GBRAIN_SKILLS_DIR_ENV,
   GBRAIN_SKILLS_SUBSCRIPTION_ID,
-  GbrainSkillsSource,
   gbrainSkillsDirResolutionErrorMessage,
   listGbrainProcedures,
   parseGbrainSkillsDir,
@@ -157,7 +156,7 @@ describe("gbrainSkillsDirResolutionErrorMessage", () => {
   });
 });
 
-describe("GbrainSkillsSource", () => {
+describe("parseGbrainSkillsDir", () => {
   it("lists valid skills with ProcedureFrontmatterSchema-valid frontmatter", async () => {
     const tempDir = await mkdtemp(join(tmpdir(), "amp-gbrain-source-valid-"));
     try {
@@ -206,19 +205,7 @@ describe("GbrainSkillsSource", () => {
     }
   });
 
-  it("resolves skills dir through an injected resolver function", async () => {
-    const tempDir = await mkdtemp(join(tmpdir(), "amp-gbrain-source-resolver-"));
-    try {
-      await writeMiniGbrainSkillsDir(tempDir);
-      const source = new GbrainSkillsSource(async () => tempDir);
-      const results = await source.list("resolver-ref");
-      assert.equal(results.filter((entry) => entry.procedure).length, 1);
-    } finally {
-      await rm(tempDir, { recursive: true, force: true });
-    }
-  });
-
-  it("parses optional RESOLVER.md without requiring it", async () => {
+  it("ignores optional RESOLVER.md and still discovers SKILL.md entries", async () => {
     const tempDir = await mkdtemp(join(tmpdir(), "amp-gbrain-resolver-"));
     try {
       await mkdir(join(tempDir, "only-skill"), { recursive: true });
@@ -245,8 +232,7 @@ version: 1.0.0
         "utf8"
       );
 
-      const source = new GbrainSkillsSource(tempDir);
-      const results = await source.list();
+      const results = await parseGbrainSkillsDir(tempDir, "resolver-ref");
       assert.equal(results.length, 1);
       assert.equal(results[0]?.skillName, "only-skill");
     } finally {

@@ -6,26 +6,22 @@
  * No network I/O and no writes into the skills tree.
  */
 
-import { readdir, readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
-
 import type { PathContext } from "../config/paths.js";
 import {
   GBRAIN_UPSTREAM_SOURCE_ID,
   mapGbrainToCanonicalProcedure,
-  parseSkillMd,
 } from "../procedural/parse-skill-md.js";
+import type { ProceduralListEntry, ProceduralListResult } from "../procedural/list-types.js";
 import {
-  ProcedureFrontmatterSchema,
-  safeParseCanonicalProcedure,
-  type CanonicalProcedure,
-} from "../procedural/schema.js";
+  scanSkillMdDirectory,
+  type SkillMdParseResult,
+  type SkillMdScanEntry,
+} from "../procedural/skill-md-scanner.js";
 import {
   readUpstreamSubscriptions,
   type UpstreamSubscription,
 } from "./subscriptions.js";
 import { resolveStubFixtureDir, STUB_UPSTREAM_URL_PREFIX } from "./stub-source.js";
-import type { ProceduralListEntry, ProceduralListResult } from "../procedural/list-types.js";
 
 export { GBRAIN_UPSTREAM_SOURCE_ID };
 
@@ -34,19 +30,9 @@ export const GBRAIN_PROCEDURAL_SOURCE_ID = "gbrain";
 export const GBRAIN_SKILLS_SUBSCRIPTION_ID = "gbrain-skills";
 export const GBRAIN_SKILLS_FILE_URL_PREFIX = "file://";
 
-export interface GbrainSkillScanEntry {
-  skillName: string;
-  skillPath: string;
-  mtime: string;
-}
+export type GbrainSkillScanEntry = SkillMdScanEntry;
 
-export interface GbrainSkillParseResult {
-  skillName: string;
-  procedure?: CanonicalProcedure;
-  validation_error?: string;
-}
-
-export type GbrainSkillsDirResolver = () => string | Promise<string>;
+export type GbrainSkillParseResult = SkillMdParseResult;
 
 export type ReadUpstreamSubscriptionsFn = (
   options?: PathContext
@@ -119,105 +105,12 @@ export async function resolveGbrainSkillsDir(options: {
   throw new Error(gbrainSkillsDirResolutionErrorMessage());
 }
 
-/** List gbrain-shaped skill directories under `<skillsDir>/<name>/SKILL.md`. */
-export async function listGbrainSkillFiles(skillsDir: string): Promise<GbrainSkillScanEntry[]> {
-  let entries: string[];
-  try {
-    entries = await readdir(skillsDir);
-  } catch {
-    return [];
-  }
-
-  const results: GbrainSkillScanEntry[] = [];
-  for (const entry of entries) {
-    const skillPath = join(skillsDir, entry, "SKILL.md");
-    try {
-      const fileStat = await stat(skillPath);
-      if (!fileStat.isFile()) {
-        continue;
-      }
-      results.push({
-        skillName: entry,
-        skillPath,
-        mtime: fileStat.mtime.toISOString(),
-      });
-    } catch {
-      continue;
-    }
-  }
-
-  results.sort((left, right) => left.skillName.localeCompare(right.skillName));
-  return results;
-}
-
-/** Parse RESOLVER.md when present (routing table completeness; not required for discovery). */
-export async function tryParseGbrainResolver(skillsDir: string): Promise<void> {
-  const resolverPath = join(skillsDir, "RESOLVER.md");
-  try {
-    const fileStat = await stat(resolverPath);
-    if (!fileStat.isFile()) {
-      return;
-    }
-    const raw = await readFile(resolverPath, "utf8");
-    parseSkillMd(raw);
-  } catch {
-    // RESOLVER is optional; invalid or missing files do not block discovery.
-  }
-}
-
 /** Parse and map each gbrain SKILL.md under a skills directory. */
 export async function parseGbrainSkillsDir(
   skillsDir: string,
   ref: string
 ): Promise<GbrainSkillParseResult[]> {
-  await tryParseGbrainResolver(skillsDir);
-  const skills = await listGbrainSkillFiles(skillsDir);
-  const results: GbrainSkillParseResult[] = [];
-
-  for (const skill of skills) {
-    const raw = await readFile(skill.skillPath, "utf8");
-    try {
-      const parsed = parseSkillMd(raw);
-      const mapped = mapGbrainToCanonicalProcedure(parsed, {
-        ref,
-        mtime: skill.mtime,
-        skillDirName: skill.skillName,
-      });
-      const validated = safeParseCanonicalProcedure(mapped);
-      if (!validated.success) {
-        results.push({
-          skillName: skill.skillName,
-          validation_error: validated.error,
-        });
-        continue;
-      }
-      ProcedureFrontmatterSchema.parse(validated.procedure.frontmatter);
-      results.push({ skillName: skill.skillName, procedure: validated.procedure });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      results.push({ skillName: skill.skillName, validation_error: message });
-    }
-  }
-
-  return results;
-}
-
-export class GbrainSkillsSource {
-  readonly id = GBRAIN_UPSTREAM_SOURCE_ID;
-
-  constructor(private readonly resolveSkillsDir: GbrainSkillsDirResolver | string) {}
-
-  async resolveDir(): Promise<string> {
-    if (typeof this.resolveSkillsDir === "string") {
-      return this.resolveSkillsDir;
-    }
-    return this.resolveSkillsDir();
-  }
-
-  async list(ref = "local-gbrain-skills"): Promise<GbrainSkillParseResult[]> {
-    const skillsDir = await this.resolveDir();
-    return parseGbrainSkillsDir(skillsDir, ref);
-  }
+  return scanSkillMdDirectory(skillsDir, ref, mapGbrainToCanonicalProcedure);
 }
 
 export function gbrainParseResultsToListEntries(

@@ -5,20 +5,20 @@
  * via `file://<path>` — no git transport, GitHub access, or network I/O.
  */
 
-import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
   mapGstackToCanonicalProcedure,
-  parseSkillMd,
   GSTACK_UPSTREAM_SOURCE_ID,
 } from "../procedural/parse-skill-md.js";
-import {
-  ProcedureFrontmatterSchema,
-  safeParseCanonicalProcedure,
-  type CanonicalProcedure,
-} from "../procedural/schema.js";
+import type { CanonicalProcedure } from "../procedural/schema.js";
 import type { ProcedureRegistry } from "../procedural/registry.js";
+import {
+  scanSkillMdDirectory,
+  listSkillMdFiles,
+  type SkillMdParseResult,
+  type SkillMdScanEntry,
+} from "../procedural/skill-md-scanner.js";
 import { filterManifestProceduresForSource, manifestFromRegistry } from "./manifest.js";
 import { procedureChecksum } from "./checksum.js";
 import {
@@ -40,17 +40,9 @@ export interface GstackUpstreamSourceOptions {
   localRef?: string;
 }
 
-export interface GstackSkillScanEntry {
-  skillName: string;
-  skillPath: string;
-  mtime: string;
-}
+export type GstackSkillScanEntry = SkillMdScanEntry;
 
-export interface GstackSkillParseResult {
-  skillName: string;
-  procedure?: CanonicalProcedure;
-  validation_error?: string;
-}
+export type GstackSkillParseResult = SkillMdParseResult;
 
 /** Resolve a local gstack checkout directory from a file:// subscription URL. */
 export function resolveGstackCheckoutDir(url: string): string {
@@ -72,34 +64,7 @@ export function isGstackCheckoutUrl(url: string): boolean {
 
 /** List gstack-shaped skill directories under checkout/skills/<name>/SKILL.md. */
 export async function listGstackSkillFiles(checkoutDir: string): Promise<GstackSkillScanEntry[]> {
-  const skillsRoot = join(checkoutDir, "skills");
-  let entries: string[];
-  try {
-    entries = await readdir(skillsRoot);
-  } catch {
-    return [];
-  }
-
-  const results: GstackSkillScanEntry[] = [];
-  for (const entry of entries) {
-    const skillPath = join(skillsRoot, entry, "SKILL.md");
-    try {
-      const fileStat = await stat(skillPath);
-      if (!fileStat.isFile()) {
-        continue;
-      }
-      results.push({
-        skillName: entry,
-        skillPath,
-        mtime: fileStat.mtime.toISOString(),
-      });
-    } catch {
-      continue;
-    }
-  }
-
-  results.sort((left, right) => left.skillName.localeCompare(right.skillName));
-  return results;
+  return listSkillMdFiles(join(checkoutDir, "skills"));
 }
 
 /** Parse and map each gstack SKILL.md under a checkout directory. */
@@ -107,35 +72,7 @@ export async function parseGstackCheckoutSkills(
   checkoutDir: string,
   ref: string
 ): Promise<GstackSkillParseResult[]> {
-  const skills = await listGstackSkillFiles(checkoutDir);
-  const results: GstackSkillParseResult[] = [];
-
-  for (const skill of skills) {
-    const raw = await readFile(skill.skillPath, "utf8");
-    try {
-      const parsed = parseSkillMd(raw);
-      const mapped = mapGstackToCanonicalProcedure(parsed, {
-        ref,
-        mtime: skill.mtime,
-        skillDirName: skill.skillName,
-      });
-      const validated = safeParseCanonicalProcedure(mapped);
-      if (!validated.success) {
-        results.push({
-          skillName: skill.skillName,
-          validation_error: validated.error,
-        });
-        continue;
-      }
-      ProcedureFrontmatterSchema.parse(validated.procedure.frontmatter);
-      results.push({ skillName: skill.skillName, procedure: validated.procedure });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      results.push({ skillName: skill.skillName, validation_error: message });
-    }
-  }
-
-  return results;
+  return scanSkillMdDirectory(join(checkoutDir, "skills"), ref, mapGstackToCanonicalProcedure);
 }
 
 async function buildUpstreamManifestFromCheckout(

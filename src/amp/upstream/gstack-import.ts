@@ -18,7 +18,7 @@ import {
   promoteGstackImportToUserVersion,
 } from "../procedural/parse-skill-md.js";
 import type { ProcedureRegistry } from "../procedural/registry.js";
-import type { ProceduralListEntry, ProceduralListResult } from "../procedural/list-types.js";
+import type { ProceduralListResult } from "../procedural/list-types.js";
 import {
   parseCanonicalProcedure,
   safeParseCanonicalProcedure,

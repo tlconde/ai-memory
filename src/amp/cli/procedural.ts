@@ -39,8 +39,7 @@ import {
   GBRAIN_PROCEDURAL_SOURCE_ID,
   GBRAIN_SKILLS_DIR_ENV,
   GBRAIN_SKILLS_SUBSCRIPTION_ID,
-  GbrainSkillsSource,
-  gbrainParseResultsToListEntries,
+  listGbrainProcedures,
   resolveGbrainSkillsDir,
 } from "../upstream/gbrain-skills-source.js";
 
@@ -209,15 +208,15 @@ export async function runAmpProceduralList(
     if (explicitPath && !existsSync(resolve(explicitPath))) {
       throw new Error(`Gbrain skills path ${explicitPath} does not exist`);
     }
-    const gbrainSource = new GbrainSkillsSource(() =>
-      resolveGbrainSkillsDir({
-        pathFlag: options.skillsPath,
-        env,
-        pathContext,
-      })
-    );
-    const parsed = await gbrainSource.list(options.ref ?? "local-gbrain-skills");
-    return { entries: gbrainParseResultsToListEntries(parsed) };
+    const skillsDir = await resolveGbrainSkillsDir({
+      pathFlag: options.skillsPath,
+      env,
+      pathContext,
+    });
+    return listGbrainProcedures({
+      skillsDir,
+      ref: options.ref ?? "local-gbrain-skills",
+    });
   }
 
   if (options.checkoutPath) {
