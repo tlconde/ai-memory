@@ -32,7 +32,7 @@ import {
   revokeGstackImports,
   snapshotHarnessFromAmp,
   type GstackImportResult,
-  type GstackListResult,
+  type ProceduralListResult,
   type GstackRevokeResult,
 } from "../upstream/gstack-import.js";
 import {
@@ -198,7 +198,7 @@ export async function runAmpProceduralRevokeGstack(
 /** List gstack import candidates, gbrain discovery overlay, or registry entries. */
 export async function runAmpProceduralList(
   options: AmpProceduralListOptions = {}
-): Promise<GstackListResult> {
+): Promise<ProceduralListResult> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const env = options.env ?? process.env;
   const source = options.source?.trim();
@@ -290,7 +290,7 @@ export function formatAmpProceduralRevokeReport(result: GstackRevokeResult): str
   return lines;
 }
 
-export function formatAmpProceduralListReport(result: GstackListResult): string[] {
+export function formatAmpProceduralListReport(result: ProceduralListResult): string[] {
   const lines = ["AMP procedural list", ""];
 
   for (const entry of result.entries) {
@@ -310,6 +310,6 @@ export function formatAmpProceduralListReport(result: GstackListResult): string[
   return lines;
 }
 
-export function formatAmpProceduralListJson(result: GstackListResult): string {
+export function formatAmpProceduralListJson(result: ProceduralListResult): string {
   return `${JSON.stringify(result, null, 2)}\n`;
 }

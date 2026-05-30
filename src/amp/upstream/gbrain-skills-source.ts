@@ -25,7 +25,7 @@ import {
   type UpstreamSubscription,
 } from "./subscriptions.js";
 import { resolveStubFixtureDir, STUB_UPSTREAM_URL_PREFIX } from "./stub-source.js";
-import type { GstackListEntry, GstackListResult } from "./gstack-import.js";
+import type { ProceduralListEntry, ProceduralListResult } from "../procedural/list-types.js";
 
 export { GBRAIN_UPSTREAM_SOURCE_ID };
 
@@ -222,9 +222,9 @@ export class GbrainSkillsSource {
 
 export function gbrainParseResultsToListEntries(
   parsed: readonly GbrainSkillParseResult[]
-): GstackListEntry[] {
+): ProceduralListEntry[] {
   return parsed.map(
-    (entry): GstackListEntry => ({
+    (entry): ProceduralListEntry => ({
       name: entry.procedure?.frontmatter.name ?? entry.skillName,
       version: entry.procedure?.frontmatter.version ?? "unknown",
       supported_harnesses:
@@ -239,7 +239,7 @@ export function gbrainParseResultsToListEntries(
 export async function listGbrainProcedures(options: {
   skillsDir: string;
   ref?: string;
-}): Promise<GstackListResult> {
+}): Promise<ProceduralListResult> {
   const parsed = await parseGbrainSkillsDir(
     options.skillsDir,
     options.ref ?? "local-gbrain-skills"
