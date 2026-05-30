@@ -53,6 +53,7 @@ export const INVARIANT_TEST_REGISTRY: InvariantTestMapping[] = [
     testFiles: [
       "src/amp/core/frame-schema.test.ts",
       "src/amp/integration/preference-vertical-slice.test.ts",
+      "src/amp/integration/optimizer-vertical-slice.test.ts",
     ],
   },
   {
