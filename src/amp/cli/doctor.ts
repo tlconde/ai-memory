@@ -43,6 +43,8 @@ export interface AmpDoctorOptions {
   ampRepoRoot?: string;
   platform?: NodeJS.Platform;
   homedir?: () => string;
+  /** Internal: omit dogfood rollup when a caller needs path-only status checks. */
+  includeDogfoodReady?: boolean;
 }
 
 export interface AmpDoctorResult {
@@ -309,12 +311,14 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
   if (configExists) {
     appendAgentSetupStatusFindings(findings, projectRoot);
   }
-  appendDogfoodReadyFindings(findings, {
-    projectRoot,
-    env,
-    homedir: resolveHome,
-    configExists,
-  });
+  if (options.includeDogfoodReady !== false) {
+    appendDogfoodReadyFindings(findings, {
+      projectRoot,
+      env,
+      homedir: resolveHome,
+      configExists,
+    });
+  }
 
   if (hasCommandInPath("gbrain", env)) {
     findings.push(
