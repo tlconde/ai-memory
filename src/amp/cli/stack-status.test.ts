@@ -24,6 +24,22 @@ const missingGbrainSpawn: GbrainPreflightSpawnFn = ((command: string) => {
   return { status, stdout: "", stderr: "" };
 }) as GbrainPreflightSpawnFn;
 
+const presentGbrainSpawn: GbrainPreflightSpawnFn = ((command: string, args?: string[]) => {
+  if (command === "which" || command === "where") {
+    return { status: 0, stdout: "/usr/local/bin/gbrain\n", stderr: "" };
+  }
+  if (command === "gbrain" && args?.[0] === "--version") {
+    return { status: 0, stdout: "gbrain 0.41.38\n", stderr: "" };
+  }
+  if (command === "gbrain" && args?.[0] === "serve") {
+    return { status: 0, stdout: "serve help\n", stderr: "" };
+  }
+  if (command === "gbrain" && args?.[0] === "doctor") {
+    return { status: 0, stdout: "{\"ok\":true}\n", stderr: "" };
+  }
+  return { status: 1, stdout: "", stderr: "" };
+}) as GbrainPreflightSpawnFn;
+
 describe("runAmpStackStatus", () => {
   let tempRoot = "";
 
@@ -56,6 +72,8 @@ describe("runAmpStackStatus", () => {
     assert.equal(result.ok, true);
     assert.equal(result.mode, "read-only");
     assert.equal(result.role, "scaffold-control-plane");
+    assert.equal(result.primaryBackend, "gbrain");
+    assert.equal(result.evaluatedKnowledgeBackend, "gbrain");
     assert.ok(result.components.length >= 5);
     assert.ok(result.components.some((component) => component.id === "amp-doctor"));
     assert.ok(result.components.some((component) => component.id === "local-knowledge"));
@@ -95,6 +113,7 @@ describe("runAmpStackStatus", () => {
     assert.match(output, /AMP stack status/);
     assert.match(output, /scaffold\/control plane/i);
     assert.match(output, /mode:\s+read-only/);
+    assert.match(output, /primaryBackend:\s+gbrain/);
     assert.match(output, /gbrain/i);
     assert.match(output, /next:/i);
     assert.doesNotMatch(output, /mutat/i);
@@ -114,9 +133,64 @@ describe("runAmpStackStatus", () => {
     assert.equal(parsed.ok, true);
     assert.equal(parsed.role, "scaffold-control-plane");
     assert.equal(parsed.mode, "read-only");
+    assert.equal(parsed.primaryBackend, "gbrain");
+    assert.equal(parsed.evaluatedKnowledgeBackend, "gbrain");
     assert.ok(Array.isArray(parsed.components));
     assert.equal(typeof parsed.needsActionCount, "number");
     assert.equal(parsed.error, null);
+  });
+
+  it("passes explicit backend selection into gbrain preflight", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("fake-gbrain-backend");
+
+    const result = runAmpStackStatus({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      knowledge: "fake-gbrain",
+      gbrainSpawnFn: presentGbrainSpawn,
+    });
+
+    assert.equal(result.primaryBackend, "gbrain");
+    assert.equal(result.evaluatedKnowledgeBackend, "fake-gbrain");
+    const gbrain = result.components.find((component) => component.id === "gbrain");
+    assert.equal(gbrain?.status, "needs_action");
+    assert.match(gbrain?.summary ?? "", /warning/);
+  });
+
+  it("marks invalid backend selection without pretending gbrain was evaluated", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("invalid-backend");
+
+    const result = runAmpStackStatus({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      knowledge: "postgres",
+      gbrainSpawnFn: presentGbrainSpawn,
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.primaryBackend, "gbrain");
+    assert.equal(result.requestedKnowledgeBackend, "postgres");
+    assert.equal(result.evaluatedKnowledgeBackend, "invalid");
+    assert.ok(result.components.some((component) => component.status === "blocked"));
+  });
+
+  it("marks invalid env backend selection without pretending gbrain was evaluated", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("invalid-env-backend");
+
+    const result = runAmpStackStatus({
+      projectRoot,
+      env: { ...env, AMP_KNOWLEDGE_BACKEND: "postgres" },
+      homedir: () => fakeHome,
+      gbrainSpawnFn: presentGbrainSpawn,
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.primaryBackend, "gbrain");
+    assert.equal(result.requestedKnowledgeBackend, undefined);
+    assert.equal(result.evaluatedKnowledgeBackend, "invalid");
+    assert.ok(result.components.some((component) => component.status === "blocked"));
   });
 
   it("does not open or migrate an existing knowledge.db while checking status", async () => {
@@ -166,6 +240,10 @@ describe("registerAmpCommands stack status", () => {
       status.options.some((option) => option.long === "--json"),
       "expected --json option on amp stack status",
     );
+    assert.ok(
+      status.options.some((option) => option.long === "--knowledge"),
+      "expected --knowledge option on amp stack status",
+    );
   });
 });
 
@@ -203,6 +281,8 @@ describe("runAmpStackMap", () => {
     assert.equal(result.outputPath, undefined);
     assert.match(result.html, /<!doctype html>/i);
     assert.match(result.html, /AMP Stack Map/);
+    assert.match(result.html, /Primary backend/);
+    assert.match(result.html, /gbrain/);
     assert.match(result.html, /GBrain backend/);
     assert.match(result.html, /Hermes discovery/);
     assert.match(result.html, /Agent wiring/);
@@ -264,6 +344,9 @@ describe("runAmpStackMap", () => {
       ok: true,
       role: "scaffold-control-plane",
       mode: "read-only",
+      primaryBackend: "gbrain",
+      requestedKnowledgeBackend: "gbrain",
+      evaluatedKnowledgeBackend: "gbrain",
       projectRoot: "<project>",
       readyCount: 0,
       needsActionCount: 1,
@@ -305,6 +388,10 @@ describe("registerAmpCommands stack map", () => {
     assert.ok(
       map.options.some((option) => option.long === "--output"),
       "expected --output option on amp stack map",
+    );
+    assert.ok(
+      map.options.some((option) => option.long === "--knowledge"),
+      "expected --knowledge option on amp stack map",
     );
   });
 });

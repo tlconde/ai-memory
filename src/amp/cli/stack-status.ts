@@ -20,7 +20,10 @@ import {
   type AmpGbrainPreflightOptions,
 } from "./gbrain-preflight.js";
 import type { GbrainPreflightSpawnFn } from "./checks/gbrain-preflight.js";
-import { resolveLocalKnowledgeDbPath } from "./knowledge-backend.js";
+import {
+  resolveLocalKnowledgeDbPath,
+  type AmpKnowledgeBackend,
+} from "./knowledge-backend.js";
 import { resolveAmpRuntimeCliBootstrap } from "./runtime-cli-bootstrap.js";
 
 export type AmpStackComponentStatus = "ready" | "needs_action" | "blocked" | "info";
@@ -44,6 +47,9 @@ export interface AmpStackStatusResult {
   ok: boolean;
   role: "scaffold-control-plane";
   mode: "read-only";
+  primaryBackend: "gbrain";
+  requestedKnowledgeBackend?: string;
+  evaluatedKnowledgeBackend: AmpKnowledgeBackend | "invalid";
   projectRoot: string;
   components: AmpStackStatusComponent[];
   readyCount: number;
@@ -140,6 +146,16 @@ function countComponents(
   return components.filter((component) => component.status === status).length;
 }
 
+function resolveStackEvaluatedBackend(ctx: {
+  preflightBackend: AmpKnowledgeBackend;
+  findings: readonly AmpDoctorFinding[];
+}): AmpKnowledgeBackend | "invalid" {
+  const hasBackendModeError = ctx.findings.some(
+    (finding) => finding.category === "backend-mode" && finding.level === "error"
+  );
+  return hasBackendModeError ? "invalid" : ctx.preflightBackend;
+}
+
 /** Run a read-only scaffold/control-plane status rollup. */
 export function runAmpStackStatus(
   options: AmpStackStatusOptions = {}
@@ -233,10 +249,17 @@ export function runAmpStackStatus(
   );
 
   const blockedCount = countComponents(components, "blocked");
+  const evaluatedKnowledgeBackend = resolveStackEvaluatedBackend({
+    preflightBackend: gbrain.resolvedBackend,
+    findings: gbrain.findings,
+  });
   const result: AmpStackStatusResult = {
     ok: blockedCount === 0,
     role: "scaffold-control-plane",
     mode: "read-only",
+    primaryBackend: "gbrain",
+    requestedKnowledgeBackend: options.knowledge,
+    evaluatedKnowledgeBackend,
     projectRoot: doctor.projectRoot,
     components,
     readyCount: countComponents(components, "ready"),
@@ -259,6 +282,11 @@ export function formatAmpStackStatusReport(result: AmpStackStatusResult): string
     "",
     "  role: scaffold/control plane around GBrain, Hermes, agents, and local knowledge",
     `  mode: ${result.mode}`,
+    `  primaryBackend: ${result.primaryBackend}`,
+    ...(result.requestedKnowledgeBackend
+      ? [`  requestedKnowledgeBackend: ${result.requestedKnowledgeBackend}`]
+      : []),
+    `  evaluatedKnowledgeBackend: ${result.evaluatedKnowledgeBackend}`,
     `  summary: ${result.readyCount} ready, ${result.needsActionCount} needs action, ${result.blockedCount} blocked, ${result.infoCount} info`,
     "",
     "Components:",
@@ -492,7 +520,7 @@ export function renderAmpStackMapHtml(status: AmpStackStatusResult): string {
     <header>
       <div>
         <h1>AMP Stack Map</h1>
-        <p class="sub">${escapeHtml(status.role)} / ${escapeHtml(status.mode)}<br>${escapeHtml(status.projectRoot)}</p>
+        <p class="sub">${escapeHtml(status.role)} / ${escapeHtml(status.mode)}<br>Primary backend: ${escapeHtml(status.primaryBackend)} · evaluating: ${escapeHtml(status.evaluatedKnowledgeBackend)}<br>${escapeHtml(status.projectRoot)}</p>
       </div>
       <section class="summary" aria-label="Stack summary">
         <div class="metric"><strong>${status.readyCount}</strong><span>ready</span></div>

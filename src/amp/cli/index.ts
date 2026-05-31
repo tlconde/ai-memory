@@ -493,9 +493,16 @@ export function registerAmpCommands(
     .command("status")
     .description("Read-only scaffold/control-plane status across local AMP and GBrain-adjacent surfaces")
     .option("--project-root <path>", "Project root (default: current directory)")
+    .option(
+      "--knowledge <backend>",
+      "Backend mode to evaluate for GBrain preflight: gbrain, fake-gbrain, or in-memory"
+    )
     .option("--json", "Emit JSON instead of human-readable report")
-    .action((opts: { projectRoot?: string; json?: boolean }) => {
-      const result = runAmpStackStatus({ projectRoot: opts.projectRoot });
+    .action((opts: { projectRoot?: string; knowledge?: string; json?: boolean }) => {
+      const result = runAmpStackStatus({
+        projectRoot: opts.projectRoot,
+        knowledge: opts.knowledge,
+      });
       writeAmpRuntimeCliResult({
         result,
         json: opts.json,
@@ -512,11 +519,21 @@ export function registerAmpCommands(
     .description("Render a read-only visual HTML map of the AMP scaffold/control plane")
     .option("--project-root <path>", "Project root (default: current directory)")
     .option("--output <path>", "Write the HTML map to this path")
+    .option(
+      "--knowledge <backend>",
+      "Backend mode to evaluate for GBrain preflight: gbrain, fake-gbrain, or in-memory"
+    )
     .option("--json", "Emit JSON instead of human-readable report")
-    .action((opts: { projectRoot?: string; output?: string; json?: boolean }) => {
+    .action((opts: {
+      projectRoot?: string;
+      output?: string;
+      knowledge?: string;
+      json?: boolean;
+    }) => {
       const result = runAmpStackMap({
         projectRoot: opts.projectRoot,
         outputPath: opts.output,
+        knowledge: opts.knowledge,
       });
       writeAmpRuntimeCliResult({
         result,
