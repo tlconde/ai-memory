@@ -93,7 +93,7 @@ describe("registerAmpCommands", () => {
 
     const output = chunks.join("");
     assert.match(output, /agent setup/);
-    assert.match(output, /stack status\/map\/verify/);
+    assert.match(output, /stack status\/map\/verify\/setup plan/);
     assert.match(output, /scaffold\/control-plane/);
   });
 
