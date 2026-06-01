@@ -49,6 +49,12 @@ import {
   runAmpStackSetupPlan,
 } from "./stack-setup-plan.js";
 import {
+  formatAmpStackSetupApplyJson,
+  formatAmpStackSetupApplyReport,
+  isAmpStackSetupApplyTarget,
+  runAmpStackSetupApply,
+} from "./stack-setup-apply.js";
+import {
   formatAmpProjectionRenderReport,
   runAmpProjectionRender,
 } from "./projection.js";
@@ -624,6 +630,46 @@ export function registerAmpCommands(
       }
     });
 
+  stackSetup
+    .command("apply")
+    .description("Apply safe local AMP stack setup: init, local projection, and agent wiring")
+    .option("--project-root <path>", "Project root (default: current directory)")
+    .addOption(
+      new Option("--target <target>", "Agent setup target: all (default), claude-code, cursor, or codex").choices([
+        "all",
+        "claude-code",
+        "cursor",
+        "codex",
+      ])
+    )
+    .option("--json", "Emit JSON instead of human-readable report")
+    .action(async (opts: {
+      projectRoot?: string;
+      target?: string;
+      json?: boolean;
+    }) => {
+      const target = opts.target ?? "all";
+      if (!isAmpStackSetupApplyTarget(target)) {
+        process.stderr.write(`Invalid stack setup target: ${target}\n`);
+        process.exitCode = 1;
+        return;
+      }
+
+      const result = await runAmpStackSetupApply({
+        projectRoot: opts.projectRoot,
+        target,
+      });
+      writeAmpRuntimeCliResult({
+        result,
+        json: opts.json,
+        formatJson: formatAmpStackSetupApplyJson,
+        formatReport: formatAmpStackSetupApplyReport,
+      });
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+    });
+
   registerAmpRuntimeCommands(amp);
 
   amp
@@ -652,7 +698,7 @@ export function registerAmpCommands(
     .action(() => {
       process.stdout.write(`AMP CLI shell v${AMP_CLI_SHELL_VERSION}\n`);
       process.stdout.write(
-        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate (consolidate defaults to local persistent knowledge.db; explicit gbrain/fake-gbrain/in-memory via --knowledge), projection render (defaults to local source dry-run against persistent knowledge.db and runtime queue; --source placeholder for fixture dry-run; --source gbrain for read-only cloud source; --apply writes files), knowledge status/list (read-only local knowledge.db summary and frame listing), stack status/map/verify/setup plan (read-only scaffold/control-plane rollup, visual HTML map, verification gates, and ordered setup plan for AMP, GBrain, Hermes, agents, and local knowledge), runtime status/inspect/seed/correct/graduation plan/apply (typed entity inspect/seed/correct on local storage; read-only graduation review; graduation apply writes durable local knowledge), optimize (offline skill optimization loop; --dry-run suppresses registry/propagation/audit writes), agent setup (claude-code, cursor, and codex dry-run/apply). Offline acceptance (`npm run amp:acceptance`) includes the durable local capture → consolidate → retrieve → projection loop against isolated knowledge.db.\n"
+        "Wired: init, doctor, gbrain-preflight, capture, consolidate, retrieve, propagate (consolidate defaults to local persistent knowledge.db; explicit gbrain/fake-gbrain/in-memory via --knowledge), projection render (defaults to local source dry-run against persistent knowledge.db and runtime queue; --source placeholder for fixture dry-run; --source gbrain for read-only cloud source; --apply writes files), knowledge status/list (read-only local knowledge.db summary and frame listing), stack status/map/verify/setup plan/apply (read-only scaffold/control-plane rollup, visual HTML map, verification gates, ordered setup plan, and explicit local scaffold apply for AMP, GBrain, Hermes, agents, and local knowledge), runtime status/inspect/seed/correct/graduation plan/apply (typed entity inspect/seed/correct on local storage; read-only graduation review; graduation apply writes durable local knowledge), optimize (offline skill optimization loop; --dry-run suppresses registry/propagation/audit writes), agent setup (claude-code, cursor, and codex dry-run/apply). Offline acceptance (`npm run amp:acceptance`) includes the durable local capture → consolidate → retrieve → projection loop against isolated knowledge.db.\n"
       );
     });
 
