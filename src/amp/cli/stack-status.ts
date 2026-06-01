@@ -34,6 +34,7 @@ export interface AmpStackStatusComponent {
   status: AmpStackComponentStatus;
   summary: string;
   nextAction?: string;
+  findings?: AmpDoctorFinding[];
 }
 
 export interface AmpStackStatusOptions extends AmpDoctorOptions {
@@ -70,6 +71,36 @@ export interface AmpStackMapResult {
   outputPath?: string;
   wrote: boolean;
   html: string;
+  status: AmpStackStatusResult;
+  error?: string;
+}
+
+export type AmpStackVerifyProfile = "local" | "gbrain-live";
+export type AmpStackVerifyCheckStatus = "pass" | "warn" | "fail";
+
+export interface AmpStackVerifyOptions extends AmpStackStatusOptions {
+  /** Verification profile: local scaffold checks by default, or stricter live GBrain readiness. */
+  profile?: AmpStackVerifyProfile;
+}
+
+export interface AmpStackVerifyCheck {
+  id: string;
+  label: string;
+  status: AmpStackVerifyCheckStatus;
+  message: string;
+  nextAction?: string;
+}
+
+export interface AmpStackVerifyResult {
+  ok: boolean;
+  profile: AmpStackVerifyProfile;
+  projectRoot: string;
+  primaryBackend: "gbrain";
+  evaluatedKnowledgeBackend: AmpStackStatusResult["evaluatedKnowledgeBackend"];
+  checks: AmpStackVerifyCheck[];
+  passCount: number;
+  warnCount: number;
+  failCount: number;
   status: AmpStackStatusResult;
   error?: string;
 }
@@ -136,6 +167,7 @@ function componentFromFindings(ctx: {
     status: statusFromFindings(ctx.findings),
     summary: summarizeFindings(ctx.findings, ctx.emptySummary),
     nextAction: actionable?.message ?? ctx.fallbackNextAction,
+    findings: [...ctx.findings],
   };
 }
 
@@ -336,6 +368,235 @@ function componentTone(status: AmpStackComponentStatus): string {
     case "info":
       return "info";
   }
+}
+
+function findStackComponent(
+  status: AmpStackStatusResult,
+  id: string
+): AmpStackStatusComponent | undefined {
+  return status.components.find((component) => component.id === id);
+}
+
+function verifyCheck(ctx: {
+  id: string;
+  label: string;
+  status: AmpStackVerifyCheckStatus;
+  message: string;
+  nextAction?: string;
+}): AmpStackVerifyCheck {
+  return { ...ctx };
+}
+
+function countVerifyChecks(
+  checks: readonly AmpStackVerifyCheck[],
+  status: AmpStackVerifyCheckStatus
+): number {
+  return checks.filter((check) => check.status === status).length;
+}
+
+function gbrainReadinessPasses(ctx: {
+  profile: AmpStackVerifyProfile;
+  evaluatedBackend: AmpStackStatusResult["evaluatedKnowledgeBackend"];
+  component?: AmpStackStatusComponent;
+}): boolean {
+  if (ctx.component?.status === "ready") {
+    return true;
+  }
+  if (ctx.profile !== "gbrain-live" || ctx.evaluatedBackend !== "gbrain" || !ctx.component) {
+    return false;
+  }
+
+  if (ctx.component.status === "blocked" || !ctx.component.findings) {
+    return false;
+  }
+
+  const allowedLiveWarningCategories = new Set([
+    "live-mutation",
+    "live-read",
+    "live-test",
+    "operator-summary",
+  ]);
+  return ctx.component.findings.every(
+    (finding) =>
+      finding.level !== "error" &&
+      (finding.level !== "warning" || allowedLiveWarningCategories.has(finding.category))
+  );
+}
+
+/** Run a read-only stack verification harness over the scaffold/control-plane status. */
+export function runAmpStackVerify(
+  options: AmpStackVerifyOptions = {}
+): AmpStackVerifyResult {
+  const profile = options.profile ?? "local";
+  const status = runAmpStackStatus(options);
+  const checks: AmpStackVerifyCheck[] = [];
+
+  checks.push(
+    verifyCheck({
+      id: "stack-bootstrap",
+      label: "Stack bootstrap",
+      status: status.blockedCount > 0 ? "fail" : "pass",
+      message:
+        status.blockedCount > 0
+          ? "One or more stack components are blocked."
+          : "No stack components are blocked.",
+      nextAction:
+        status.blockedCount > 0
+          ? "Run `amp stack status` and fix BLOCKED components first."
+          : undefined,
+    })
+  );
+
+  checks.push(
+    verifyCheck({
+      id: "primary-backend",
+      label: "Primary backend",
+      status: status.primaryBackend === "gbrain" ? "pass" : "fail",
+      message: `Primary backend is ${status.primaryBackend}.`,
+      nextAction:
+        status.primaryBackend === "gbrain"
+          ? undefined
+          : "Configure AMP stack control plane to treat GBrain as the primary backend.",
+    })
+  );
+
+  const backendSelectionFails = status.evaluatedKnowledgeBackend === "invalid";
+  const gbrainLiveWrongBackend =
+    profile === "gbrain-live" && status.evaluatedKnowledgeBackend !== "gbrain";
+  checks.push(
+    verifyCheck({
+      id: "backend-selection",
+      label: "Backend selection",
+      status: backendSelectionFails || gbrainLiveWrongBackend ? "fail" : "pass",
+      message:
+        status.evaluatedKnowledgeBackend === "invalid"
+          ? "Knowledge backend selection is invalid."
+          : `Evaluated knowledge backend: ${status.evaluatedKnowledgeBackend}.`,
+      nextAction:
+        backendSelectionFails || gbrainLiveWrongBackend
+          ? "Use `--knowledge gbrain` for live GBrain verification, or a supported offline backend for local checks."
+          : undefined,
+    })
+  );
+
+  const gbrain = findStackComponent(status, "gbrain");
+  const gbrainReady = gbrainReadinessPasses({
+    profile,
+    evaluatedBackend: status.evaluatedKnowledgeBackend,
+    component: gbrain,
+  });
+  checks.push(
+    verifyCheck({
+      id: "gbrain-readiness",
+      label: "GBrain readiness",
+      status: gbrainReady ? "pass" : profile === "gbrain-live" ? "fail" : "warn",
+      message: gbrain
+        ? `GBrain component is ${gbrain.status}: ${gbrain.summary}`
+        : "GBrain component is missing from stack status.",
+      nextAction:
+        gbrainReady
+          ? undefined
+          : gbrain?.nextAction ?? "Run `amp gbrain-preflight` and resolve GBrain setup warnings.",
+    })
+  );
+
+  const localKnowledge = findStackComponent(status, "local-knowledge");
+  checks.push(
+    verifyCheck({
+      id: "local-knowledge",
+      label: "Local knowledge",
+      status:
+        localKnowledge?.status === "blocked"
+          ? "fail"
+          : localKnowledge?.status === "ready"
+            ? "pass"
+            : "warn",
+      message: localKnowledge
+        ? localKnowledge.summary
+        : "Local knowledge component is missing from stack status.",
+      nextAction:
+        localKnowledge?.status === "ready"
+          ? undefined
+          : localKnowledge?.nextAction ?? "Run `amp knowledge status`.",
+    })
+  );
+
+  const agentWiring = findStackComponent(status, "agent-wiring");
+  checks.push(
+    verifyCheck({
+      id: "agent-wiring",
+      label: "Agent wiring",
+      status:
+        agentWiring?.status === "blocked"
+          ? "fail"
+          : agentWiring?.status === "ready"
+            ? "pass"
+            : "warn",
+      message: agentWiring
+        ? `Agent wiring is ${agentWiring.status}: ${agentWiring.summary}`
+        : "Agent wiring component is missing from stack status.",
+      nextAction:
+        agentWiring?.status === "ready"
+          ? undefined
+          : agentWiring?.nextAction ??
+            "Run `amp agent setup --target claude-code|cursor|codex --dry-run`.",
+    })
+  );
+
+  const failCount = countVerifyChecks(checks, "fail");
+  const result: AmpStackVerifyResult = {
+    ok: failCount === 0,
+    profile,
+    projectRoot: status.projectRoot,
+    primaryBackend: status.primaryBackend,
+    evaluatedKnowledgeBackend: status.evaluatedKnowledgeBackend,
+    checks,
+    passCount: countVerifyChecks(checks, "pass"),
+    warnCount: countVerifyChecks(checks, "warn"),
+    failCount,
+    status,
+  };
+
+  if (!result.ok) {
+    result.error = "Stack verification found blocking checks.";
+  }
+
+  return result;
+}
+
+/** JSON payload for `amp stack verify --json`. */
+export function formatAmpStackVerifyJson(result: AmpStackVerifyResult): string {
+  return JSON.stringify({ ...result, error: result.error ?? null }, null, 2);
+}
+
+/** Human-readable stack verification report lines. */
+export function formatAmpStackVerifyReport(result: AmpStackVerifyResult): string[] {
+  const lines = [
+    `AMP stack verify - ${result.projectRoot}`,
+    "",
+    `  profile: ${result.profile}`,
+    `  primaryBackend: ${result.primaryBackend}`,
+    `  evaluatedKnowledgeBackend: ${result.evaluatedKnowledgeBackend}`,
+    `  summary: ${result.passCount} pass, ${result.warnCount} warn, ${result.failCount} fail`,
+    "",
+    "Checks:",
+  ];
+
+  for (const check of result.checks) {
+    lines.push(`  ${check.status.toUpperCase()} [${check.id}] ${check.label}: ${check.message}`);
+    if (check.nextAction) {
+      lines.push(`    next: ${check.nextAction}`);
+    }
+  }
+
+  lines.push("");
+  if (result.ok) {
+    lines.push("OK Stack verification passed without blocking failures.");
+  } else {
+    lines.push(`ERROR ${result.error ?? "Stack verification found blocking checks."}`);
+  }
+
+  return lines;
 }
 
 /** Render a self-contained visual HTML map for the scaffold/control-plane status. */

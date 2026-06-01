@@ -8,12 +8,15 @@ import { Command } from "commander";
 import { runAmpInit } from "./init.js";
 import { registerAmpCommands } from "./index.js";
 import {
+  formatAmpStackMapReport,
   formatAmpStackStatusJson,
   formatAmpStackStatusReport,
-  formatAmpStackMapReport,
+  formatAmpStackVerifyJson,
+  formatAmpStackVerifyReport,
   renderAmpStackMapHtml,
   runAmpStackMap,
   runAmpStackStatus,
+  runAmpStackVerify,
 } from "./stack-status.js";
 import type { GbrainPreflightSpawnFn } from "./checks/gbrain-preflight.js";
 import { resolveLocalKnowledgeDbPath } from "./knowledge-backend.js";
@@ -36,6 +39,22 @@ const presentGbrainSpawn: GbrainPreflightSpawnFn = ((command: string, args?: str
   }
   if (command === "gbrain" && args?.[0] === "doctor") {
     return { status: 0, stdout: "{\"ok\":true}\n", stderr: "" };
+  }
+  return { status: 1, stdout: "", stderr: "" };
+}) as GbrainPreflightSpawnFn;
+
+const warningGbrainSpawn: GbrainPreflightSpawnFn = ((command: string, args?: string[]) => {
+  if (command === "which" || command === "where") {
+    return { status: 0, stdout: "/usr/local/bin/gbrain\n", stderr: "" };
+  }
+  if (command === "gbrain" && args?.[0] === "--version") {
+    return { status: 0, stdout: "gbrain 0.41.38\n", stderr: "" };
+  }
+  if (command === "gbrain" && args?.[0] === "serve") {
+    return { status: 0, stdout: "serve help\n", stderr: "" };
+  }
+  if (command === "gbrain" && args?.[0] === "doctor") {
+    return { status: 1, stdout: "reported warnings; review migration state\n", stderr: "" };
   }
   return { status: 1, stdout: "", stderr: "" };
 }) as GbrainPreflightSpawnFn;
@@ -392,6 +411,186 @@ describe("registerAmpCommands stack map", () => {
     assert.ok(
       map.options.some((option) => option.long === "--knowledge"),
       "expected --knowledge option on amp stack map",
+    );
+  });
+});
+
+describe("runAmpStackVerify", () => {
+  let tempRoot = "";
+
+  before(async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), "amp-stack-verify-"));
+  });
+
+  after(async () => {
+    await rm(tempRoot, { recursive: true, force: true });
+  });
+
+  async function initProject(name: string) {
+    const projectRoot = join(tempRoot, name);
+    const fakeHome = join(tempRoot, `home-${name}`);
+    const env = { HOME: fakeHome };
+    await runAmpInit({ projectRoot, env });
+    return { projectRoot, env, fakeHome };
+  }
+
+  it("verifies the default local scaffold profile with warnings but no failures", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("local-profile");
+
+    const result = runAmpStackVerify({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      gbrainSpawnFn: missingGbrainSpawn,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.profile, "local");
+    assert.equal(result.primaryBackend, "gbrain");
+    assert.equal(result.failCount, 0);
+    assert.ok(result.warnCount > 0);
+    assert.ok(result.checks.some((check) => check.id === "primary-backend" && check.status === "pass"));
+    assert.ok(result.checks.some((check) => check.id === "gbrain-readiness" && check.status === "warn"));
+  });
+
+  it("fails the gbrain-live profile when gbrain is not ready", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("gbrain-live-missing");
+
+    const result = runAmpStackVerify({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      profile: "gbrain-live",
+      gbrainSpawnFn: missingGbrainSpawn,
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.profile, "gbrain-live");
+    assert.ok(result.failCount > 0);
+    assert.ok(result.checks.some((check) => check.id === "gbrain-readiness" && check.status === "fail"));
+  });
+
+  it("passes gbrain-live readiness when gbrain probes pass", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("gbrain-live-ready");
+
+    const result = runAmpStackVerify({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      profile: "gbrain-live",
+      knowledge: "gbrain",
+      gbrainSpawnFn: presentGbrainSpawn,
+    });
+
+    assert.equal(result.profile, "gbrain-live");
+    assert.equal(result.primaryBackend, "gbrain");
+    assert.equal(result.evaluatedKnowledgeBackend, "gbrain");
+    assert.ok(result.checks.some((check) => check.id === "gbrain-readiness" && check.status === "pass"));
+    assert.ok(result.checks.some((check) => check.id === "backend-selection" && check.status === "pass"));
+  });
+
+  it("fails gbrain-live readiness on unknown gbrain doctor warnings", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("gbrain-live-warning");
+
+    const result = runAmpStackVerify({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      profile: "gbrain-live",
+      knowledge: "gbrain",
+      gbrainSpawnFn: warningGbrainSpawn,
+    });
+
+    assert.equal(result.ok, false);
+    assert.ok(result.checks.some((check) => check.id === "gbrain-readiness" && check.status === "fail"));
+  });
+
+  it("fails closed for invalid backend selection", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("verify-invalid-backend");
+
+    const result = runAmpStackVerify({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      knowledge: "postgres",
+      gbrainSpawnFn: presentGbrainSpawn,
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.evaluatedKnowledgeBackend, "invalid");
+    assert.ok(result.checks.some((check) => check.id === "backend-selection" && check.status === "fail"));
+  });
+
+  it("formats verification reports and JSON", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("verify-format");
+    const result = runAmpStackVerify({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      gbrainSpawnFn: missingGbrainSpawn,
+    });
+
+    const report = formatAmpStackVerifyReport(result).join("\n");
+    assert.match(report, /AMP stack verify/);
+    assert.match(report, /profile:\s+local/);
+    assert.match(report, /primaryBackend:\s+gbrain/);
+
+    const parsed = JSON.parse(formatAmpStackVerifyJson(result));
+    assert.equal(parsed.profile, "local");
+    assert.equal(parsed.primaryBackend, "gbrain");
+    assert.ok(Array.isArray(parsed.checks));
+    assert.equal(parsed.error, null);
+  });
+
+  it("does not open or migrate an existing knowledge.db while verifying", async () => {
+    const { projectRoot, env, fakeHome } = await initProject("verify-read-only-db");
+    const bootstrap = resolveAmpRuntimeCliBootstrap({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+    });
+    assert.equal(bootstrap.ok, true);
+    if (!bootstrap.ok) return;
+
+    const knowledgeDbPath = resolveLocalKnowledgeDbPath(bootstrap.runtimeDbPath);
+    await writeFile(knowledgeDbPath, "", "utf8");
+    const before = await stat(knowledgeDbPath);
+
+    const result = runAmpStackVerify({
+      projectRoot,
+      env,
+      homedir: () => fakeHome,
+      gbrainSpawnFn: missingGbrainSpawn,
+    });
+
+    const after = await stat(knowledgeDbPath);
+    assert.equal(result.ok, true);
+    assert.equal(before.size, 0);
+    assert.equal(after.size, 0);
+  });
+});
+
+describe("registerAmpCommands stack verify", () => {
+  it("registers amp stack verify with profile and JSON support", () => {
+    const program = new Command().name("ai-memory");
+    registerAmpCommands(program);
+
+    const amp = program.commands.find((cmd) => cmd.name() === "amp");
+    assert.ok(amp);
+
+    const stack = amp.commands.find((cmd) => cmd.name() === "stack");
+    assert.ok(stack, "expected amp stack command group");
+
+    const verify = stack.commands.find((cmd) => cmd.name() === "verify");
+    assert.ok(verify, "expected amp stack verify subcommand");
+    assert.match(verify.description(), /verification/i);
+    assert.ok(
+      verify.options.some((option) => option.long === "--profile"),
+      "expected --profile option on amp stack verify",
+    );
+    assert.ok(
+      verify.options.some((option) => option.long === "--json"),
+      "expected --json option on amp stack verify",
     );
   });
 });
