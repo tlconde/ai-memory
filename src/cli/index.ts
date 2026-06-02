@@ -9,6 +9,7 @@ import { TOOL_ADAPTERS, getMCPJson, MCP_LAUNCHER, MCP_LAUNCHER_PATH, CANONICAL_S
 import { detectEnvironments, injectCapabilityConfig, getCapabilityManualInstructions } from "./environment.js";
 import { AI_PATHS } from "../schema-constants.js";
 import { registerContextCommands } from "./context-pack.js";
+import { registerImportCommands } from "./memory-import.js";
 
 // ─── CLI helpers ─────────────────────────────────────────────────────────────
 
@@ -46,6 +47,7 @@ program
   .version(PKG_VERSION);
 
 registerContextCommands(program);
+registerImportCommands(program);
 
 // ─── init ───────────────────────────────────────────────────────────────────
 

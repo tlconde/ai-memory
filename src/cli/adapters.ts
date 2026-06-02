@@ -18,6 +18,7 @@ Use \`commit_memory\` to write new entries — never edit memory files directly.
 If MCP is not connected, read \`.ai/memory/memory-index.md\` for a summary and write to \`.ai/memory/\` files directly.
 
 \`.ai/\` is the canonical memory for this project. Save all project learnings here, not in your tool's built-in memory (e.g. ~/.claude/, Cursor memory, etc.). Tool-native memory is for user preferences only.
+If \`.ai/temp/import/latest-request.md\` exists, read it and reconcile durable learnings from the listed tool-native memories/chats into \`.ai/memory/\`.
 
 Immutable paths (do not write): IDENTITY.md, toolbox/, acp/, rules/.
 
@@ -506,6 +507,140 @@ dump.instructions = [
 fs.writeFileSync(path.join(tempDir, "pre-compact-dump.json"), JSON.stringify(dump, null, 2));
 `;
 
+export const POST_COMPACT_HOOK = `#!/usr/bin/env node
+const fs = require("fs");
+const path = require("path");
+const aiDir = process.env.AI_DIR || path.join(process.cwd(), ".ai");
+if (!fs.existsSync(aiDir)) process.exit(0);
+const tempDir = path.join(aiDir, "temp");
+fs.mkdirSync(tempDir, { recursive: true });
+const reminder = [
+  "# Post-Compact Reminder",
+  "",
+  "Read .ai/temp/pre-compact-dump.json if it exists.",
+  "Restore the user's latest intent before continuing.",
+  "Reconcile meaningful learnings into .ai/memory and concise verified repo navigation drift into .ai/context.",
+  "If .ai/temp/import/latest-request.md exists, process it before adding new durable memory.",
+  "",
+  "Created: " + new Date().toISOString(),
+  "",
+].join("\\n");
+fs.writeFileSync(path.join(tempDir, "post-compact-reminder.md"), reminder);
+`;
+
+export const AI_MEMORY_IMPORT_HOOK = `#!/usr/bin/env node
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+
+const agent = process.argv[2] || process.env.AI_MEMORY_AGENT || "generic";
+const projectRoot = process.cwd().endsWith(path.sep + ".cursor") ? path.resolve(process.cwd(), "..") : process.cwd();
+const aiDir = process.env.AI_DIR || path.join(projectRoot, ".ai");
+if (!fs.existsSync(aiDir)) process.exit(0);
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function expand(input) {
+  const vars = input.replace(/\\$\\{([A-Z0-9_]+)(:-([^}]*))?\\}/gi, (_m, key, _fallbackPart, fallback) => process.env[key] || fallback || "");
+  if (vars === "~") return os.homedir();
+  return vars.replace(/^~(?=\\/|\\\\)/, os.homedir());
+}
+
+function defaultConfig() {
+  return {
+    version: 1,
+    generated_at: nowIso(),
+    sources: [
+      { id: "claude-project-memory", tool: "claude", kind: "file", path: "CLAUDE.md", enabled: true, description: "Project CLAUDE.md instructions." },
+      { id: "claude-project-rules", tool: "claude", kind: "directory", path: ".claude/rules", enabled: true, description: "Project Claude rules." },
+      { id: "claude-auto-memory", tool: "claude", kind: "directory", path: "\${CLAUDE_CODE_AUTO_MEMORY_DIR:-~/.claude/projects/<project>/memory}", enabled: false, description: "Claude auto memory; configure the project-specific path first." },
+      { id: "cursor-project-rules", tool: "cursor", kind: "directory", path: ".cursor/rules", enabled: true, description: "Cursor project rules." },
+      { id: "cursor-legacy-rules", tool: "cursor", kind: "file", path: ".cursorrules", enabled: true, description: "Legacy Cursor rules." },
+      { id: "cursor-chat-exports", tool: "cursor", kind: "directory", path: ".ai/temp/import/cursor-chat-exports", enabled: false, description: "Optional user-provided Cursor chat exports." },
+      { id: "codex-project-agents", tool: "codex", kind: "file", path: "AGENTS.md", enabled: true, description: "Project AGENTS.md instructions." },
+      { id: "codex-memories", tool: "codex", kind: "directory", path: "\${CODEX_HOME:-~/.codex}/memories", enabled: true, description: "Codex memory files under CODEX_HOME." },
+      { id: "codex-history", tool: "codex", kind: "file", path: "\${CODEX_HOME:-~/.codex}/history.jsonl", enabled: false, description: "Codex prompt history when persistence is enabled." }
+    ]
+  };
+}
+
+const configPath = path.join(aiDir, "import-sources.json");
+let config = defaultConfig();
+if (fs.existsSync(configPath)) {
+  try {
+    config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  } catch {}
+} else {
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+}
+
+const present = [];
+const pending = [];
+for (const source of config.sources || []) {
+  if (!source.enabled) {
+    pending.push("- " + source.id + ": disabled (" + source.path + ")");
+    continue;
+  }
+  const expanded = expand(source.path);
+  const resolved = expanded.includes("<") || expanded.includes(">") ? expanded : path.resolve(projectRoot, expanded);
+  if (resolved.includes("<") || resolved.includes(">")) {
+    pending.push("- " + source.id + ": configure path (" + source.path + ")");
+    continue;
+  }
+  if (!fs.existsSync(resolved)) {
+    pending.push("- " + source.id + ": missing (" + source.path + ")");
+    continue;
+  }
+  const stat = fs.statSync(resolved);
+  const ok = source.kind === "glob" || (source.kind === "file" && stat.isFile()) || (source.kind === "directory" && stat.isDirectory());
+  if (ok) present.push("- " + source.id + " (" + source.tool + ", " + source.kind + "): " + resolved);
+  else pending.push("- " + source.id + ": expected " + source.kind + " (" + source.path + ")");
+}
+
+const importDir = path.join(aiDir, "temp", "import");
+const requestDir = path.join(importDir, "requests");
+fs.mkdirSync(requestDir, { recursive: true });
+fs.mkdirSync(path.join(importDir, "reports"), { recursive: true });
+fs.mkdirSync(path.join(importDir, "cursor-chat-exports"), { recursive: true });
+
+const request = [
+  "# ai-memory Import Request",
+  "",
+  "Active agent: " + agent,
+  "Created: " + nowIso(),
+  "",
+  "Read the enabled source files below and distill only durable project learnings into .ai memory.",
+  "",
+  "## Sources To Inspect",
+  "",
+  present.length ? present.join("\\n") : "- No enabled sources are currently present.",
+  "",
+  "## Sources Not Ready",
+  "",
+  pending.length ? pending.join("\\n") : "- None.",
+  "",
+  "## Instructions For The Agent",
+  "",
+  "1. Read only the listed present sources. If you need another source, ask the user or add it to .ai/import-sources.json first.",
+  "2. Extract durable project facts, decisions, debugging lessons, workflows, and user intent that should survive across tools.",
+  "3. Do not bulk-copy raw chat text, secrets, credentials, personal data, or one-off transient chatter.",
+  "4. Before writing, inspect .ai/memory/memory-index.md and the relevant .ai/memory/*.md file to avoid duplicates and contradictions.",
+  "5. Prefer commit_memory/search_memory when the MCP server is available. If MCP is unavailable, edit the relevant .ai/memory file directly.",
+  "6. Update .ai/PROJECT_STATUS.md and .ai/sessions/open-items.md only when the sources reveal current intent or unresolved work.",
+  "7. Write a short completion report under .ai/temp/import/reports/ with sources read, memory files changed, and anything skipped.",
+  "",
+  "This request is intentionally a handoff prompt: the hook creates work for a coding agent, and the agent performs the semantic judgment.",
+  ""
+].join("\\n");
+
+const filename = nowIso().replace(/[:.]/g, "-") + "-" + agent + ".md";
+fs.writeFileSync(path.join(requestDir, filename), request);
+fs.writeFileSync(path.join(importDir, "latest-request.md"), request);
+`;
+
 export const CLAUDE_HOOKS_CONFIG = JSON.stringify({
   hooks: {
     SessionStart: [{
@@ -524,21 +659,63 @@ export const CLAUDE_HOOKS_CONFIG = JSON.stringify({
     }],
     PostCompact: [{
       hooks: [{
-        type: "prompt",
-        prompt: "Compaction just happened. First read .ai/temp/pre-compact-dump.json if it exists. Restore the user's latest intent, check .ai/PROJECT_STATUS.md and .ai/context/START_HERE.md, then continue the task. If the compaction revealed stale memory or navigation context, update .ai/memory via commit_memory and update .ai/context only with concise verified changes. Context: $ARGUMENTS",
-        model: "claude-sonnet",
-        timeout: 120,
+        type: "command",
+        command: "node .claude/hooks/PostCompact.js",
+        timeout: 10000,
       }],
     }],
     Stop: [{
-      hooks: [{
-        type: "prompt",
-        prompt: "The session is ending. Read the recent conversation, .ai/memory/memory-index.md, .ai/PROJECT_STATUS.md, and .ai/context if present. If meaningful work happened, update durable .ai/memory via commit_memory, update PROJECT_STATUS.md/open-items, and update .ai/context only for verified repo navigation drift. If the session was trivial, call publish_result with a brief summary. Preserve user intent and do not invent learnings. Context: $ARGUMENTS",
-        model: "claude-sonnet",
-        timeout: 120,
-      }],
+      hooks: [
+        {
+          type: "command",
+          command: "node .ai/hooks/import-request.cjs claude",
+          timeout: 10000,
+        },
+        {
+          type: "prompt",
+          prompt: "The session is ending. Read the recent conversation, .ai/memory/memory-index.md, .ai/PROJECT_STATUS.md, .ai/context if present, and .ai/temp/import/latest-request.md if it exists. If meaningful work happened, update durable .ai/memory via commit_memory, update PROJECT_STATUS.md/open-items, and update .ai/context only for verified repo navigation drift. If the import request lists tool-native memories/chats, distill only durable project learnings and do not bulk-copy raw chat text. Preserve user intent and do not invent learnings. Context: $ARGUMENTS",
+          model: "claude-sonnet",
+          timeout: 120,
+        },
+      ],
     }],
   },
+}, null, 2);
+
+export const CURSOR_HOOKS_CONFIG = JSON.stringify({
+  version: 1,
+  hooks: {
+    stop: [
+      {
+        command: "node ../.ai/hooks/import-request.cjs cursor",
+      },
+    ],
+  },
+}, null, 2);
+
+export const CODEX_HOOKS_CONFIG = JSON.stringify({
+  Stop: [
+    {
+      hooks: [
+        {
+          type: "command",
+          command: "node .ai/hooks/import-request.cjs codex",
+          timeout: 10000,
+        },
+      ],
+    },
+  ],
+  PostCompact: [
+    {
+      hooks: [
+        {
+          type: "command",
+          command: "node .ai/hooks/import-request.cjs codex",
+          timeout: 10000,
+        },
+      ],
+    },
+  ],
 }, null, 2);
 
 // ─── Adapter definitions ───────────────────────────────────────────────────
@@ -563,6 +740,19 @@ export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
     mcpPath: ".cursor/mcp.json",
     extraFiles: {
       ...skillStubsForDir(".cursor/skills"),
+      ".cursor/hooks.json": CURSOR_HOOKS_CONFIG,
+      ".ai/hooks/import-request.cjs": AI_MEMORY_IMPORT_HOOK,
+    },
+  },
+  codex: {
+    dest: "AGENTS.md",
+    content: BOOTSTRAP_INSTRUCTION,
+    mcp: false,
+    postInstallNote: "Codex hooks installed in .codex/hooks.json. Trust the project .codex layer for local hooks to load.",
+    extraFiles: {
+      ...skillStubsForDir(".codex/skills"),
+      ".codex/hooks.json": CODEX_HOOKS_CONFIG,
+      ".ai/hooks/import-request.cjs": AI_MEMORY_IMPORT_HOOK,
     },
   },
   antigravity: {
@@ -592,11 +782,13 @@ export const TOOL_ADAPTERS: Record<string, ToolAdapter> = {
     dest: "CLAUDE.md",
     content: `# Claude Code — Project Memory\n\n${BOOTSTRAP_INSTRUCTION}`,
     mcp: true,
-    postInstallNote: "Hooks installed: SessionStart (context injection), PreCompact (state preservation)\n  Note: Restart Claude Code for hooks to take effect.",
+    postInstallNote: "Hooks installed: SessionStart, PreCompact/PostCompact, Stop import request\n  Note: Restart Claude Code for hooks to take effect.",
     extraFiles: {
       ...skillStubsForDir(".claude/skills"),
       ".claude/hooks/SessionStart.js": SESSION_START_HOOK,
       ".claude/hooks/PreCompact.js": PRE_COMPACT_HOOK,
+      ".claude/hooks/PostCompact.js": POST_COMPACT_HOOK,
+      ".ai/hooks/import-request.cjs": AI_MEMORY_IMPORT_HOOK,
       ".claude/settings.local.json": CLAUDE_HOOKS_CONFIG,
     },
   },

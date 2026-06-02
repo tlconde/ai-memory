@@ -1,44 +1,34 @@
-# TODO: Reevaluate Hooks and Cross-Agent Memory Import
+# TODO: Reevaluate Hook Quality
 
 ## Why this exists
 
-The current ai-memory hooks were designed around a simpler assumption: remind the active agent to run memory capture at lifecycle boundaries. That is useful, but it is not the full shape we want.
+The current ai-memory hooks now support a small cross-agent import request flow, but the lifecycle design still deserves a later pass.
 
-AMP introduced a better flow: read existing tool-native memory or chat artifacts, distill durable project learnings, and bring those learnings into the canonical memory store. For original ai-memory, the equivalent should stay simple and filesystem-first:
+AMP introduced the better model: read existing tool-native memory or chat artifacts, distill durable project learnings, and bring those learnings into the canonical memory store. Original ai-memory should keep that filesystem-first and visible:
 
 - `.ai/memory/` remains canonical project memory.
 - Tool-native memories and chats are source material, not canonical truth.
 - A coding agent performs the import/distillation pass.
-- The hook should trigger or request that pass instead of relying on the user to remember.
+- Hooks create a visible request instead of silently scraping or bulk-importing transcripts.
 
-## Current hook limitations
+## What Exists In This Branch
 
-- Claude hooks currently preserve session state and ask the model to reconcile memory at Stop/PostCompact.
-- Cursor support is currently rules/skills only in this branch; Cursor hooks need a separate implementation pass.
-- Codex and other IDEs currently rely on generic instructions, not lifecycle hooks.
-- Existing hooks do not read tool-native chat histories or memory files.
-- Existing hooks do not coordinate cross-tool imports, such as Claude reading Codex chats or Cursor reading Claude memory.
-- Existing hooks do not clearly distinguish:
-  - session summary
-  - durable project learning
-  - user preference
-  - transient conversation context
-  - repo navigation context
+- `ai-memory import init` writes `.ai/import-sources.json`.
+- `ai-memory import scan` checks configured source paths without reading contents.
+- `ai-memory import request --agent <agent> --from <sources>` writes `.ai/temp/import/latest-request.md`.
+- Claude, Cursor, and Codex installs write hooks that create the same pending request.
+- Claude PreCompact/PostCompact hooks preserve intent with command hooks and temp files.
+- `ai-memory clean` includes old `.ai/temp/import/requests` and `.ai/temp/import/reports` files.
 
-## Desired future flow
+## Reevaluate Later
 
-Create a small agent-driven import workflow:
+The next pass should improve how hooks preserve and classify intent:
 
-1. Detect available tool-native sources:
-   - Claude memory/chats
-   - Cursor chats/checkpoints/hooks payloads
-   - Codex thread summaries/chats
-   - other IDE or agent artifacts when configured
-2. Ask an available coding agent to read those sources.
-3. Distill only project-relevant, durable learnings.
-4. Write canonical entries to `.ai/memory/` using `commit_memory` when MCP is available.
-5. Update `.ai/PROJECT_STATUS.md`, `.ai/sessions/open-items.md`, and `.ai/context/` only when relevant.
-6. Record what was imported, skipped, and why.
+- Separate session summary, durable project learning, user preference, transient conversation context, and repo navigation context.
+- Keep the pre-compact dump small while preserving the user's latest intent.
+- Decide whether import requests should be installed by default or enabled behind an explicit capability flag.
+- Add richer import reports that list skipped sources and duplicate/conflict decisions.
+- Explore source-specific fixtures for Claude, Cursor, and Codex once their documented storage surfaces are stable enough.
 
 ## Cross-agent examples
 
@@ -57,30 +47,20 @@ Create a small agent-driven import workflow:
 - Keep `.ai/memory/` concise and durable.
 - Make tool-specific paths configurable because local storage differs by OS and version.
 
-## Possible commands
+## Implemented Commands
 
 ```bash
+ai-memory import init
 ai-memory import scan
-ai-memory import from claude
-ai-memory import from cursor
-ai-memory import from codex
-ai-memory import from all --dry-run
-ai-memory import from all --apply
+ai-memory import scan --from claude,codex
+ai-memory import request --agent claude --from all
+ai-memory import request --agent cursor --from claude,codex
+ai-memory import request --agent codex --from cursor
 ```
-
-## Possible hook direction
-
-Hooks should eventually trigger a lightweight import request rather than trying to do everything inline.
-
-Examples:
-
-- Claude Stop hook: ask Claude to run an import pass over configured Codex/Cursor sources before final memory capture.
-- Cursor stop hook: ask Cursor Agent to import from Claude/Codex sources, then update `.ai/memory/`.
-- Codex session-close hook or automation: ask Codex to import from Cursor/Claude artifacts and summarize what changed.
 
 ## Evaluation ideas
 
-- Fixture-based tests with fake Claude/Cursor/Codex chat files.
+- Fixture-based tests with fake Claude/Cursor/Codex memory exports.
 - Verify only durable project facts are imported.
 - Verify irrelevant chat content is skipped.
 - Verify secrets are redacted or rejected.
@@ -91,7 +71,6 @@ Examples:
 ## Open questions
 
 - Which tool-native paths should be supported first?
-- Should imports be command-only, hook-triggered, or both?
 - How much user confirmation is required before reading local chat histories?
-- Should cross-agent import be installed by default or enabled with an explicit capability flag?
-- What is the smallest useful Cursor hook implementation for this flow?
+- Should Cursor/Codex transcript imports remain export-only until public local chat storage docs exist?
+- Should the import report become part of `ai-memory eval` history?

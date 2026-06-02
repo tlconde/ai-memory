@@ -30,6 +30,8 @@ const TEMP_CONTEXT_DIRS = [
   "temp/context/drafts",
   "temp/context/freshness",
   "temp/context/scans",
+  "temp/import/requests",
+  "temp/import/reports",
 ];
 
 function today(): string {

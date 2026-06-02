@@ -24,6 +24,7 @@ This writes three things:
 |---|---|---|---|---|
 | Cursor | `cursor` | `.cursor/rules/00-load-ai-memory.mdc` | `.cursor/skills/` | `.cursor/mcp.json` |
 | Claude Code | `claude-code` | `CLAUDE.md` | `.claude/skills/` | `.mcp.json` |
+| Codex | `codex` | `AGENTS.md` | `.codex/skills/` | None |
 | Antigravity | `antigravity` | `.agents/rules/00-load-ai-memory.md` | `.agents/skills/` | Global (`~/.gemini/antigravity/mcp_config.json`) |
 | Copilot | `copilot` | `.github/copilot-instructions.md` | (manual) | None (no MCP) |
 
