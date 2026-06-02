@@ -96,10 +96,18 @@ Or manually in a session: ask *"Call search_memory with query 'test'"* (confirms
 │   ├── debugging.md        — Non-obvious bugs with root cause and fix
 │   ├── improvements.md     — Incremental improvements over time
 │   └── memory-index.md     — Auto-generated priority index
+├── context/                — Small repo navigation pack (optional)
+│   ├── START_HERE.md       — Fast facts, scope, stop rules
+│   ├── CODE_MAP.md         — Important paths and lookup shortcuts
+│   ├── INVARIANTS.md       — Verified behavioral invariants
+│   ├── search-scope.json   — Search boundaries and verification shortcuts
+│   ├── manifest.json       — Git revision and pack metadata
+│   └── acceptance.md       — Quick checks proving the pack works
 ├── agents/                 — Agent methodology files
 ├── skills/                 — Project domain knowledge
 ├── toolbox/                — General tech knowledge
 ├── rules/                  — Behavioral constraints
+├── temp/                   — Disposable scratch files, dumps, locks, drafts
 ├── sessions/
 │   ├── open-items.md       — Live registry of open tasks
 │   └── archive/
@@ -123,6 +131,7 @@ Creates: `acp/`, `docs-schema.json`, `rules/doc-placement.md`, `agents/docs-mana
 | `/mem-compound` | End of any session with real learning |
 | `/mem-session-close` | End of a short/exploratory session |
 | `/mem-init` | First-time project setup |
+| `/mem-context` | Create/update the optional `.ai/context` repo navigation pack |
 | `/mem-validate` | Before a risky change (Full tier) |
 | `/mem-auto-review` | Automated PR review (Bugbot, CI, automations) |
 | `/browser` | Browser automation (screenshots, navigate, interact) |
@@ -159,6 +168,10 @@ ai-memory mcp --http --port 3100 # Start MCP server (HTTP, for cloud agents)
 ai-memory validate               # Validate all .ai/ files
 ai-memory validate-docs          # Validate doc placement against .ai/docs-schema.json (staged or --paths)
 # Pre-commit: add `ai-memory validate-docs` to validate new docs before commit (e.g. via husky)
+ai-memory context init           # Scaffold optional .ai/context repo navigation pack
+ai-memory context verify         # Verify context pack structure, search paths, and freshness
+ai-memory clean --older-than 7d  # Dry-run cleanup of disposable .ai/temp/context files
+ai-memory clean --apply          # Delete cleanup candidates
 ai-memory index                  # Regenerate memory-index.md from memory files
 ai-memory fmt                    # Auto-format YAML frontmatter
 ai-memory eval [--json]          # Memory health report

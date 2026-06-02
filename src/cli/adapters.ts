@@ -10,6 +10,7 @@ This project has persistent AI memory in \`.ai/\`.
 - **IDENTITY.md** — project constraints and behavioral rules
 - **PROJECT_STATUS.md** — current focus, open questions, what to try next (writable)
 - **memory/** — decisions, patterns, debugging history
+- **context/** — small repo navigation pack: where to search, invariants, acceptance checks
 - **skills/** — domain-specific patterns and session protocols
 
 Use \`search_memory\` (MCP) to find relevant context before starting a task.
@@ -21,6 +22,7 @@ If MCP is not connected, read \`.ai/memory/memory-index.md\` for a summary and w
 Immutable paths (do not write): IDENTITY.md, toolbox/, acp/, rules/.
 
 At the end of a meaningful session, run /mem-compound to capture learnings.
+For repo navigation drift after code changes, run /mem-context or \`ai-memory context verify\`.
 `;
 
 /**
@@ -104,6 +106,7 @@ const SKILL_STUBS: Array<[string, string]> = [
   ["mem-session-close", "Quick session close for sessions with no major learnings."],
   ["mem-validate", "Validate memory entries and code changes against governance rules."],
   ["mem-init", "Initialize ai-memory in a new project."],
+  ["mem-context", "Create and maintain the small .ai/context navigation pack."],
   ["browser", "Browser automation (screenshots, navigate, interact)."],
   ["screen-capture", "Desktop/app window screenshot for vision analysis."],
   ["desktop-automation", "Desktop UI automation — mouse, keyboard, OCR. For desktop applications, Electron apps."],
@@ -235,6 +238,67 @@ First time setting up ai-memory, or re-run to refresh recommendations.
 6. **Knowledge audit** — Report existing docs (ARCHITECTURE.md, CONTRIBUTING.md, CHANGELOG.md, .env.example, TODO comments, existing MCPs/rules). Suggest what to import into .ai/memory/. If AGENTS.md, CLAUDE.md, .cursorrules, or copilot-instructions.md exist, propose migrating their content to .ai/ canonical files (behavioral → IDENTITY.md, project info → PROJECT.md, workflows → skills) and replacing the original with a stub. Do not import or migrate automatically.
 7. **Recommendations** — Suggest relevant features: CI detected → mem-auto-review, multiple contributors → Full tier, no tests → testing-strategy pattern, monorepo → per-package skills.
 8. **Validate** — Run \`npx @radix-ai/ai-memory validate\`. Print summary of what was done, remaining placeholders, and next steps.
+`,
+  "mem-context": `---
+id: mem-context
+name: mem-context
+description: Create and maintain the small .ai/context navigation pack. Use after repo structure changes, when a session discovers better search boundaries, or when context verify warns.
+type: skill
+status: active
+---
+
+# mem-context — Maintain Repo Navigation Context
+
+## When to use
+
+- First setup of the checked-in context pack
+- Code changes altered entrypoints, risky paths, invariants, or search boundaries
+- A hook asks you to reconcile session learnings into .ai/context
+- \`ai-memory context verify\` reports stale or missing context
+
+## Instructions
+
+### 1. Ensure the pack exists
+
+If \`.ai/context/\` is missing, run:
+
+\`\`\`bash
+ai-memory context init
+\`\`\`
+
+### 2. Read before editing
+
+Read these files:
+
+1. \`.ai/context/START_HERE.md\`
+2. \`.ai/context/CODE_MAP.md\`
+3. \`.ai/context/INVARIANTS.md\`
+4. \`.ai/context/search-scope.json\`
+
+Also read \`.ai/temp/pre-compact-dump.json\` if it exists. Preserve the user's latest intent from that dump when reconciling after compaction.
+
+### 3. Draft first
+
+Write scratch notes to \`.ai/temp/context/drafts/\` when the update is not obvious. Promote only concise, evidence-backed changes into \`.ai/context/\`.
+
+### 4. Update only what changed
+
+- \`CODE_MAP.md\` for new or moved important paths
+- \`INVARIANTS.md\` for rules verified against the repo
+- \`search-scope.json\` for task-specific search boundaries and verification shortcuts
+- \`acceptance.md\` for quick checks proving the pack points to the right files
+
+Do not store external library documentation here. Use Context7 for current third-party docs.
+
+### 5. Verify
+
+Run:
+
+\`\`\`bash
+ai-memory context verify
+\`\`\`
+
+Fix failures before reporting done. Warnings may remain if you explain why.
 `,
   browser: `---
 id: browser
@@ -403,6 +467,12 @@ if (index && !index.includes("<!-- Index will be generated")) {
   sections.push("## Memory Index (priority-ranked)\\n\\n" + index.trim());
 }
 
+const contextStart = safeRead(join(aiDir, "context/START_HERE.md"), 80);
+const contextMap = safeRead(join(aiDir, "context/CODE_MAP.md"), 120);
+if (contextStart || contextMap) {
+  sections.push("## Repo Navigation Context\\n\\n" + [contextStart, contextMap].filter(Boolean).join("\\n\\n---\\n\\n"));
+}
+
 if (sections.length === 0) process.exit(0);
 
 process.stdout.write(JSON.stringify({
@@ -424,6 +494,15 @@ for (const f of ["PROJECT_STATUS.md", "memory/memory-index.md", "sessions/open-i
   const fp = path.join(aiDir, f);
   if (fs.existsSync(fp)) dump[f] = fs.readFileSync(fp, "utf-8").slice(0, 2000);
 }
+for (const f of ["context/START_HERE.md", "context/CODE_MAP.md", "context/INVARIANTS.md"]) {
+  const fp = path.join(aiDir, f);
+  if (fs.existsSync(fp)) dump[f] = fs.readFileSync(fp, "utf-8").slice(0, 1600);
+}
+dump.instructions = [
+  "After compaction, preserve the user's latest intent before continuing.",
+  "Read this dump, then reconcile meaningful learnings into .ai/memory and repo navigation drift into .ai/context.",
+  "Use commit_memory for durable memory entries when MCP is available.",
+].join(" ");
 fs.writeFileSync(path.join(tempDir, "pre-compact-dump.json"), JSON.stringify(dump, null, 2));
 `;
 
@@ -441,6 +520,22 @@ export const CLAUDE_HOOKS_CONFIG = JSON.stringify({
         type: "command",
         command: "node .claude/hooks/PreCompact.js",
         timeout: 10000,
+      }],
+    }],
+    PostCompact: [{
+      hooks: [{
+        type: "prompt",
+        prompt: "Compaction just happened. First read .ai/temp/pre-compact-dump.json if it exists. Restore the user's latest intent, check .ai/PROJECT_STATUS.md and .ai/context/START_HERE.md, then continue the task. If the compaction revealed stale memory or navigation context, update .ai/memory via commit_memory and update .ai/context only with concise verified changes. Context: $ARGUMENTS",
+        model: "claude-sonnet",
+        timeout: 120,
+      }],
+    }],
+    Stop: [{
+      hooks: [{
+        type: "prompt",
+        prompt: "The session is ending. Read the recent conversation, .ai/memory/memory-index.md, .ai/PROJECT_STATUS.md, and .ai/context if present. If meaningful work happened, update durable .ai/memory via commit_memory, update PROJECT_STATUS.md/open-items, and update .ai/context only for verified repo navigation drift. If the session was trivial, call publish_result with a brief summary. Preserve user intent and do not invent learnings. Context: $ARGUMENTS",
+        model: "claude-sonnet",
+        timeout: 120,
       }],
     }],
   },

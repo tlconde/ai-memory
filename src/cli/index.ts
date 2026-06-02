@@ -8,6 +8,7 @@ import { DEFAULT_DOCS_SCHEMA_JSON } from "../docs-schema.js";
 import { TOOL_ADAPTERS, getMCPJson, MCP_LAUNCHER, MCP_LAUNCHER_PATH, CANONICAL_SKILLS } from "./adapters.js";
 import { detectEnvironments, injectCapabilityConfig, getCapabilityManualInstructions } from "./environment.js";
 import { AI_PATHS } from "../schema-constants.js";
+import { registerContextCommands } from "./context-pack.js";
 
 // ─── CLI helpers ─────────────────────────────────────────────────────────────
 
@@ -43,6 +44,8 @@ program
   .name("ai-memory")
   .description("Persistent AI memory for any project.")
   .version(PKG_VERSION);
+
+registerContextCommands(program);
 
 // ─── init ───────────────────────────────────────────────────────────────────
 
