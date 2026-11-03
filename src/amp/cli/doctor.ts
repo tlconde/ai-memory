@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import type { CapabilityCoverage } from "../adapter-contract/capability-coverage.js";
 import { appendAgentSetupStatusFindings } from "./checks/agent-setup-status.js";
+import { appendDogfoodReadyFindings } from "./checks/dogfood-ready.js";
 import { appendGitignoreProtectionFindings } from "./checks/gitignore-protection.js";
 import {
   appendHermesDiscoveryFindings,
@@ -42,6 +43,8 @@ export interface AmpDoctorOptions {
   ampRepoRoot?: string;
   platform?: NodeJS.Platform;
   homedir?: () => string;
+  /** Internal: omit dogfood rollup when a caller needs path-only status checks. */
+  includeDogfoodReady?: boolean;
 }
 
 export interface AmpDoctorResult {
@@ -307,6 +310,14 @@ export function runAmpDoctor(options: AmpDoctorOptions = {}): AmpDoctorResult {
   appendGitignoreProtectionFindings(findings, projectRoot);
   if (configExists) {
     appendAgentSetupStatusFindings(findings, projectRoot);
+  }
+  if (options.includeDogfoodReady !== false) {
+    appendDogfoodReadyFindings(findings, {
+      projectRoot,
+      env,
+      homedir: resolveHome,
+      configExists,
+    });
   }
 
   if (hasCommandInPath("gbrain", env)) {

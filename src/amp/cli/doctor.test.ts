@@ -17,6 +17,10 @@ import {
   runAmpDoctor,
 } from "./doctor.js";
 import { runAmpInit } from "./init.js";
+import { runAmpCapture } from "./capture.js";
+import { runAmpConsolidate } from "./consolidate.js";
+import { runAmpProjectionRender } from "./projection.js";
+import { AMP_KNOWLEDGE_BACKEND_ENV } from "./knowledge-backend.js";
 
 const REPO_ROOT = resolveAmpRepoRoot(
   join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
@@ -87,8 +91,8 @@ describe("runAmpDoctor", () => {
     const gap = result.findings.find((f) => f.category === "capability-gaps");
     assert.ok(gap);
     assert.equal(gap.level, "warning");
-    assert.match(gap.message, /graph_traversal/);
-    assert.match(gap.message, /procedural_registry/);
+    assert.match(gap.message, /transactions/);
+    assert.doesNotMatch(gap.message, /procedural_registry/);
   });
 
   it("reports Hermes external_dirs auto-discovery as PROVISIONAL warning", () => {
@@ -408,6 +412,82 @@ describe("runAmpDoctor", () => {
     );
     assert.ok(
       setupFindings.some((f) => f.level === "ok" && f.message.includes("projection files present"))
+    );
+  });
+
+  it("reports dogfood_ready false for initialized project without durable loop", async () => {
+    const projectRoot = join(tempRoot, "dogfood-not-ready");
+    await runAmpInit({ projectRoot });
+
+    const result = runAmpDoctor({ projectRoot, ampRepoRoot: REPO_ROOT });
+    const dogfood = result.findings.filter((f) => f.category === "dogfood-ready");
+
+    assert.ok(dogfood.some((f) => f.message.includes("dogfood_ready: false")));
+    assert.ok(
+      dogfood.some((f) => f.level === "warning" && f.message.includes("knowledge.db"))
+    );
+  });
+
+  it("warns when AMP_KNOWLEDGE_BACKEND is set for Shape A dogfood", async () => {
+    const projectRoot = join(tempRoot, "dogfood-gbrain-env");
+    await runAmpInit({ projectRoot });
+
+    const result = runAmpDoctor({
+      projectRoot,
+      ampRepoRoot: REPO_ROOT,
+      env: {
+        ...process.env,
+        [AMP_KNOWLEDGE_BACKEND_ENV]: "gbrain",
+      },
+    });
+
+    const dogfood = result.findings.filter((f) => f.category === "dogfood-ready");
+    assert.ok(
+      dogfood.some(
+        (f) => f.level === "warning" && f.message.includes(AMP_KNOWLEDGE_BACKEND_ENV)
+      )
+    );
+    assert.ok(dogfood.some((f) => f.message.includes("dogfood_ready: false")));
+  });
+
+  it("reports dogfood_ready true after durable local loop and agent wiring", async () => {
+    const projectRoot = join(tempRoot, "dogfood-ready");
+    await mkdir(projectRoot, { recursive: true });
+    initGitRepo(projectRoot);
+    await runAmpInit({ projectRoot });
+
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    delete env[AMP_KNOWLEDGE_BACKEND_ENV];
+
+    runAmpCapture({
+      projectRoot,
+      content: "Prefer two-space indentation in TypeScript files in this repo.",
+      scope: "project",
+      env,
+    });
+    await runAmpConsolidate({ projectRoot, env });
+
+    const projection = await runAmpProjectionRender({
+      projectRoot,
+      source: "local",
+      apply: true,
+      env,
+    });
+    assert.equal(projection.ok, true);
+
+    const { runAmpAgentSetup } = await import("./agent-setup.js");
+    await runAmpAgentSetup({ projectRoot, target: "claude-code", apply: true });
+    await runAmpAgentSetup({ projectRoot, target: "cursor", apply: true });
+
+    const result = runAmpDoctor({ projectRoot, ampRepoRoot: REPO_ROOT, env });
+    const dogfood = result.findings.filter((f) => f.category === "dogfood-ready");
+
+    assert.ok(dogfood.some((f) => f.message.includes("dogfood_ready: true")));
+    assert.ok(
+      dogfood.some((f) => f.level === "ok" && f.message.includes("knowledge frame"))
+    );
+    assert.ok(
+      dogfood.some((f) => f.level === "ok" && f.message.includes("amp-projection.mdc"))
     );
   });
 });

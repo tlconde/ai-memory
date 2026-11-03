@@ -23,23 +23,35 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const GBRAIN_SPEC = join(REPO_ROOT, "ssa-files/gbrain.yaml");
 
 describe("gbrain capability honesty conformance", () => {
-  it("declares graph_traversal unsupported and search graph mode is honest", async () => {
+  it("declares graph_traversal wrapped with honest adapter surfaces", async () => {
     const spec = loadSsaSpecFromFile(GBRAIN_SPEC);
-    assert.equal(spec.capability_coverage.graph_traversal, "unsupported");
-    assert.equal(isCapabilitySupported(spec.capability_coverage, "graph_traversal"), false);
+    assert.equal(spec.capability_coverage.graph_traversal, "wrapped");
+    assert.equal(isCapabilitySupported(spec.capability_coverage, "graph_traversal"), true);
+    assert.equal(spec.capability_coverage.transactions, "unsupported");
 
     const adapter = new GbrainKnowledgeAdapter({
       transport: new FakeGbrainMcpTransport(),
       ssaSpecPath: GBRAIN_SPEC,
     });
 
-    const graphSearch = await adapter.searchFrames("anything", { mode: "graph" });
-    assert.equal(isUnsupportedCapabilityResult(graphSearch), true);
-    if (graphSearch.success) return;
-    assert.equal(graphSearch.error.code, AmpErrorCode.CAPABILITY_NOT_SUPPORTED);
+    await adapter.writeFrames([
+      createFrame({
+        id: "frame-001",
+        kind: "semantic",
+        content: "Conformance graph probe.",
+        source: { surface: "cursor" },
+        created_at: "2026-05-25T12:00:00.000Z",
+        scope: { kind: "project", project_ref: "ai-memory" },
+        curation_mode: "personal",
+      }),
+    ]);
 
     const graphTraversal = await adapter.graphTraversal("frame-001");
-    assert.equal(isUnsupportedCapabilityResult(graphTraversal), true);
+    assert.equal(isUnsupportedCapabilityResult(graphTraversal), false);
+    assert.equal(graphTraversal.success, true);
+    if (graphTraversal.success) {
+      assert.equal(graphTraversal.hits.length, 0);
+    }
   });
 
   it("supports keyword search via MCP search when full_text_search is wrapped", async () => {
@@ -90,7 +102,21 @@ describe("gbrain capability honesty conformance", () => {
     assert.equal(search.hits[0]?.item.id, "conformance-hybrid-001");
   });
 
-  it("returns CAPABILITY_NOT_SUPPORTED for transactions and procedural registry", async () => {
+  it("declares procedural_registry wrapped while MCP listProceduralRegistry stays unsupported", async () => {
+    const spec = loadSsaSpecFromFile(GBRAIN_SPEC);
+    assert.equal(spec.capability_coverage.procedural_registry, "wrapped");
+    assert.equal(isCapabilitySupported(spec.capability_coverage, "procedural_registry"), true);
+
+    const adapter = new GbrainKnowledgeAdapter({
+      transport: new FakeGbrainMcpTransport(),
+      ssaSpecPath: GBRAIN_SPEC,
+    });
+
+    const registry = await adapter.listProceduralRegistry();
+    assert.equal(isUnsupportedCapabilityResult(registry), true);
+  });
+
+  it("returns CAPABILITY_NOT_SUPPORTED for transactions", async () => {
     const adapter = new GbrainKnowledgeAdapter({
       transport: new FakeGbrainMcpTransport(),
       ssaSpecPath: GBRAIN_SPEC,
@@ -100,8 +126,5 @@ describe("gbrain capability honesty conformance", () => {
     assert.equal(tx.success, false);
     if (tx.success) return;
     assert.equal(tx.error.code, AmpErrorCode.CAPABILITY_NOT_SUPPORTED);
-
-    const registry = await adapter.listProceduralRegistry();
-    assert.equal(isUnsupportedCapabilityResult(registry), true);
   });
 });

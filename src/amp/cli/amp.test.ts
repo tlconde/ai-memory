@@ -64,6 +64,12 @@ describe("registerAmpCommands", () => {
 
     const status = amp.commands.find((cmd) => cmd.name() === "status");
     assert.ok(status, "expected amp status shell subcommand");
+
+    const stack = amp.commands.find((cmd) => cmd.name() === "stack");
+    assert.ok(stack, "expected amp stack command group");
+
+    const stackStatus = stack.commands.find((cmd) => cmd.name() === "status");
+    assert.ok(stackStatus, "expected amp stack status subcommand");
   });
 
   it("status mentions agent setup wiring", async () => {
@@ -87,6 +93,8 @@ describe("registerAmpCommands", () => {
 
     const output = chunks.join("");
     assert.match(output, /agent setup/);
+    assert.match(output, /stack status\/map\/verify\/setup plan\/apply/);
+    assert.match(output, /scaffold\/control-plane/);
   });
 
   it("status mentions local projection source", async () => {

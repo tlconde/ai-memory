@@ -299,4 +299,34 @@ describe("materializeProjections", () => {
     assert.deepEqual(result.writes, []);
     assert.equal(result.documents.length, 0);
   });
+
+  it("loads pending upstream changesets under AMP_USER_ROOT without real homedir", async () => {
+    const ampUserRoot = await mkdtemp(join(tmpdir(), "amp-materialize-user-root-"));
+    const projectRoot = await mkdtemp(join(tmpdir(), "amp-materialize-project-root-"));
+    const rejectRealHomedir = (): string => {
+      throw new Error("must not resolve real homedir during projection materialize");
+    };
+
+    try {
+      const source = new PlaceholderProjectionSource({ projectRef: "isolated-upstream" });
+      const env = { AMP_USER_ROOT: ampUserRoot };
+
+      const plan = await planProjectionMaterialization(source, {
+        projectRoot,
+        mode: "dry-run",
+        env,
+        homedir: rejectRealHomedir,
+      });
+
+      assert.equal(plan.ok, true);
+      assert.equal(
+        plan.writes.find((write) => write.kind === "global_projection")?.path,
+        join(ampUserRoot, "projection", "global.md")
+      );
+      assert.equal(existsSync(join(ampUserRoot, "upstream", "changesets")), false);
+    } finally {
+      await rm(ampUserRoot, { recursive: true, force: true });
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
 });

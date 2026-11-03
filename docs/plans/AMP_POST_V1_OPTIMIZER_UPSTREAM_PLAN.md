@@ -1,3 +1,5 @@
+> **SUPERSEDED — 2026-05-31.** This plan is folded into `docs/specs/AMP_ROADMAP.md` (the single active roadmap). Track 1 milestones `M-§10.4.2-procedural-discovery` and `M-§10.4.3-vector-search-native` carry forward the post-v1 gbrain work. Historical reference only.
+
 # AMP Post-v1 Optimizer and Upstream Sync Plan
 
 > **Status:** post-v1 execution roadmap

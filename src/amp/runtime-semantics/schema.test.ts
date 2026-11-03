@@ -194,6 +194,33 @@ describe("runtime-semantics schemas", () => {
     assert.equal(frame.event_type, "correction");
   });
 
+  it("accepts skill_optimized episodic event_type", () => {
+    const frame = parseEpisodicFrame({
+      ...MINIMAL_EPISODIC_FRAME,
+      event_type: "skill_optimized",
+      summary: 'Skill "test-skill" optimized (1.0.0 -> 1.0.1).',
+      details: {
+        skill_name: "test-skill",
+        version_before: "1.0.0",
+        version_after: "1.0.1",
+      },
+    });
+    assert.equal(frame.event_type, "skill_optimized");
+  });
+
+  it("accepts skill_optimization_rejected episodic event_type", () => {
+    const frame = parseEpisodicFrame({
+      ...MINIMAL_EPISODIC_FRAME,
+      event_type: "skill_optimization_rejected",
+      summary: 'Skill "test-skill" optimization rejected at cycle 1.',
+      details: {
+        skill_name: "test-skill",
+        reject_reason: "Holdout score did not strictly improve",
+      },
+    });
+    assert.equal(frame.event_type, "skill_optimization_rejected");
+  });
+
   it("accepts minimal valid DormantSnapshot", () => {
     const snapshot = parseDormantSnapshot(MINIMAL_DORMANT_SNAPSHOT);
     assert.equal(snapshot.snapshot_version, 1);

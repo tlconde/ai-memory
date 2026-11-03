@@ -134,6 +134,12 @@ function formatEpisodicFrameHeading(
         : EPISODIC_CORRECTION_ACTIVE_PROJECTION_HEADING;
     case "upstream_applied":
       return metadataOnly ? "Upstream sync (metadata only)" : "Upstream sync applied";
+    case "skill_optimized":
+      return metadataOnly ? "Skill optimization (metadata only)" : "Skill optimized";
+    case "skill_optimization_rejected":
+      return metadataOnly
+        ? "Skill optimization rejected (metadata only)"
+        : "Skill optimization rejected";
     case "signal_observed":
     case "goal_event":
     case "decision_event":

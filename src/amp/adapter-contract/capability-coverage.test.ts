@@ -43,10 +43,10 @@ describe("capability honesty", () => {
     assert.equal(coverage.vector_search, "unsupported");
   });
 
-  it("reports skill_optimization unsupported in slice default coverage", () => {
+  it("reports skill_optimization wrapped in slice default coverage", () => {
     const coverage = createSliceCapabilityCoverage();
-    assert.equal(isCapabilitySupported(coverage, "skill_optimization"), false);
-    assert.equal(coverage.skill_optimization, "unsupported");
+    assert.equal(isCapabilitySupported(coverage, "skill_optimization"), true);
+    assert.equal(coverage.skill_optimization, "wrapped");
   });
 
   it("meets minimal compliance for slice default coverage", () => {

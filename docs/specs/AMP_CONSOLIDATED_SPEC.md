@@ -865,7 +865,7 @@ Verification spikes before implementation:
 | Spike | Question | Status |
 |---|---|---|
 | Claude Code `CLAUDE.md` imports | Does `@path` import local files recursively and how deep? | **VERIFIED** via Anthropic docs: imports support relative/absolute paths and recurse up to 5 hops (`https://docs.anthropic.com/en/docs/claude-code/memory`) |
-| Cursor import semantics | Does Cursor MDC `@filename` recursively expand markdown imports or only reference/inject file content? | **Required before Cursor projection support** |
+| Cursor import semantics | Does Cursor MDC `@filename` recursively expand markdown imports or only reference/inject file content? | **RESOLVED — flattened MDC strategy ships (`src/amp/agent-setup/cursor.ts`, Wave 16). Recursive `@filename` import semantic remains UNKNOWN — AMP does not depend on it; see `docs/guides/AMP_SHAPE_A_DOGFOOD.md` honest-limitations table.** |
 | Claude Code auto-memory format | What is the exact format under `~/.claude/projects/<hash>/memory/*` and can it be safely subsumed? | **Required before subsume/import tooling** |
 | Cursor transcript storage | Where are Cursor transcripts stored and can filesystem ingestion be stable? | **Required before transcript scraping** |
 | MCP config syntax | Exact config paths and schema for Claude Code and Cursor MCP servers | **Required before Tier 2 MCP setup** |
