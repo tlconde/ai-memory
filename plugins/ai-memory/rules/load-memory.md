@@ -9,6 +9,7 @@ This project has persistent AI memory in `.ai/`.
 - **IDENTITY.md** — project constraints and behavioral rules
 - **PROJECT_STATUS.md** — current focus, open questions, what to try next (writable)
 - **memory/** — decisions, patterns, debugging history
+- **context/** — small repo navigation pack: where to search, invariants, acceptance checks
 
 Use `search_memory` (MCP) to find relevant context before starting a task.
 Use `commit_memory` to write new entries — never edit memory files directly.
@@ -20,3 +21,4 @@ IDENTITY.md is immutable by default — do not write to it unless `writable: tru
 Immutable paths: toolbox/, acp/, rules/.
 
 At session end: run `/mem-compound` to persist learnings. In ephemeral environments (worktrees, cloud agents), also call `sync_memory`.
+After repo structure changes or better search boundaries are discovered, run `/mem-context` or `ai-memory context verify` and update `.ai/context/` only with concise, verified navigation changes.

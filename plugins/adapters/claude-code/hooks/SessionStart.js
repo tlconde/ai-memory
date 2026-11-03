@@ -40,6 +40,12 @@ async function main() {
     sections.push(`## Memory Index (priority-ranked)\n\n${index.trim()}`);
   }
 
+  const contextStart = await safeRead(join(aiDir, "context/START_HERE.md"));
+  const contextMap = await safeRead(join(aiDir, "context/CODE_MAP.md"));
+  if (contextStart || contextMap) {
+    sections.push(`## Repo Navigation Context\n\n${[contextStart, contextMap].filter(Boolean).join("\n\n---\n\n").slice(0, 6000)}`);
+  }
+
   if (sections.length === 0) {
     process.exit(0);
   }

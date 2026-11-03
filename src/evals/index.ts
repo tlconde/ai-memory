@@ -54,6 +54,14 @@ export async function runEvals(aiDir: string): Promise<EvalReport> {
   metrics.push(await evalAutomationReadiness(projectDir));
   metrics.push(await evalIntegrationCoverage(aiDir));
 
+  // 9. Optional repo navigation context pack
+  const { evalContextPack } = await import("./context-pack.js");
+  metrics.push(await evalContextPack(aiDir));
+
+  // 10. Optional cross-agent memory import readiness
+  const { evalMemoryImport } = await import("./memory-import.js");
+  metrics.push(await evalMemoryImport(aiDir));
+
   // Load custom evals from temp/custom-evals/
   const customEvalsDir = join(aiDir, "temp/custom-evals");
   if (existsSync(customEvalsDir)) {
