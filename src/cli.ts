@@ -3,6 +3,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { dream, formatLint, formatReport, lint, reportJson } from './dream.js';
 import { reindex, search } from './search.js';
 import { appendEvent, inside, memoryRoot, parseEvent } from './store.js';
 import { LAYOUT, type LogEvent } from './types.js';
@@ -13,7 +14,13 @@ const USAGE = `usage: mem [--root <dir>] <command>
   search <query> [--limit N] [--json]
                               search log, notes, wiki and past
   index                       print INDEX.md, if any (host adapters, session start)
-  note | dream | eval         not implemented yet
+  dream [--dry-run] [--json] [--model-cmd <cmd>]
+                              re-check notes, promote to wiki, rebuild INDEX.md;
+                              --dry-run prints the changeset and writes nothing;
+                              --model-cmd (opt-in, costs tokens) asks <cmd> about
+                              notes the heuristic cannot decide
+  lint [--json]               exit 1 if INDEX.md or wiki/ break their budgets
+  note | eval                 not implemented yet
 
   --root <dir>  memory root (default $MEM_ROOT, else ./.memory)
 `;
@@ -27,10 +34,12 @@ interface Args {
   limit: string | undefined;
   json: boolean;
   help: boolean;
+  dryRun: boolean;
+  modelCmd: string | undefined;
 }
 
 function parseArgs(argv: readonly string[]): Args {
-  const args: Args = { command: undefined, positionals: [], root: undefined, limit: undefined, json: false, help: false };
+  const args: Args = { command: undefined, positionals: [], root: undefined, limit: undefined, json: false, help: false, dryRun: false, modelCmd: undefined };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--') {
@@ -38,11 +47,14 @@ function parseArgs(argv: readonly string[]): Args {
       break;
     }
     const [flag, inline] = arg.startsWith('--') && arg.includes('=') ? [arg.slice(0, arg.indexOf('=')), arg.slice(arg.indexOf('=') + 1)] : [arg, undefined];
-    if (flag === '--root' || flag === '--limit') {
+    if (flag === '--root' || flag === '--limit' || flag === '--model-cmd') {
       const value = inline ?? argv[++i];
       if (value === undefined || value === '') throw new UsageError(`${flag} needs a value`);
       if (flag === '--root') args.root = value;
+      else if (flag === '--model-cmd') args.modelCmd = value;
       else args.limit = value;
+    } else if (flag === '--dry-run' && inline === undefined) {
+      args.dryRun = true;
     } else if (flag === '--json' && inline === undefined) {
       args.json = true;
     } else if ((flag === '--help' || flag === '-h') && inline === undefined) {
@@ -58,8 +70,9 @@ function parseArgs(argv: readonly string[]): Args {
   return args;
 }
 
-function only(args: Args, allowed: ReadonlyArray<'limit' | 'json' | 'positionals'>): void {
+function only(args: Args, allowed: ReadonlyArray<'limit' | 'json' | 'positionals' | 'dream'>): void {
   const command = args.command ?? '';
+  if (!allowed.includes('dream') && (args.dryRun || args.modelCmd !== undefined)) throw new UsageError(`${command} takes no --dry-run or --model-cmd`);
   if (!allowed.includes('limit') && args.limit !== undefined) throw new UsageError(`${command} takes no --limit`);
   if (!allowed.includes('json') && args.json) throw new UsageError(`${command} takes no --json`);
   if (!allowed.includes('positionals') && args.positionals.length > 0) throw new UsageError(`${command} takes no arguments`);
@@ -136,8 +149,19 @@ async function main(argv: readonly string[]): Promise<number> {
         only(args, []);
         cmdIndex(root);
         return 0;
+      case 'dream': {
+        only(args, ['json', 'dream']);
+        const report = dream({ root, dryRun: args.dryRun, ...(args.modelCmd === undefined ? {} : { modelCmd: args.modelCmd }) });
+        process.stdout.write(args.json ? `${JSON.stringify(reportJson(report))}\n` : formatReport(report));
+        return 0;
+      }
+      case 'lint': {
+        only(args, ['json']);
+        const result = lint(root);
+        process.stdout.write(args.json ? `${JSON.stringify(result)}\n` : formatLint(result));
+        return result.ok ? 0 : 1;
+      }
       case 'note':
-      case 'dream':
       case 'eval':
         process.stderr.write(`mem ${args.command}: not implemented yet\n`);
         return 2;
