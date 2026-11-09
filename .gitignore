@@ -31,6 +31,8 @@ coverage/
 
 # Session transcripts / compound dumps (never publish)
 *.jsonl
+# Anonymised recorded sessions that the eval replays
+!eval/suites/*/log/*.jsonl
 
 # Memory transcript log (never commit)
 .memory/log/
