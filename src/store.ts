@@ -368,3 +368,79 @@ export function ulid(now: number = Date.now()): string {
   for (let r = lastRandom, i = 0; i < 16; i++, r >>= 5n) rand = CROCKFORD[Number(r & 31n)] + rand;
   return time + rand;
 }
+
+// ---------------------------------------------------------------- adding notes (mem note, MCP note)
+
+export interface AddNoteInput {
+  about: string;
+  body: string;
+  evidence?: readonly string[];
+}
+
+export interface AddNoteResult {
+  id: string;
+  merged: boolean;      // true when the fact matched an existing note and only evidence was added
+  hypothesis: boolean;  // true when the stored note has no evidence
+  evidence: EvidenceRef[];
+}
+
+/** Lines in log/<session>.jsonl, or undefined when there is no log for that session. */
+function logLineCount(session: string, root: string): number | undefined {
+  if (!existsSync(logFile(session, root))) return undefined;
+  return readLogSince(session, { offset: 0, line: 0 }, root).cursor.line;
+}
+
+/**
+ * Checks each ref against the log: the session must have a log and the range must lie inside it.
+ * `<session>:<n>` (the `source` of a log search hit) is accepted as `<session>:<n>-<n>`. Returns the refs
+ * normalized and de-duplicated, in input order.
+ */
+export function checkEvidence(refs: readonly string[], root: string = memoryRoot()): EvidenceRef[] {
+  const out: EvidenceRef[] = [];
+  for (const raw of refs) {
+    const ref = /^[^:]+:\d+$/.test(raw) ? `${raw}-${raw.slice(raw.lastIndexOf(':') + 1)}` : raw;
+    const m = EVIDENCE.exec(ref);
+    if (!m || !isEvidence(ref)) throw new Error(`evidence ${JSON.stringify(raw.slice(0, 140))} must be "<session>:<first>-<last>" with 1 <= first <= last`);
+    const lines = logLineCount(m[1], root);
+    if (lines === undefined) throw new Error(`evidence ${ref}: no log for session ${m[1]}`);
+    if (Number(m[3]) > lines) throw new Error(`evidence ${ref}: log ${m[1]} has ${lines} line${lines === 1 ? '' : 's'}`);
+    if (!out.includes(ref)) out.push(ref);
+  }
+  return out;
+}
+
+// Duplicate guard: two facts are the same when they match after lower-casing, collapsing whitespace and
+// dropping trailing punctuation. Deliberately not fuzzy: a reworded fact is a different note, and dream is
+// the place to reconcile those against the log.
+function sameFact(a: string): string {
+  return a.toLowerCase().replace(/\s+/g, ' ').trim().replace(/[.!;,\s]+$/, '');
+}
+
+/**
+ * Writes one session note (`origin: session`, `verified: false`; only dream verifies). Evidence is checked
+ * against the log first. Body and about are scrubbed of secrets like log text. If a note in `notes/` has
+ * the same `about` and the same fact, no second file is made: the new evidence is merged into it and its
+ * id is returned with `merged: true`.
+ */
+export function addNote(input: AddNoteInput, root: string = memoryRoot()): AddNoteResult {
+  const about = scrub(input.about.trim());
+  const body = scrub(input.body.trim());
+  if (about === '') throw new Error('about must name what the fact is about');
+  if (body === '') throw new Error('the fact text is empty');
+  if (about.length > 200) throw new Error('about must be at most 200 characters');
+  if (body.length > BUDGETS.maxEventChars) throw new Error(`the fact must be at most ${BUDGETS.maxEventChars} characters; store one fact per note`);
+  const evidence = checkEvidence(input.evidence ?? [], root);
+
+  const existing = listNotes('notes', root).find((n) => sameFact(n.about) === sameFact(about) && sameFact(n.body) === sameFact(body));
+  if (existing) {
+    const merged = [...existing.evidence, ...evidence.filter((r) => !existing.evidence.includes(r))];
+    if (merged.length !== existing.evidence.length) {
+      writeNote({ ...existing, evidence: merged, seen: Math.max(existing.seen, merged.length > 0 ? 1 : 0) }, root);
+    }
+    return { id: existing.id, merged: true, hypothesis: merged.length === 0, evidence: merged };
+  }
+
+  const id = ulid();
+  writeNote({ id, about, body, evidence, verified: false, seen: evidence.length > 0 ? 1 : 0, origin: 'session' }, root);
+  return { id, merged: false, hypothesis: evidence.length === 0, evidence };
+}
