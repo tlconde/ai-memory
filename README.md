@@ -1,379 +1,87 @@
 # ai-memory
 
-[![CI](https://github.com/radix-ai/ai-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/radix-ai/ai-memory/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@radix-ai/ai-memory)](https://www.npmjs.com/package/@radix-ai/ai-memory)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+ai-memory gives coding agents memory that works the same in every host: a searchable log of what happened, short notes backed by that log, and one small index loaded at session start. It is built on the layers described in Anthropic's [Components of agent memory](https://www.anthropic.com/research/components-of-agent-memory), and it stays small so that every feature has to earn its place in the eval.
 
-Persistent AI memory for any project. Drop a `.ai/` directory into any codebase — Claude Code, Cursor, Windsurf, or any other AI tool reads it at session start and carries knowledge forward.
+## The four layers
 
-```
-npm install @radix-ai/ai-memory
-npx @radix-ai/ai-memory init
-```
+Everything lives under `.memory/` in your project (or `$MEM_ROOT`).
 
----
+| Layer | Path | Written by | Loaded |
+|---|---|---|---|
+| Transcript log | `log/<session>.jsonl` | host adapters, one event per line | never; searched only |
+| Notes | `notes/<ulid>.md` | the agent, during a session, with evidence | through search |
+| Wiki | `wiki/<entity>.md` | `mem dream` only, one page per entity | through search |
+| Injected index | `INDEX.md` | `mem dream` only, within a token budget | at every session start |
 
-## The problem
+A note cites log lines as evidence (`<session>:<first>-<last>`). A note without evidence is a hypothesis, and the index says so. Search ranks verified notes first.
 
-AI coding assistants forget everything between sessions. Decisions made last week, bugs already fixed, patterns that work — gone on every restart. You re-explain the stack, re-discover the same issues, watch the AI repeat the same mistakes.
+`past/` holds findings imported from the old `.ai/` memory. They are unverified, carry no evidence, never enter `INDEX.md` and rank last in search. Dream promotes one only when a transcript confirms it and expires the rest.
 
-## What this does
-
-`ai-memory` gives any AI tool persistent memory by maintaining a structured `.ai/` directory in your project. The AI reads it at session start. A local MCP server gives it structured tools to search and write memory. A governance layer enforces project rules in code, not prompts.
-
----
+`STEERING.md` (about twenty lines, at the repository root) is placed at the top of `INDEX.md` by dream. It tells the agent what memory is for, to search before claiming, to store only what the environment does not already show, and to trust the environment over a stale note.
 
 ## Install
 
-The install command sets up three things: **context loading** (the AI reads `.ai/` at session start), **MCP server** (structured memory tools), and **skills** (slash commands like `/mem-compound`).
+Node 22.13 or newer (search uses the built-in `node:sqlite` with FTS5; there is no embedding model).
 
-| Tool | Install | Skills |
-|---|---|---|
-| **Cursor** | `/add-plugin ai-memory` | `/mem-compound`, `/mem-session-close`, `/mem-validate`, `/mem-init` |
-| **Claude Code** | `/plugin install ai-memory` | Same slash commands via plugin |
-| **Codex** | `npx @radix-ai/ai-memory install --to codex` | Read `.ai/skills/<skill>/SKILL.md` or use installed stubs |
-| **Antigravity** | `npx @radix-ai/ai-memory install --to antigravity` | Ask AI: "run the compound protocol" |
-| **VS Code + Copilot** | `npx @radix-ai/ai-memory install --to copilot` | Paste SKILL.md content into chat |
-| **Any other tool** | Paste bootstrap instruction into system prompt | Paste SKILL.md content |
-
-### CLI only
-```bash
-npx @radix-ai/ai-memory init            # scaffold .ai/
-npx @radix-ai/ai-memory install --to cursor  # install for your tool
+```sh
+npm install -g @radix-ai/ai-memory   # installs the `mem` command
 ```
 
----
+Then connect your agent. Each host has a small adapter that appends events to the log and injects `INDEX.md` at session start. See [adapters/README.md](adapters/README.md) for the host list and per-host steps (Claude Code, Codex, Cursor, Gemini CLI, Hermes, OpenClaw and a generic shell fallback).
 
-## Quick start
+Add `.memory/log/` and `.memory/.search.sqlite*` to your `.gitignore`. Notes, wiki and the index are plain markdown and can be reviewed and committed like code.
 
-`install` runs `init` automatically if `.ai/` is missing, so you can run either order.
-
-```bash
-# 1. Install for your tool (scaffolds .ai/ if needed)
-npx @radix-ai/ai-memory install --to cursor    # or claude-code, codex, antigravity, copilot
-
-# 2. Fill in what your project is
-# Edit .ai/IDENTITY.md and .ai/PROJECT_STATUS.md (project status)
-
-# 3. Restart your AI tool (or start a new chat)
-
-# 4. At the end of a session with real learning:
-/mem-compound
-```
-
-Or run `init` first to scaffold `.ai/` before installing.
-
-### Verify
-
-```bash
-npx @radix-ai/ai-memory verify
-```
-
-Checks: `.ai/` structure, bootstrap installed, MCP configured, harness validity, rule coverage, memory index populated.
-
-Or manually in a session: ask *"Call search_memory with query 'test'"* (confirms MCP). Then *"What does .ai/IDENTITY.md say?"* (confirms context loading).
-
-### Troubleshooting
-
-| Issue | What to do |
-|-------|------------|
-| `'ai-memory' is not recognized` | You're in the ai-memory dev repo. Run `npm run build` then `node dist/cli/index.js init` and `node dist/cli/index.js install --to cursor`. For published users, use `npx @radix-ai/ai-memory` — the package is pre-built. |
-| MCP tools not available | `install` scaffolds `.ai/` if missing. Restart Cursor (or start a new chat) after install. |
-| Cursor not picking up MCP | Cursor reads `.cursor/mcp.json`. The install writes it for Cursor. If you added manually, ensure the config is in `.cursor/mcp.json` (not `.mcp.json` at project root). |
-| `Cannot find module '.ai/mcp-launcher.cjs'` | Run `npx @radix-ai/ai-memory install --to cursor` first — it creates `.ai/` and the launcher. |
-| `'ai-memory' is not recognized` (Windows) | The launcher uses `cmd /c` on Windows. If it still fails, delete `.cursor/mcp.json` and run `install --to cursor` again to refresh the launcher. |
-
----
-
-## What gets created
+## Commands
 
 ```
-.ai/
-├── IDENTITY.md             — What this project is; constraints for the AI
-├── PROJECT_STATUS.md       — Current focus, open questions, what's working
-├── memory/
-│   ├── decisions.md        — Architectural decisions [P0/P1/P2 tagged]
-│   ├── patterns.md         — Reusable patterns and anti-patterns
-│   ├── debugging.md        — Non-obvious bugs with root cause and fix
-│   ├── improvements.md     — Incremental improvements over time
-│   └── memory-index.md     — Auto-generated priority index
-├── context/                — Small repo navigation pack (optional)
-│   ├── START_HERE.md       — Fast facts, scope, stop rules
-│   ├── CODE_MAP.md         — Important paths and lookup shortcuts
-│   ├── INVARIANTS.md       — Verified behavioral invariants
-│   ├── search-scope.json   — Search boundaries and verification shortcuts
-│   ├── manifest.json       — Git revision and pack metadata
-│   └── acceptance.md       — Quick checks proving the pack works
-├── agents/                 — Agent methodology files
-├── skills/                 — Project domain knowledge
-├── toolbox/                — General tech knowledge
-├── rules/                  — Behavioral constraints
-├── temp/                   — Disposable scratch files, dumps, locks, drafts
-├── sessions/
-│   ├── open-items.md       — Live registry of open tasks
-│   └── archive/
-│       └── thread-archive.md
-└── reference/
-    └── PROJECT.md          — Architecture (loaded on demand only)
+mem [--root <dir>] <command>
 ```
 
-Add governance, evals, docs schema, and ACP with `--full`:
-```bash
-npx @radix-ai/ai-memory init --full
-```
-Creates: `acp/`, `docs-schema.json`, `rules/doc-placement.md`, `agents/docs-manager.md`.
-
----
-
-## Cross-Agent Imports
-
-Tool-native memories and chats are useful source material, but `.ai/memory/` stays canonical.
-
-```bash
-ai-memory import init
-ai-memory import scan
-ai-memory import request --agent cursor --from claude,codex
-```
-
-`import request` writes `.ai/temp/import/latest-request.md`. The active coding agent reads that request, inspects only configured present sources, and distills durable project learnings into `.ai/memory/` using `commit_memory` when MCP is available. Cursor chat paths are intentionally not guessed; put exports in `.ai/temp/import/cursor-chat-exports/` or configure `.ai/import-sources.json`.
-
-Installed Claude, Cursor, and Codex hooks create this request at lifecycle boundaries. They do not silently import raw transcripts.
-
----
-
-## Skills
-
-| Skill | When to use |
+| Command | Does |
 |---|---|
-| `/mem-compound` | End of any session with real learning |
-| `/mem-session-close` | End of a short/exploratory session |
-| `/mem-init` | First-time project setup |
-| `/mem-context` | Create/update the optional `.ai/context` repo navigation pack |
-| `/mem-validate` | Before a risky change (Full tier) |
-| `/mem-auto-review` | Automated PR review (Bugbot, CI, automations) |
-| `/browser` | Browser automation (screenshots, navigate, interact) |
-| `/screen-capture` | Desktop/app window screenshot for vision analysis |
-| `/desktop-automation` | Desktop UI automation (mouse, keyboard, OCR) |
+| `mem log` | Appends LogEvent JSON lines from stdin. Called by host adapters, not by people. |
+| `mem note` | Writes one fact with evidence pointers into `notes/`. |
+| `mem search <query> [--limit N] [--json]` | Full-text search over log, notes, wiki and past, with snippets and source ids. |
+| `mem dream [--dry-run]` | Offline pass: re-checks notes against the lines they cite, promotes facts confirmed across sessions to the wiki, promotes or expires past findings, rebuilds `INDEX.md`. Prints a reviewable changeset. |
+| `mem lint` | Checks the budgets: `INDEX.md` token count, wiki size against notes, note shape. Fails CI when over. |
+| `mem eval` | Replays recorded sessions and reports retrieval hit rate, index tokens and fact survival. |
+| `mem index` | Prints `INDEX.md`. Adapters call it at session start. |
+| `mem mcp` | Runs the MCP server, which exposes exactly two tools: `search` and `note`. |
+| `mem import-past <dir> [--dry-run] [--json]` | Imports an old `.ai/` directory as past findings (see below). |
 
-### How to invoke skills
+The log and notes are hooks and tools on purpose: the model cannot be trusted to log every call, so hooks do it; what is worth a note is the model's judgment, so notes are a tool.
 
-Skills are stored in `.ai/skills/` (canonical) with stubs in your tool's skills directory (e.g., `.cursor/skills/`, `.claude/skills/`, `.agents/skills/` for Antigravity). How you invoke them depends on your tool:
+### Importing the old `.ai/` memory
 
-| Tool | How to invoke | Example |
-|------|--------------|---------|
-| **Cursor** | Type `/` in chat to see available skills | `/mem-compound` |
-| **Claude Code** | Say "run" followed by the skill name | `run mem-compound` |
-| **Windsurf / Cline** | Ask the agent to follow the skill | "Run the mem-compound protocol" |
-| **Copilot** | Paste the skill content from `.ai/skills/mem-compound/SKILL.md` | Manual |
-| **Any tool with MCP** | The agent can read `.ai/skills/` and follow instructions | "Follow .ai/skills/mem-compound/SKILL.md" |
-
-If your tool doesn't discover skills automatically, just tell the agent: *"Read `.ai/skills/mem-compound/SKILL.md` and follow the steps."*
-
-### Project-specific compound
-
-`/mem-compound` runs standard steps (scan, conflict check, update status, archive, sync) plus project-specific doc updates. The skill maps session work to domains (UI, Backend/API, AI/ML, Architecture, Backlog) and updates docs via `get_doc_path` and `validate_doc_placement`. Open items may be broad or categorical. Work done anywhere must be broken down into atomic tasks that fit RALPH loops and avoid conflicts when agents work in parallel. With `init --full`, `.ai/docs-schema.json` defines canonical paths and naming (SCREAMING_SNAKE by default).
-
----
-
-## CLI
-
-```bash
-ai-memory init [--full] [--download-model]  # Scaffold .ai/. Use --download-model to pre-fetch hybrid search model (~23MB).
-ai-memory install --to <tool>    # Bootstrap for cursor, claude-code, codex, antigravity, copilot
-ai-memory mcp                    # Start MCP server (stdio)
-ai-memory mcp --http --port 3100 # Start MCP server (HTTP, for cloud agents)
-ai-memory validate               # Validate all .ai/ files
-ai-memory validate-docs          # Validate doc placement against .ai/docs-schema.json (staged or --paths)
-# Pre-commit: add `ai-memory validate-docs` to validate new docs before commit (e.g. via husky)
-ai-memory context init           # Scaffold optional .ai/context repo navigation pack
-ai-memory context verify         # Verify context pack structure, search paths, and freshness
-ai-memory import init            # Configure agent-driven imports from tool-native memories/chat exports
-ai-memory import scan            # Check import source paths without reading their contents
-ai-memory import request --agent codex --from all  # Write .ai/temp/import/latest-request.md for the active agent
-ai-memory clean --older-than 7d  # Dry-run cleanup of disposable .ai/temp/context and .ai/temp/import files
-ai-memory clean --apply          # Delete cleanup candidates
-ai-memory index                  # Regenerate memory-index.md from memory files
-ai-memory fmt                    # Auto-format YAML frontmatter
-ai-memory eval [--json]          # Memory health report
-ai-memory prune [--dry-run]      # Review stale entries
-ai-memory generate-harness       # Compile rule set from [P0] entries
-ai-memory verify [--json]        # Verify full installation chain (.ai/, bootstrap, MCP, harness)
-
-# Extensibility
-ai-memory agent create <name>    # Scaffold a new agent
-ai-memory skill create <name>    # Scaffold a new skill
-ai-memory rule create <name>     # Scaffold a new rule
-ai-memory eval add <name>        # Add a custom eval metric
+```sh
+mem import-past .ai --dry-run   # list what would be imported, write nothing
+mem import-past .ai             # write past/<ulid>.md files
 ```
 
----
+Each entry of a multi-entry file (`memory/decisions.md`, `patterns.md`, `debugging.md`, `improvements.md`, session archives) becomes one past finding: `origin: past`, `verified: false`, no evidence, `seen: 0`. The body is the entry text with secrets scrubbed and priority tags removed from its heading, ending with `Imported from <file>#<heading> on <date>`.
 
-## Configuration
+It skips `IDENTITY.md`, `PROJECT_STATUS.md`, `rules/`, `toolbox/`, `acp/`, skills, agents and commands, indexes, task lists, running session logs, generated files, unfilled template placeholders and heading-only entries. The summary lists counts per source file and every skip reason. Re-running imports nothing twice: entries are matched on a hash of their normalized text.
 
-| Env var | Default | Description |
-|---------|---------|-------------|
-| `AI_DIR` | `./.ai` | Path to the `.ai/` directory |
-| `AI_SEARCH` | `hybrid` | Search mode: `keyword` (TF only, no model), `semantic` (vector only), or `hybrid` (keyword + semantic + RRF). Use `keyword` for faster startup or constrained environments. |
-| `AI_SEARCH_WASM` | — | Set to `1` to prefer WASM backend (onnxruntime-web) over native. Use on Windows when onnxruntime-node fails. Slower but cross-platform. |
-| `AI_MODEL_PATH` | — | Local path to the embedding model for air-gapped/CI. When set, disables remote model downloads. Model must be in HuggingFace format under this path. |
+Some old memory hurts more than it helps. Treat imported findings as leads to check, not as facts.
 
-**Platform note:** Semantic/hybrid search uses onnxruntime-node on Linux/macOS. On Windows, onnxruntime-node may be unavailable; set `AI_SEARCH=keyword` for keyword-only, or `AI_SEARCH_WASM=1` to try WASM.
+## Privacy
 
----
+- The transcript log is meant to stay local: gitignore `.memory/log/` and the search database.
+- Secrets are scrubbed before anything is written: API keys and tokens by known prefixes, bearer and authorization headers, private key blocks, `KEY=value` pairs whose name contains key, token, secret or password, passwords in URLs, and high-entropy strings of 32 or more characters. Imported past findings go through the same scrubber.
+- The log is never injected into a session. Only `INDEX.md` is, and it is built from notes and the wiki.
+- Storage and search make no network calls and use no embedding service.
 
-## Governance (Full tier)
+## Limits
 
-Tag decisions `[P0]` and add a `constraint_pattern` to enforce them in code:
+- Hosts without hooks get the weaker generic fallback, which depends on the agent calling `mem log`.
+- Dream costs model tokens on each run. It stays opt-in until the eval shows it earns that cost.
+- Past findings carry no evidence, so they start at the bottom of search and enter the index only once a transcript confirms them.
+- Scrubbing is pattern-based. It catches common secret shapes, not every secret; do not paste credentials into a session.
+- Search is keyword search (SQLite FTS5). Vectors come back only if the eval shows they improve the hit rate.
 
-```markdown
-### [P0] No external auth libraries
+## Credits
 
-**Context:** ...
-**Decision:** Use the internal auth module only.
-
-\`\`\`yaml
-constraint_pattern:
-  type: ast
-  language: typescript
-  pattern: "import $_ from '$LIB'"
-  where:
-    LIB:
-      regex: "passport|jsonwebtoken|bcrypt"
-  path: "src/**/*.ts"
-\`\`\`
-```
-
-Then:
-```bash
-ai-memory generate-harness    # Compile .ai/temp/harness.json
-```
-
-`validate_context` in `/mem-compound` will hard-block any commit that violates a [P0] rule.
-
-### Harness features
-
-- **Path filtering:** Rules apply only to files matching `path` (minimatch glob). Example: `path: "src/**/*.ts"` skips `tests/`.
-- **AST constraints:** Use `where` to filter by meta-variable regex (e.g. path traversal checks).
-- **Deletion-aware regex:** Set `scope: "deletions"` to catch removal of protected content (e.g. `[P0]` markers).
-- **Stability Certificate:** On success, returns an audit log of rules checked; on failure, a detailed violation report.
-
----
-
-## Multi-agent & iterative loops
-
-### RALPH loops (iterative self-improvement)
-
-PROJECT_STATUS.md is writable by default (`writable: true` in frontmatter). This means:
-1. Agent reads PROJECT_STATUS.md, picks a task, does work
-2. Agent updates PROJECT_STATUS.md with what it learned
-3. Agent exits (or session ends)
-4. Next iteration reads the updated PROJECT_STATUS.md
-5. Natural convergence through iteration
-
-This follows the [autoresearch](https://github.com/mutable-state-inc/autoresearch-at-home) pattern and the [Ralph Wiggum](https://ralph-wiggum.ai/) approach: **the status file on disk is the shared state.**
-
-### Concurrent agents (cloud agents, worktrees, background tasks)
-
-`commit_memory` uses claim-based locking:
-- Before writing, the agent acquires a claim on the target path
-- If another agent holds an active claim (5-minute TTL), the write is rejected
-- Claims auto-expire, so crashed agents don't permanently lock files
-- Each write includes a `session_id` header for traceability
-
-This works in:
-- **Cursor Cloud Agents**: `.ai/` is in the git clone, MCP server starts per-agent
-- **Claude Code worktrees**: `.ai/` is copied to the worktree; run `/mem-compound` before exit to persist
-- **Claude Code sandbox**: MCP runs outside sandbox boundary — all memory tools work
-
-### Immutability model
-
-| File | Default | Control |
-|---|---|---|
-| `IDENTITY.md` | Immutable | Set `writable: true` in frontmatter to allow AI writes |
-| `PROJECT_STATUS.md` | Writable | Set `writable: false` in frontmatter to lock |
-| `toolbox/`, `acp/`, `rules/` | Always immutable | Structural — no override |
-| Everything else | Writable | Via `commit_memory` tool |
-
----
-
-## MCP server
-
-The MCP server starts automatically via `.mcp.json`. Tools exposed:
-
-| Tool | What it does |
-|---|---|
-| `search_memory` | Hybrid search across `.ai/` (keyword + semantic + RRF). Params: `limit`, `include_deprecated` |
-| `get_memory` | Summary of a specific topic |
-| `commit_memory` | Write to `.ai/` with immutability + claim-based locking |
-| `get_open_items` | Return open-items.md |
-| `prune_memory` | Identify stale entries |
-| `get_repo_root` | Git repo root path (for path resolution when agent runs from subdir) |
-| `validate_context` | Check git diff against [P0] rules; returns Stability Certificate or violation report |
-| `validate_schema` | Validate memory entry frontmatter |
-| `generate_harness` | Compile `harness.json` from [P0] entries |
-| `get_evals` | Return latest eval report |
-| `claim_task` | Claim a task to prevent duplicate work across agents |
-| `publish_result` | Publish task result (success/failure) to archive |
-| `sync_memory` | Git commit `.ai/` changes (essential for ephemeral environments) |
-| `get_doc_path` | Resolve canonical path for a doc type (use before creating docs) |
-| `validate_doc_placement` | Validate doc path against `.ai/docs-schema.json` |
-| `list_doc_types` | List doc types with path and pattern |
-
-### HTTP transport (for cloud agents)
-
-```bash
-AI_MEMORY_AUTH_TOKEN=secret ai-memory mcp --http --port 3100
-```
-
-| Env var | Purpose |
-|---|---|
-| `AI_MEMORY_AUTH_TOKEN` | Bearer token for HTTP auth (optional, no auth when unset) |
-| `AI_MEMORY_CORS_ORIGINS` | Allowed origins, comma-separated (default: `*`) |
-
-### Context7 MCP (bundled)
-
-`.mcp.json` includes the [Context7](https://context7.com) MCP server for up-to-date docs (Cursor, Claude Code, Windsurf, etc.). Works without an API key; set `CONTEXT7_API_KEY` for higher rate limits.
-
----
-
-## Evals
-
-```bash
-ai-memory eval
-```
-
-Reports: rule coverage, session cadence, frontmatter coverage, open items, deprecated ratio, memory depth, session count, memory freshness, hook coverage, skill discoverability, cloud readiness, automation readiness, integration coverage.
-
-Add custom metrics:
-```bash
-ai-memory eval add my-metric
-# Edit .ai/temp/custom-evals/my-metric.ts
-```
-
----
-
-## ACP (Full tier)
-
-`.ai/acp/manifest.json` declares this agent's capabilities to ACP-aware orchestrators like [`acpx`](https://github.com/openclaw/acpx). The MCP server is the transport layer; ACP is the identity layer.
-
----
-
-## Design
-
-- **Environment adaptation** — Spec-driven detection and injection. Implemented via `detectEnvironments()` in `src/cli/environment.ts` and `install --capability`.
-
----
-
-## Related
-
-- [acpx](https://github.com/openclaw/acpx) — Headless CLI for Agent Communication Protocol
-- [Agent Communication Protocol](https://agentclientprotocol.com)
-- [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) — Plugin this system is modeled after
-- [lossless-claw](https://github.com/Martian-Engineering/lossless-claw) — Lossless context compaction (inspiration for session archive design)
-- [autoresearch-at-home](https://github.com/mutable-state-inc/autoresearch-at-home) — Multi-agent iterative research
-- [Ralph Wiggum](https://ralph-wiggum.ai/) — Iterative agent loops via status file on disk
-
----
+The design follows Anthropic's [Components of agent memory](https://www.anthropic.com/research/components-of-agent-memory). See [CREDITS.md](CREDITS.md) for every source and dependency, and [SPEC.md](SPEC.md) for the full design.
 
 ## License
 
