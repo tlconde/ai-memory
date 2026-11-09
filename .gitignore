@@ -32,6 +32,10 @@ coverage/
 # Session transcripts / compound dumps (never publish)
 *.jsonl
 
+# Memory transcript log (never commit)
+.memory/log/
+.memory/.search.sqlite*
+
 # Project memory and local MCP config (never publish)
 .ai/
 .mcp.json
