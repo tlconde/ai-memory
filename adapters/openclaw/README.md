@@ -9,9 +9,7 @@ An in-process OpenClaw plugin in plain JavaScript ESM, so no build step is neede
 | `before_tool_call` / `after_tool_call` | `tool_call` (params, refs from `derivedPaths` or `path`) / `tool_result`, or `error` |
 | `llm_output` | `assistant` (the joined `assistantTexts`) |
 
-The plugin does not use `message_received` or `llm_input`. `message_received` fires only for channel messages, carries no session id and duplicates the prompt. `llm_input` fires on every model call and needs conversation access.
-
-Enable it in `~/.openclaw/openclaw.json` (shown as one object; merge it into your existing `plugins` block and keep your current `allow` entries):
+The plugin does not use `message_received` or `llm_input`. `message_received` fires only for channel messages, carries no session id and duplicates the prompt. `llm_input` fires on every model call and needs conversation access. Enable it in `~/.openclaw/openclaw.json` (shown as one object; merge it into your existing `plugins` block and keep your current `allow` entries):
 
 ```json5
 plugins: {
