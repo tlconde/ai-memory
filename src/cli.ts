@@ -4,7 +4,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { reindex, search } from './search.js';
-import { appendEvent, inside, memoryRoot, parseEvent } from './store.js';
+import { appendEvent, importPast, inside, memoryRoot, parseEvent } from './store.js';
 import { LAYOUT, type LogEvent } from './types.js';
 
 const USAGE = `usage: mem [--root <dir>] <command>
@@ -13,6 +13,8 @@ const USAGE = `usage: mem [--root <dir>] <command>
   search <query> [--limit N] [--json]
                               search log, notes, wiki and past
   index                       print INDEX.md, if any (host adapters, session start)
+  import-past <dir> [--dry-run] [--json]
+                              import an old .ai/ directory as unverified past findings
   note | dream | eval         not implemented yet
 
   --root <dir>  memory root (default $MEM_ROOT, else ./.memory)
@@ -26,11 +28,12 @@ interface Args {
   root: string | undefined;
   limit: string | undefined;
   json: boolean;
+  dryRun: boolean;
   help: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args {
-  const args: Args = { command: undefined, positionals: [], root: undefined, limit: undefined, json: false, help: false };
+  const args: Args = { command: undefined, positionals: [], root: undefined, limit: undefined, json: false, dryRun: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--') {
@@ -45,6 +48,8 @@ function parseArgs(argv: readonly string[]): Args {
       else args.limit = value;
     } else if (flag === '--json' && inline === undefined) {
       args.json = true;
+    } else if (flag === '--dry-run' && inline === undefined) {
+      args.dryRun = true;
     } else if ((flag === '--help' || flag === '-h') && inline === undefined) {
       args.help = true;
     } else if (arg.startsWith('-') && arg !== '-') {
@@ -58,8 +63,9 @@ function parseArgs(argv: readonly string[]): Args {
   return args;
 }
 
-function only(args: Args, allowed: ReadonlyArray<'limit' | 'json' | 'positionals'>): void {
+function only(args: Args, allowed: ReadonlyArray<'limit' | 'json' | 'positionals' | 'dryRun'>): void {
   const command = args.command ?? '';
+  if (!allowed.includes('dryRun') && args.dryRun) throw new UsageError(`${command} takes no --dry-run`);
   if (!allowed.includes('limit') && args.limit !== undefined) throw new UsageError(`${command} takes no --limit`);
   if (!allowed.includes('json') && args.json) throw new UsageError(`${command} takes no --json`);
   if (!allowed.includes('positionals') && args.positionals.length > 0) throw new UsageError(`${command} takes no arguments`);
@@ -115,6 +121,34 @@ function cmdIndex(root: string): void {
   if (existsSync(file)) process.stdout.write(readFileSync(file, 'utf8'));
 }
 
+function cmdImportPast(args: Args, root: string): void {
+  if (args.positionals.length !== 1) throw new UsageError('import-past needs exactly one directory');
+  const result = importPast(args.positionals[0], { root, dryRun: args.dryRun });
+  if (args.json) {
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
+  const bySource = new Map<string, Record<string, number>>();
+  for (const e of result.entries) {
+    const row = bySource.get(e.file) ?? { imported: 0, duplicate: 0, empty: 0 };
+    row[e.status] += 1;
+    bySource.set(e.file, row);
+  }
+  const total = result.entries.filter((e) => e.status === 'imported').length;
+  const verb = result.dryRun ? 'would import' : 'imported';
+  process.stdout.write(`${verb} ${total} past findings from ${bySource.size} files${result.dryRun ? ' (dry run, nothing written)' : ''}\n`);
+  for (const [file, row] of bySource) process.stdout.write(`  ${file}  imported ${row.imported}  duplicate ${row.duplicate}  empty ${row.empty}\n`);
+  if (result.dryRun) for (const e of result.entries) if (e.status === 'imported') process.stdout.write(`  + ${e.file}#${e.heading}\n`);
+  // Skipped files are listed by reason; long lists (dependencies, assets) are cut to a count.
+  const byReason = new Map<string, string[]>();
+  for (const s of result.skipped) byReason.set(s.reason, [...(byReason.get(s.reason) ?? []), s.file]);
+  if (byReason.size > 0) process.stdout.write('skipped:\n');
+  for (const [reason, files] of byReason) {
+    const shown = files.length > 5 ? `${files.slice(0, 3).join(', ')} and ${files.length - 3} more` : files.join(', ');
+    process.stdout.write(`  ${reason} (${files.length}): ${shown}\n`);
+  }
+}
+
 async function main(argv: readonly string[]): Promise<number> {
   try {
     const args = parseArgs(argv);
@@ -135,6 +169,10 @@ async function main(argv: readonly string[]): Promise<number> {
       case 'index':
         only(args, []);
         cmdIndex(root);
+        return 0;
+      case 'import-past':
+        only(args, ['json', 'positionals', 'dryRun']);
+        cmdImportPast(args, root);
         return 0;
       case 'note':
       case 'dream':

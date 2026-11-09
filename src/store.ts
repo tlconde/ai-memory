@@ -1,6 +1,6 @@
 // Filesystem store: the transcript log, notes and past findings under the memory root. See SPEC.md 3.1-3.2.
 
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   appendFileSync,
   closeSync,
@@ -12,9 +12,10 @@ import {
   readSync,
   readdirSync,
   renameSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, resolve, sep } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { BUDGETS, LAYOUT, type EvidenceRef, type HostName, type LogEvent, type LogKind, type Note, type NoteOrigin } from './types.js';
 
 // ---------------------------------------------------------------- root and path safety
@@ -367,4 +368,206 @@ export function ulid(now: number = Date.now()): string {
   let rand = '';
   for (let r = lastRandom, i = 0; i < 16; i++, r >>= 5n) rand = CROCKFORD[Number(r & 31n)] + rand;
   return time + rand;
+}
+
+// ---------------------------------------------------------------- past findings import (mem import-past)
+
+// The old `.ai/` memory is kept only as quarantined leads: `past/`, unverified, no evidence, never in INDEX.md,
+// ranked last by search. Dream promotes one only when a transcript confirms it and expires the rest.
+
+/** Directories of an old `.ai/` that are steering, procedures or generated state, not findings. */
+const PAST_SKIP_DIRS: Record<string, string> = {
+  rules: 'rules are steering, not findings',
+  toolbox: 'toolbox is steering, not findings',
+  acp: 'acp is steering, not findings',
+  skills: 'skills are procedures, not findings',
+  agents: 'agents are procedures, not findings',
+  commands: 'commands are procedures, not findings',
+  temp: 'generated state',
+  state: 'generated state',
+};
+
+const PAST_SKIP_FILES: Record<string, string> = {
+  'identity.md': 'identity is steering, not findings',
+  'project_status.md': 'status file',
+  'open-items.md': 'task list, not findings',
+  'thread-current.md': 'running session log, not findings',
+  'readme.md': 'describes the old layout',
+};
+
+export type PastEntryStatus = 'imported' | 'duplicate' | 'empty';
+
+export interface PastEntry {
+  file: string;      // path relative to the imported directory, `/`-separated
+  heading: string;   // entry title, priority tags removed
+  about: string;
+  body: string;      // scrubbed entry text plus the `Imported from` line
+  status: PastEntryStatus;
+  id?: string;       // set when written (or, in a dry run, when it would be)
+}
+
+export interface PastImport {
+  dryRun: boolean;
+  entries: PastEntry[];
+  skipped: { file: string; reason: string }[];
+}
+
+const IMPORTED_LINE = /\n*Imported from [^\n]*$/;
+
+function pastHash(body: string): string {
+  const normalized = body.replace(IMPORTED_LINE, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  return createHash('sha256').update(normalized).digest('hex');
+}
+
+function cleanTitle(raw: string): string {
+  return raw
+    .replace(/\[P\d\]/gi, '')
+    .replace(/\*\*|__|`/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Entity guess: the part before a ` — `/`: ` separator when it is short (`GlassCard — Padding ...`), else the title. */
+function guessAbout(title: string, fallback: string): string {
+  const head = /^(.{2,40}?)\s+(?:—|–|-)\s+\S|^(.{2,40}?):\s+\S/.exec(title);
+  const about = (head?.[1] ?? head?.[2] ?? title).trim() || fallback;
+  if (about.length <= 80) return about;
+  const cut = about.slice(0, 80);
+  return cut.slice(0, cut.lastIndexOf(' ') > 40 ? cut.lastIndexOf(' ') : 80).trim();
+}
+
+function stripNoise(lines: string[]): string {
+  return lines
+    .join('\n')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .split('\n')
+    .map((l) => l.trimEnd())
+    .join('\n')
+    .replace(/^(?:\s*(?:-{3,}|\*{3,}|_{3,})?\s*\n)+/, '')
+    .replace(/(?:\n\s*(?:-{3,}|\*{3,}|_{3,})?\s*)+$/, '')
+    .trim();
+}
+
+/**
+ * Splits an old multi-entry memory file into entries. Old files put a frontmatter block and a preamble
+ * (`# Title`, format notes) before entries headed `### [P1] ...` (ai-memory) or `## [P1] ...` (iCoffee),
+ * with `<!-- session:... -->` markers and `---` separators between them. The most used heading level
+ * below H1 marks entries; deeper headings stay inside their entry. A file with no such headings splits on
+ * `[YYYY-MM-DD]` lines (thread archives), else is one entry. Headings inside code fences do not count.
+ */
+export function splitPastEntries(text: string, fallbackTitle: string): { title: string; content: string }[] {
+  const front = /^---\n([\s\S]*?)\n---\n/.exec(text);
+  const body = front ? text.slice(front[0].length) : text;
+  const lines = body.split('\n');
+  const heads: { at: number; level: number; title: string }[] = [];
+  const dated: number[] = [];
+  let fence: string | undefined;
+  let h1: string | undefined;
+  for (const [i, line] of lines.entries()) {
+    const f = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (f) {
+      if (fence === undefined) fence = f[1][0];
+      else if (f[1][0] === fence) fence = undefined;
+      continue;
+    }
+    if (fence !== undefined) continue;
+    const h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    if (h && h[1].length === 1) h1 ??= cleanTitle(h[2]);
+    else if (h) heads.push({ at: i, level: h[1].length, title: cleanTitle(h[2]) });
+    else if (/^\[\d{4}-\d{2}-\d{2}\]/.test(line)) dated.push(i);
+  }
+  if (heads.length > 0) {
+    // The most used level marks entries (ties go shallower); shallower headings group them and only end one.
+    const count = (level: number) => heads.filter((h) => h.level === level).length;
+    const level = heads.map((h) => h.level).reduce((a, b) => (count(b) > count(a) || (count(b) === count(a) && b < a) ? b : a));
+    const bounds = heads.filter((h) => h.level <= level);
+    return bounds.flatMap((h, k) => (h.level < level ? [] : [{
+      title: h.title || fallbackTitle,
+      content: stripNoise(lines.slice(h.at + 1, k + 1 < bounds.length ? bounds[k + 1].at : lines.length)),
+    }]));
+  }
+  if (dated.length > 0) {
+    return dated.map((at, k) => {
+      const content = stripNoise(lines.slice(at, k + 1 < dated.length ? dated[k + 1] : lines.length));
+      const first = cleanTitle(content.split('\n')[0]);
+      return { title: first.length > 72 ? `${first.slice(0, first.lastIndexOf(' ', 72) > 20 ? first.lastIndexOf(' ', 72) : 72)}...` : first, content };
+    });
+  }
+  // A multi-entry file with no entries is an empty template; its preamble is format notes, not a finding.
+  if (front && /^layout:\s*multi-entry\s*$/m.test(front[1])) return [];
+  const start = lines.findIndex((l) => /^#\s/.test(l));
+  return [{ title: h1 ?? fallbackTitle, content: stripNoise(lines.slice(start + 1)) }];
+}
+
+function looksGenerated(text: string): boolean {
+  const head = text.split('\n').slice(0, 12).join('\n');
+  return /auto-generated|do not edit/i.test(head) || /^---\n[\s\S]*?^type:\s*index\s*$/m.test(head);
+}
+
+function walkPast(dir: string, rel: string, files: string[], skipped: { file: string; reason: string }[]): void {
+  for (const ent of readdirSync(join(dir, rel), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    if (ent.name.startsWith('.')) continue;
+    const path = rel === '' ? ent.name : `${rel}/${ent.name}`;
+    if (ent.isSymbolicLink()) skipped.push({ file: path, reason: 'symbolic link' });
+    else if (ent.isDirectory()) {
+      const reason = ent.name === 'node_modules' ? 'dependencies' : rel === '' ? PAST_SKIP_DIRS[ent.name] : undefined;
+      if (reason) skipped.push({ file: `${path}/`, reason });
+      else walkPast(dir, path, files, skipped);
+    } else if (ent.isFile()) files.push(path);
+  }
+}
+
+/**
+ * Imports an old `.ai/` directory as past findings: one `past/<ulid>.md` per entry, `origin: past`,
+ * `verified: false`, no evidence, `seen: 0`, body scrubbed and ending `Imported from <file>#<heading> on <date>`.
+ * Idempotent: an entry whose normalized body matches an existing past finding (or an earlier entry in the
+ * same run) is reported as a duplicate. A dry run reads only.
+ */
+export function importPast(dir: string, opts: { root?: string; dryRun?: boolean; now?: Date } = {}): PastImport {
+  const source = resolve(dir);
+  if (!existsSync(source) || !statSync(source).isDirectory()) throw new Error(`not a directory: ${source}`);
+  const root = opts.root ?? memoryRoot();
+  const dryRun = opts.dryRun ?? false;
+  const date = (opts.now ?? new Date()).toISOString().slice(0, 10);
+  const files: string[] = [];
+  const skipped: { file: string; reason: string }[] = [];
+  walkPast(source, '', files, skipped);
+
+  const seen = new Set(listNotes('past', root).map((n) => pastHash(n.body)));
+  const entries: PastEntry[] = [];
+  for (const file of files) {
+    const name = file.slice(file.lastIndexOf('/') + 1);
+    const lower = name.toLowerCase();
+    let reason = PAST_SKIP_FILES[lower];
+    if (!reason && !lower.endsWith('.md')) reason = 'not markdown';
+    if (!reason && /index\.md$/.test(lower)) reason = 'index';
+    if (!reason && statSync(join(source, file)).size > 1_000_000) reason = 'larger than 1 MB';
+    const raw = reason ? '' : readFileSync(join(source, file), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+    if (!reason && looksGenerated(raw)) reason = 'generated';
+    if (reason) {
+      skipped.push({ file, reason });
+      continue;
+    }
+    const topic = name.replace(/\.md$/i, '');
+    const split = splitPastEntries(raw, topic);
+    if (split.length === 0) skipped.push({ file, reason: 'no entries' });
+    for (const { title, content } of split) {
+      const heading = scrub(title);
+      const about = guessAbout(heading, topic);
+      const text = scrub(content === '' ? heading : `${heading}\n\n${content}`);
+      const body = `${text}\n\nImported from ${file}#${heading} on ${date}`;
+      const entry: PastEntry = { file, heading, about, body, status: 'imported' };
+      const hash = pastHash(body);
+      // Pure headings and unfilled template placeholders such as `[Describe the system architecture]`.
+      if (content.replace(/^\s*(?:#{1,6}\s.*|\[[^\]\n]*\])\s*$/gm, '').trim() === '') entry.status = 'empty';
+      else if (seen.has(hash)) entry.status = 'duplicate';
+      else {
+        seen.add(hash);
+        entry.id = ulid();
+        if (!dryRun) writeNote({ id: entry.id, about, body, evidence: [], verified: false, seen: 0, origin: 'past' }, root);
+      }
+      entries.push(entry);
+    }
+  }
+  return { dryRun, entries, skipped };
 }
