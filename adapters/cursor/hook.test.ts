@@ -6,7 +6,7 @@ import { fixtures, runHook, tempDir, type Logged } from '../_shared/harness.ts';
 
 const dir = import.meta.dirname;
 const HOOK = join(dir, 'hook.mjs');
-// Recorded from a cursor-agent 2026.10.22 -p run (paths anonymised). cursor-agent -p never fires
+// Recorded from a cursor-agent 2026.11.05 -p run (paths anonymised). cursor-agent -p never fires
 // beforeSubmitPrompt or afterAgentResponse, so those two are the documented shapes.
 const p = fixtures(dir);
 const TRANSCRIPT = join(dir, 'fixtures/transcript.json'); // the same run's agent transcript

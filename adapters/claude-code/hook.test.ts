@@ -11,7 +11,7 @@ const HOOK = join(dir, 'hook.mjs');
 const payloads = fixtures(dir);
 // Recorded from a headless Grok CLI 1.0.77 run that loaded project .claude/settings.json.
 const grok = fixtures(dir, 'grok.json');
-// Recorded from cursor-agent 2026.10.22, which runs Claude settings hooks with Cursor payloads.
+// Recorded from cursor-agent 2026.11.05, which runs Claude settings hooks with Cursor payloads.
 const cursorPayloads = fixtures(join(dir, '../cursor'));
 const SESSION = 'ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3';
 
