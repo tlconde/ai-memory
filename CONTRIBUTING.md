@@ -14,8 +14,8 @@ npm run build
 ## Development
 
 ```bash
-npm run dev          # Watch mode (tsc --watch)
 npm run typecheck    # Type check without emitting
+npm test             # Run the tests
 npm run build        # Full build
 ```
 
@@ -37,13 +37,12 @@ npm run build        # Full build
 
 ## Architecture
 
-- `src/cli/` — CLI commands (`ai-memory init`, `install`, `mcp`, etc.)
+- `src/cli.ts` — the `mem` CLI (`log`, `search`, `index`, `import-past`, etc.)
 - `src/mcp-server/` — MCP server (tools, resources, governance)
 - `src/evals/` — Eval metrics
 - `src/formatter/` — YAML frontmatter validation
 - `plugins/ai-memory/` — Plugin skills, agents, rules
 - `plugins/adapters/` — Tool-specific adapters (Claude Code hooks, etc.)
-- `templates/` — Scaffolding templates for `ai-memory init`
 
 ## Code style
 
