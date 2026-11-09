@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "node node_modules/@radix-ai/ai-memory/adapters/cursor/hook.mjs",
+        "timeout": 5
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "node node_modules/@radix-ai/ai-memory/adapters/cursor/hook.mjs",
+        "timeout": 5
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "node node_modules/@radix-ai/ai-memory/adapters/cursor/hook.mjs",
+        "timeout": 5
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "node node_modules/@radix-ai/ai-memory/adapters/cursor/hook.mjs",
+        "timeout": 5
+      }
+    ],
+    "postToolUseFailure": [
+      {
+        "command": "node node_modules/@radix-ai/ai-memory/adapters/cursor/hook.mjs",
+        "timeout": 5
+      }
+    ],
+    "afterAgentResponse": [
+      {
+        "command": "node node_modules/@radix-ai/ai-memory/adapters/cursor/hook.mjs",
+        "timeout": 5
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "node node_modules/@radix-ai/ai-memory/adapters/cursor/hook.mjs",
+        "timeout": 5
+      }
+    ]
+  }
+}

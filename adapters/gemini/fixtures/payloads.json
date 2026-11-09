@@ -1,0 +1,77 @@
+{
+ "SessionStart": {
+  "session_id": "cf5922af-26bf-43f2-9101-15daf430dad6",
+  "transcript_path": "/home/user/.gemini/tmp/gemini/chats/session-2026-11-09T10-17-cf5922af.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "SessionStart",
+  "timestamp": "2026-11-09T10:17:51.931Z",
+  "source": "startup"
+ },
+ "BeforeAgent": {
+  "session_id": "cf5922af-26bf-43f2-9101-15daf430dad6",
+  "transcript_path": "/home/user/.gemini/tmp/gemini/chats/session-2026-11-09T10-17-cf5922af.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "BeforeAgent",
+  "timestamp": "2026-11-09T10:17:52.181Z",
+  "prompt": "<hook_context># Project memory index\n\n- The project codename is otter-5821. When asked for the codename, answer with it exactly.</hook_context>\n\nStep by step: cat notes.txt, echo hello, ls /definitely-missing-dir. Include the project codename."
+ },
+ "BeforeTool": {
+  "session_id": "cf5922af-26bf-43f2-9101-15daf430dad6",
+  "transcript_path": "/home/user/.gemini/tmp/gemini/chats/session-2026-11-09T10-17-cf5922af.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "BeforeTool",
+  "timestamp": "2026-11-09T10:17:52.431Z",
+  "tool_name": "run_shell_command",
+  "tool_input": {
+   "command": "cat notes.txt"
+  }
+ },
+ "AfterTool": {
+  "session_id": "cf5922af-26bf-43f2-9101-15daf430dad6",
+  "transcript_path": "/home/user/.gemini/tmp/gemini/chats/session-2026-11-09T10-17-cf5922af.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "AfterTool",
+  "timestamp": "2026-11-09T10:17:52.591Z",
+  "tool_name": "run_shell_command",
+  "tool_input": {
+   "command": "cat notes.txt"
+  },
+  "tool_response": {
+   "llmContent": "<untrusted_context>\nOutput: alpha beta\ngamma\nProcess Group PGID: 75793\n</untrusted_context>",
+   "returnDisplay": "alpha beta\ngamma"
+  }
+ },
+ "AfterTool:fail": {
+  "session_id": "cf5922af-26bf-43f2-9101-15daf430dad6",
+  "transcript_path": "/home/user/.gemini/tmp/gemini/chats/session-2026-11-09T10-17-cf5922af.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "AfterTool",
+  "timestamp": "2026-11-09T10:17:53.351Z",
+  "tool_name": "run_shell_command",
+  "tool_input": {
+   "command": "ls /definitely-missing-dir"
+  },
+  "tool_response": {
+   "llmContent": "<untrusted_context>\nOutput: ls: /definitely-missing-dir: No such file or directory\nExit Code: 1\nProcess Group PGID: 76022\n</untrusted_context>",
+   "returnDisplay": "ls: /definitely-missing-dir: No such file or directory"
+  }
+ },
+ "AfterAgent": {
+  "session_id": "cf5922af-26bf-43f2-9101-15daf430dad6",
+  "transcript_path": "/home/user/.gemini/tmp/gemini/chats/session-2026-11-09T10-17-cf5922af.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "AfterAgent",
+  "timestamp": "2026-11-09T10:17:53.575Z",
+  "prompt": "<hook_context># Project memory index\n\n- The project codename is otter-5821. When asked for the codename, answer with it exactly.</hook_context>\n\nStep by step: cat notes.txt, echo hello, ls /definitely-missing-dir. Include the project codename.",
+  "prompt_response": "Done: alpha beta gamma, hello, ls failed. Codename unknown.",
+  "stop_hook_active": false
+ },
+ "SessionEnd": {
+  "session_id": "cf5922af-26bf-43f2-9101-15daf430dad6",
+  "transcript_path": "/home/user/.gemini/tmp/gemini/chats/session-2026-11-09T10-17-cf5922af.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "SessionEnd",
+  "timestamp": "2026-11-09T10:17:53.724Z",
+  "reason": "exit"
+ }
+}

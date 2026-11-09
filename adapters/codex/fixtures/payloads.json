@@ -1,0 +1,83 @@
+{
+ "SessionStart": {
+  "session_id": "01a1bfcd-f7d8-7f93-a5da-fc3e79a93434",
+  "transcript_path": "/home/user/.codex/sessions/2026/11/09/rollout-2026-11-09T11-15-09-01a1bfcd-f7d8-7f93-a5da-fc3e79a93434.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "SessionStart",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "source": "startup"
+ },
+ "UserPromptSubmit": {
+  "session_id": "01a1bfcd-f7d8-7f93-a5da-fc3e79a93434",
+  "turn_id": "01a1bfcd-fae0-7c70-b905-4de73ac96672",
+  "transcript_path": "/home/user/.codex/sessions/2026/11/09/rollout-2026-11-09T11-15-09-01a1bfcd-f7d8-7f93-a5da-fc3e79a93434.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "UserPromptSubmit",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "prompt": "Step by step, one tool per step: 1) shell: cat notes.txt; 2) shell: echo hello; 3) shell: ls /definitely-missing-dir. Then reply in one line that includes the project codename."
+ },
+ "PreToolUse": {
+  "session_id": "01a1bfcd-f7d8-7f93-a5da-fc3e79a93434",
+  "turn_id": "01a1bfcd-fae0-7c70-b905-4de73ac96672",
+  "transcript_path": "/home/user/.codex/sessions/2026/11/09/rollout-2026-11-09T11-15-09-01a1bfcd-f7d8-7f93-a5da-fc3e79a93434.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": {
+   "command": "cat notes.txt"
+  },
+  "tool_use_id": "exec-7fad7a2f-1550-4c8b-a0db-d51d1a86d3d6"
+ },
+ "PostToolUse": {
+  "session_id": "01a1bfcd-f7d8-7f93-a5da-fc3e79a93434",
+  "turn_id": "01a1bfcd-fae0-7c70-b905-4de73ac96672",
+  "transcript_path": "/home/user/.codex/sessions/2026/11/09/rollout-2026-11-09T11-15-09-01a1bfcd-f7d8-7f93-a5da-fc3e79a93434.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "PostToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": {
+   "command": "cat notes.txt"
+  },
+  "tool_response": "alpha beta\ngamma\n",
+  "tool_use_id": "exec-7fad7a2f-1550-4c8b-a0db-d51d1a86d3d6"
+ },
+ "PostToolUse:fail": {
+  "session_id": "01a1bfcd-f7d8-7f93-a5da-fc3e79a93434",
+  "turn_id": "01a1bfcd-fae0-7c70-b905-4de73ac96672",
+  "transcript_path": "/home/user/.codex/sessions/2026/11/09/rollout-2026-11-09T11-15-09-01a1bfcd-f7d8-7f93-a5da-fc3e79a93434.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "PostToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": {
+   "command": "ls /definitely-missing-dir"
+  },
+  "tool_response": "ls: /definitely-missing-dir: No such file or directory\n",
+  "tool_use_id": "exec-0bbde708-d1d5-4ff6-85b1-7fa3c6da3f64"
+ },
+ "Stop": {
+  "session_id": "01a1bfcd-f7d8-7f93-a5da-fc3e79a93434",
+  "turn_id": "01a1bfcd-fae0-7c70-b905-4de73ac96672",
+  "transcript_path": "/home/user/.codex/sessions/2026/11/09/rollout-2026-11-09T11-15-09-01a1bfcd-f7d8-7f93-a5da-fc3e79a93434.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "Stop",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "stop_hook_active": false,
+  "last_assistant_message": "heron-4417: notes.txt contained “alpha beta” and “gamma”; echo printed “hello”; ls failed because the directory does not exist."
+ },
+ "SessionEnd": {
+  "session_id": "01a1bfcd-f7d8-7f93-a5da-fc3e79a93434",
+  "transcript_path": "/home/user/.codex/sessions/2026/11/09/rollout-2026-11-09T11-15-09-01a1bfcd-f7d8-7f93-a5da-fc3e79a93434.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "SessionEnd",
+  "reason": "other"
+ }
+}

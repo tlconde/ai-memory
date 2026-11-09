@@ -2,13 +2,11 @@
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs"
-            ],
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs",
             "timeout": 5
           }
         ]
@@ -16,13 +14,11 @@
     ],
     "UserPromptSubmit": [
       {
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs"
-            ],
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs",
             "timeout": 5
           }
         ]
@@ -30,13 +26,11 @@
     ],
     "PreToolUse": [
       {
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs"
-            ],
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs",
             "timeout": 5
           }
         ]
@@ -44,13 +38,11 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs"
-            ],
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs",
             "timeout": 5
           }
         ]
@@ -58,13 +50,11 @@
     ],
     "PostToolUseFailure": [
       {
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs"
-            ],
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs",
             "timeout": 5
           }
         ]
@@ -72,13 +62,11 @@
     ],
     "PermissionDenied": [
       {
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs"
-            ],
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs",
             "timeout": 5
           }
         ]
@@ -86,13 +74,11 @@
     ],
     "Stop": [
       {
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs"
-            ],
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs",
             "timeout": 5
           }
         ]
@@ -100,13 +86,11 @@
     ],
     "SessionEnd": [
       {
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs"
-            ],
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/node_modules/@radix-ai/ai-memory/adapters/claude-code/hook.mjs",
             "timeout": 5
           }
         ]

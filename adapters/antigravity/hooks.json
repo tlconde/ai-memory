@@ -1,0 +1,42 @@
+{
+  "ai-memory": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "node ../node_modules/@radix-ai/ai-memory/adapters/antigravity/hook.mjs PreInvocation",
+        "timeout": 5
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ../node_modules/@radix-ai/ai-memory/adapters/antigravity/hook.mjs PreToolUse",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ../node_modules/@radix-ai/ai-memory/adapters/antigravity/hook.mjs PostToolUse",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node ../node_modules/@radix-ai/ai-memory/adapters/antigravity/hook.mjs Stop",
+        "timeout": 5
+      }
+    ]
+  }
+}
