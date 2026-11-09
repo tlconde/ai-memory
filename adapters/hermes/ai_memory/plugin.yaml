@@ -1,0 +1,5 @@
+name: ai_memory
+version: 0.2.0
+description: ai-memory transcript log and injected index (replaces gbrain_working_memory in the memory.provider slot)
+type: memory_provider
+entrypoint: __init__.py
