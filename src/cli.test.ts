@@ -94,7 +94,7 @@ describe('mem index and the rest', () => {
   });
 
   test('unbuilt verbs exit 2 with "not implemented yet"', () => {
-    for (const verb of ['note', 'dream', 'eval']) {
+    for (const verb of ['note', 'dream']) {
       const res = mem([verb]);
       assert.equal(res.status, 2);
       assert.match(res.stderr, /not implemented yet/);
