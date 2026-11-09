@@ -4,7 +4,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { reindex, search } from './search.js';
-import { appendEvent, inside, memoryRoot, parseEvent } from './store.js';
+import { addNote, appendEvent, inside, memoryRoot, parseEvent } from './store.js';
 import { LAYOUT, type LogEvent } from './types.js';
 
 const USAGE = `usage: mem [--root <dir>] <command>
@@ -13,7 +13,10 @@ const USAGE = `usage: mem [--root <dir>] <command>
   search <query> [--limit N] [--json]
                               search log, notes, wiki and past
   index                       print INDEX.md, if any (host adapters, session start)
-  note | dream | eval         not implemented yet
+  note --about <entity> [--evidence <session>:<a>-<b>]... [--json] <fact | ->
+                              store one fact (- reads it from stdin); prints its id
+  mcp                         run the MCP server (tools: search, note) on stdio
+  dream | eval                not implemented yet
 
   --root <dir>  memory root (default $MEM_ROOT, else ./.memory)
 `;
@@ -25,12 +28,14 @@ interface Args {
   positionals: string[];
   root: string | undefined;
   limit: string | undefined;
+  about: string | undefined;
+  evidence: string[];
   json: boolean;
   help: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args {
-  const args: Args = { command: undefined, positionals: [], root: undefined, limit: undefined, json: false, help: false };
+  const args: Args = { command: undefined, positionals: [], root: undefined, limit: undefined, about: undefined, evidence: [], json: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--') {
@@ -38,11 +43,13 @@ function parseArgs(argv: readonly string[]): Args {
       break;
     }
     const [flag, inline] = arg.startsWith('--') && arg.includes('=') ? [arg.slice(0, arg.indexOf('=')), arg.slice(arg.indexOf('=') + 1)] : [arg, undefined];
-    if (flag === '--root' || flag === '--limit') {
+    if (flag === '--root' || flag === '--limit' || flag === '--about' || flag === '--evidence') {
       const value = inline ?? argv[++i];
       if (value === undefined || value === '') throw new UsageError(`${flag} needs a value`);
       if (flag === '--root') args.root = value;
-      else args.limit = value;
+      else if (flag === '--limit') args.limit = value;
+      else if (flag === '--about') args.about = value;
+      else args.evidence.push(value);
     } else if (flag === '--json' && inline === undefined) {
       args.json = true;
     } else if ((flag === '--help' || flag === '-h') && inline === undefined) {
@@ -58,9 +65,11 @@ function parseArgs(argv: readonly string[]): Args {
   return args;
 }
 
-function only(args: Args, allowed: ReadonlyArray<'limit' | 'json' | 'positionals'>): void {
+function only(args: Args, allowed: ReadonlyArray<'limit' | 'json' | 'positionals' | 'about' | 'evidence'>): void {
   const command = args.command ?? '';
   if (!allowed.includes('limit') && args.limit !== undefined) throw new UsageError(`${command} takes no --limit`);
+  if (!allowed.includes('about') && args.about !== undefined) throw new UsageError(`${command} takes no --about`);
+  if (!allowed.includes('evidence') && args.evidence.length > 0) throw new UsageError(`${command} takes no --evidence`);
   if (!allowed.includes('json') && args.json) throw new UsageError(`${command} takes no --json`);
   if (!allowed.includes('positionals') && args.positionals.length > 0) throw new UsageError(`${command} takes no arguments`);
 }
@@ -110,6 +119,19 @@ function cmdSearch(args: Args, root: string): void {
   for (const h of hits) process.stdout.write(`${h.layer} ${h.source}  ${h.snippet}\n`);
 }
 
+// Evidence is checked against the log inside addNote, so a bad ref fails before anything is written.
+async function cmdNote(args: Args, root: string): Promise<void> {
+  if (args.about === undefined) throw new UsageError('note needs --about <entity>');
+  const fromStdin = args.positionals.length === 1 && args.positionals[0] === '-';
+  if (!fromStdin && args.positionals.includes('-')) throw new UsageError('note takes the fact as arguments or "-" alone for stdin');
+  const body = fromStdin ? await readStdin() : args.positionals.join(' ');
+  if (body.trim() === '') throw new UsageError('note needs the fact text, or - to read it from stdin');
+  const result = addNote({ about: args.about, body, evidence: args.evidence }, root);
+  if (result.merged) process.stderr.write(`mem note: same fact as ${result.id}; merged the evidence into it\n`);
+  if (result.hypothesis) process.stderr.write('mem note: no evidence, stored as a hypothesis; cite log lines with --evidence <session>:<a>-<b>\n');
+  process.stdout.write(args.json ? `${JSON.stringify(result)}\n` : `${result.id}\n`);
+}
+
 function cmdIndex(root: string): void {
   const file = inside(root, LAYOUT.index);
   if (existsSync(file)) process.stdout.write(readFileSync(file, 'utf8'));
@@ -137,6 +159,14 @@ async function main(argv: readonly string[]): Promise<number> {
         cmdIndex(root);
         return 0;
       case 'note':
+        only(args, ['about', 'evidence', 'json', 'positionals']);
+        await cmdNote(args, root);
+        return 0;
+      case 'mcp':
+        only(args, []);
+        // Loaded lazily: `mem log` runs on every hook call and should not pay for the SDK.
+        await (await import('./mcp.js')).serve(root);
+        return 0;
       case 'dream':
       case 'eval':
         process.stderr.write(`mem ${args.command}: not implemented yet\n`);
