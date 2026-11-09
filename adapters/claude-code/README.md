@@ -20,6 +20,10 @@ Install either way (Node 22+, `mem` on PATH or set `MEM_BIN`; the root is
   or add this directory to a marketplace. It uses `hooks/hooks.json`.
 - Project settings: merge `settings.json` here into `.claude/settings.json`.
 
+The plugin also declares the `search` and `note` MCP server (`mem mcp`, see `../README-mcp.md`).
+Claude Code starts it in the project directory, so it uses the same root as the hook. With
+project settings instead of the plugin, add it through `.mcp.json`.
+
 Limits, checked against Claude Code 2.1.319:
 - PreCompact is not hooked: SessionStart fires again with source `compact`, which marks the
   boundary and re-injects the index, and PreCompact stdout would become compaction instructions.
