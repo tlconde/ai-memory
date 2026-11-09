@@ -1,0 +1,19 @@
+{
+  "id": "ai-memory",
+  "name": "ai-memory",
+  "description": "Logs sessions to the ai-memory transcript log and injects the memory index.",
+  "version": "0.2.0",
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "root": {
+        "type": "string",
+        "description": "Memory root passed to mem as --root. Defaults to $MEM_ROOT, else ./.memory in the Gateway's working directory."
+      }
+    }
+  }
+}
