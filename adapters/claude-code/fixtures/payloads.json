@@ -1,0 +1,204 @@
+{
+ "SessionStart": {
+  "session_id": "ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-1000/-work-proj/scratchpad",
+  "hook_event_name": "SessionStart",
+  "source": "startup"
+ },
+ "UserPromptSubmit": {
+  "session_id": "ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-1000/-work-proj/scratchpad",
+  "prompt_id": "a4b65f39-6cdd-4f05-9cb9-f914c398ec35",
+  "permission_mode": "default",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "Step by step, one tool per step: 1) Glob pattern '*.txt'; 2) Read notes.txt; 3) Bash: echo hello; 4) Bash: ls /definitely-missing-dir. Then reply in one line, including the project codename if you know it."
+ },
+ "PreToolUse": {
+  "session_id": "ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-1000/-work-proj/scratchpad",
+  "prompt_id": "a4b65f39-6cdd-4f05-9cb9-f914c398ec35",
+  "permission_mode": "default",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Glob",
+  "tool_input": {
+   "pattern": "*.txt"
+  },
+  "tool_use_id": "toolu_01N4GNZauvqQyoaMtuwCEDjo"
+ },
+ "PostToolUse": {
+  "session_id": "ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-1000/-work-proj/scratchpad",
+  "prompt_id": "a4b65f39-6cdd-4f05-9cb9-f914c398ec35",
+  "permission_mode": "default",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Glob",
+  "tool_input": {
+   "pattern": "*.txt"
+  },
+  "tool_response": {
+   "filenames": [
+    "notes.txt"
+   ],
+   "durationMs": 8,
+   "numFiles": 1,
+   "truncated": false,
+   "totalMatches": 1,
+   "countIsComplete": true
+  },
+  "tool_use_id": "toolu_01N4GNZauvqQyoaMtuwCEDjo",
+  "duration_ms": 9
+ },
+ "PreToolUse:Read": {
+  "session_id": "ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-1000/-work-proj/scratchpad",
+  "prompt_id": "a4b65f39-6cdd-4f05-9cb9-f914c398ec35",
+  "permission_mode": "default",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Read",
+  "tool_input": {
+   "file_path": "/work/proj/notes.txt"
+  },
+  "tool_use_id": "toolu_0131fxYPA9KCjpXHcfWSZP5Z"
+ },
+ "PostToolUse:Read": {
+  "session_id": "ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-1000/-work-proj/scratchpad",
+  "prompt_id": "a4b65f39-6cdd-4f05-9cb9-f914c398ec35",
+  "permission_mode": "default",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Read",
+  "tool_input": {
+   "file_path": "/work/proj/notes.txt"
+  },
+  "tool_response": {
+   "type": "text",
+   "file": {
+    "filePath": "/work/proj/notes.txt",
+    "content": "alpha beta\ngamma\n",
+    "numLines": 3,
+    "startLine": 1,
+    "totalLines": 3
+   }
+  },
+  "tool_use_id": "toolu_0131fxYPA9KCjpXHcfWSZP5Z",
+  "duration_ms": 2
+ },
+ "PostToolUse:Bash": {
+  "session_id": "ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-1000/-work-proj/scratchpad",
+  "prompt_id": "a4b65f39-6cdd-4f05-9cb9-f914c398ec35",
+  "permission_mode": "default",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+   "command": "echo hello",
+   "description": "Print hello"
+  },
+  "tool_response": {
+   "stdout": "hello",
+   "stderr": "",
+   "interrupted": false,
+   "isImage": false,
+   "noOutputExpected": false
+  },
+  "tool_use_id": "toolu_01BfaD2L5ne25Lo9KYHrAeMj",
+  "duration_ms": 81
+ },
+ "PostToolUseFailure": {
+  "session_id": "ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-1000/-work-proj/scratchpad",
+  "prompt_id": "a4b65f39-6cdd-4f05-9cb9-f914c398ec35",
+  "permission_mode": "default",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "PostToolUseFailure",
+  "tool_name": "Bash",
+  "tool_input": {
+   "command": "ls /definitely-missing-dir",
+   "description": "List a missing directory to check error handling"
+  },
+  "tool_use_id": "toolu_01UmE9bEtckn6B1itCr3KUBT",
+  "error": "Exit code 1\nls: /definitely-missing-dir: No such file or directory",
+  "is_interrupt": false,
+  "duration_ms": 9
+ },
+ "Stop": {
+  "session_id": "ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-1000/-work-proj/scratchpad",
+  "prompt_id": "a4b65f39-6cdd-4f05-9cb9-f914c398ec35",
+  "permission_mode": "default",
+  "effort": {
+   "level": "medium"
+  },
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "Ran all four steps in order: the glob found `notes.txt`, which reads \"alpha beta / gamma\", `echo hello` printed `hello`, and `ls /definitely-missing-dir` failed with exit code 1 (\"No such file or directory\"). Project codename: canary-index-7731.",
+  "background_tasks": [],
+  "session_crons": []
+ },
+ "SessionEnd": {
+  "session_id": "ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/ce6108b9-2ef1-49fc-869b-7d8cf8b1d3f3.jsonl",
+  "cwd": "/work/proj",
+  "scratchpad_dir": "/tmp/claude-1000/-work-proj/scratchpad",
+  "prompt_id": "a4b65f39-6cdd-4f05-9cb9-f914c398ec35",
+  "hook_event_name": "SessionEnd",
+  "reason": "other"
+ },
+ "PermissionDenied": {
+  "session_id": "abc123",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
+  "cwd": "/work/proj",
+  "permission_mode": "auto",
+  "hook_event_name": "PermissionDenied",
+  "tool_name": "Bash",
+  "tool_input": {
+   "command": "rm -rf /tmp/build",
+   "description": "Clean build directory"
+  },
+  "tool_use_id": "toolu_01ABC123",
+  "reason": "[Irreversible Local Destruction]"
+ },
+ "PreCompact": {
+  "session_id": "abc123",
+  "transcript_path": "/home/user/.claude/projects/-work-proj/00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
+  "cwd": "/work/proj",
+  "hook_event_name": "PreCompact",
+  "trigger": "manual",
+  "custom_instructions": null
+ }
+}

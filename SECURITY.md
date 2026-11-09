@@ -27,7 +27,6 @@ This policy covers:
 ## Security Model
 
 - **Path traversal**: All file operations validate paths stay within `.ai/` using `path.resolve` + `path.relative` checks. URI-encoded paths are decoded before validation.
-- **Command injection**: Git operations in `sync_memory` use `execFileSync` (no shell) to prevent injection via commit messages.
 - **Immutability**: IDENTITY.md is immutable by default; structural paths (`toolbox/`, `acp/`, `rules/`) are always immutable. Controlled via YAML frontmatter `writable` field.
 - **Claim locking**: Advisory file locks prevent concurrent write corruption (5-minute TTL).
 - **HTTP auth**: When `AI_MEMORY_AUTH_TOKEN` is set, the HTTP MCP server requires `Authorization: Bearer <token>` on all requests. Unset = no auth (local use only).

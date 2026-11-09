@@ -1,0 +1,32 @@
+#!/bin/sh
+# mem-wrap: log any non-interactive CLI agent run to ai-memory. Logs session_start, the command line as
+# `user`, the tail of stdout as `assistant`, the tail of stderr as `error`, and session_end with the exit
+# status, which mem-wrap returns. `mem-wrap --index` prints INDEX.md for tools that take a context file.
+# Needs node (as mem does). MEM_BIN overrides the mem command. Memory failures never change the result.
+MEM=${MEM_BIN:-mem}
+if [ "$1" = "--index" ]; then "$MEM" index 2>/dev/null; exit 0; fi
+if [ "$#" -eq 0 ]; then echo "usage: mem-wrap <command> [args...] | mem-wrap --index" >&2; exit 2; fi
+
+session="generic-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/mem-wrap.XXXXXX") || exit 1
+trap 'rm -rf "$tmp"' EXIT
+
+# log <kind> < text: one LogEvent, JSON-encoded by node, piped to `mem log`; keeps the last 8000 chars.
+log() {
+  node -e 'let t="";process.stdin.on("data",d=>t+=d).on("end",()=>process.stdout.write(JSON.stringify({ts:new Date().toISOString(),session:process.argv[1],host:"generic",kind:process.argv[2],text:t.slice(-8000)})+"\n"))' \
+    "$session" "$1" | "$MEM" log 2>/dev/null || echo "ai-memory: mem log failed" >&2
+}
+
+pwd | log session_start
+printf '%s' "$*" | log user
+# The tee keeps the output on screen; a fifo per stream keeps stdout and stderr apart.
+mkfifo "$tmp/o" "$tmp/e"
+tee "$tmp/out" < "$tmp/o" & t1=$!
+tee "$tmp/err" < "$tmp/e" >&2 & t2=$!
+"$@" > "$tmp/o" 2> "$tmp/e"
+status=$?
+wait $t1 $t2
+[ -s "$tmp/out" ] && log assistant < "$tmp/out"
+[ -s "$tmp/err" ] && log error < "$tmp/err"
+printf 'exit %s' "$status" | log session_end
+exit "$status"

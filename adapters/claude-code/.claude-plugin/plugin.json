@@ -1,0 +1,19 @@
+{
+  "name": "ai-memory",
+  "version": "0.2.0-dev",
+  "description": "Transcript logging, INDEX.md injection and the search/note MCP tools for ai-memory",
+  "author": {
+    "name": "Radix AI",
+    "url": "https://github.com/tlconde"
+  },
+  "repository": "https://github.com/tlconde/ai-memory",
+  "license": "MIT",
+  "mcpServers": {
+    "ai-memory": {
+      "command": "mem",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

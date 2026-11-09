@@ -1,86 +1,51 @@
 {
   "name": "@radix-ai/ai-memory",
-  "version": "0.1.8",
-  "description": "Persistent AI memory for any project. MCP server, compound protocol, governance enforcement.",
+  "version": "0.2.0-dev",
+  "description": "Agent memory in four layers: a searchable transcript log, evidence-backed notes, a dreamed wiki and one small injected index.",
   "type": "module",
   "bin": {
-    "ai-memory": "./dist/cli/index.js"
+    "mem": "./dist/cli.js",
+    "ai-memory": "./dist/cli.js"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    },
-    "./mcp": {
-      "import": "./dist/mcp-server/index.js"
-    },
-    "./formatter": {
-      "import": "./dist/formatter/index.js"
-    },
-    "./evals": {
-      "import": "./dist/evals/index.js"
-    }
-  },
+  "main": "./dist/store.js",
+  "types": "./dist/store.d.ts",
+  "files": [
+    "dist/",
+    "adapters/",
+    "STEERING.md",
+    "eval/",
+    "README.md",
+    "SPEC.md",
+    "CREDITS.md"
+  ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/radix-ai/ai-memory.git"
+    "url": "https://github.com/tlconde/ai-memory.git"
   },
-  "homepage": "https://github.com/radix-ai/ai-memory#readme",
+  "homepage": "https://github.com/tlconde/ai-memory#readme",
   "bugs": {
-    "url": "https://github.com/radix-ai/ai-memory/issues"
+    "url": "https://github.com/tlconde/ai-memory/issues"
   },
   "author": {
     "name": "Radix AI",
     "url": "https://github.com/tlconde"
   },
-  "files": [
-    "dist/",
-    "plugins/",
-    "templates/",
-    "README.md",
-    "LICENSE",
-    ".cursor-plugin/",
-    ".claude-plugin/"
-  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "tsc && node -e \"require('node:fs').chmodSync('dist/cli.js', 0o755)\"",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test \"src/**/*.test.ts\"",
-    "prepublishOnly": "npm run build",
-    "update-tool-refs": "node scripts/update-tool-refs.mjs"
+    "test": "node --import tsx --test \"src/**/*.test.ts\" \"adapters/**/*.test.ts\""
   },
   "dependencies": {
-    "@ast-grep/napi": "^0.30.0",
-    "@huggingface/transformers": "^3.0.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "commander": "^12.1.0",
-    "gray-matter": "^4.0.3",
-    "js-yaml": "^4.1.0",
-    "minimatch": "^10.0.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
     "tsx": "^4.22.4",
     "typescript": "^5.8.0"
-  },
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "keywords": [
-    "ai",
-    "memory",
-    "mcp",
-    "acp",
-    "compound",
-    "knowledge-management",
-    "agent"
-  ],
-  "license": "MIT",
-  "publishConfig": {
-    "access": "public"
   }
 }

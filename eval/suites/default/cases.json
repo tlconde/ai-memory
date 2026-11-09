@@ -1,0 +1,28 @@
+{
+  "queries": [
+    { "q": "which command failed with ENOENT", "expect": ["s3-confsvc:6"], "k": 5 },
+    { "q": "where is loadConfig defined", "expect": ["s3-confsvc:8", "s3-confsvc:11"], "k": 5 },
+    { "q": "which assertion failed in the invoice tests", "expect": ["s2-invoicer:4"], "k": 5 },
+    { "q": "where is formatCents defined", "expect": ["s2-invoicer:6", "01M6ZW0680C5HDXA2AWDJC5HEP"], "k": 5 },
+    { "q": "how was the formatCents bug fixed", "expect": ["s2-invoicer:9", "s2-invoicer:10", "s2-invoicer:11", "01M6ZW0680C5HDXA2AWDJC5HEP"], "k": 5 },
+    { "q": "where is the retry limit defined", "expect": ["s4-fetcher:11", "s4-fetcher:4", "fetcher"], "k": 5 },
+    { "q": "sed command that raised MAX_RETRIES to 5", "expect": ["s4-fetcher:9"], "k": 5 },
+    { "q": "why did the flaky upstream test fail", "expect": ["s4-fetcher:11", "s4-fetcher:8"], "k": 5 },
+    { "q": "what is the project codename", "expect": ["s1-gate:9"], "k": 5 },
+    { "q": "why does wc -l report 2 lines for notes.txt", "expect": ["s1-gate:9", "s1-gate:8"], "k": 5 },
+    { "q": "echo gate-ok command", "expect": ["s1-gate:7"], "k": 5 },
+    { "q": "did npm start work after copying the example config", "expect": ["s3-confsvc:10", "s3-confsvc:11"], "k": 5 },
+    { "q": "zero-pad cents to two digits", "expect": ["01M6ZW0680C5HDXA2AWDJC5HEP", "s2-invoicer:11"], "k": 5 },
+    { "q": "fall back to config.example.json when config.json is missing", "expect": ["01M6ZW07786JWRWTBVMRGDVDA7"], "k": 5 },
+    { "q": "is the upstream API flaky", "expect": ["s4-fetcher:11", "01M6ZW086G4QF144BFXVFCJ24K"], "k": 5 },
+    { "q": "zsh no matches found for the grep include glob", "expect": ["s2-invoicer:4"], "k": 5 },
+    { "q": "exponential backoff delay", "expect": ["s4-fetcher:8", "fetcher"], "k": 5 },
+    { "q": "is config.json gitignored", "expect": ["s3-confsvc:11", "s3-confsvc:8"], "k": 5 }
+  ],
+  "facts": [
+    { "fact": "formatCents zero-pads cents with padStart", "terms": ["formatCents", "padStart"] },
+    { "fact": "confsvc needs config.json, copied from config.example.json", "terms": ["config.json", "config.example.json"] },
+    { "fact": "MAX_RETRIES in lib/retry.js is 5", "terms": ["MAX_RETRIES", "lib/retry.js", "5"] },
+    { "fact": "the project codename is heron-4419", "terms": ["heron-4419"] }
+  ]
+}
