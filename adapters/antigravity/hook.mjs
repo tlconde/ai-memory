@@ -41,7 +41,7 @@ export function antigravity(p, env, event = process.argv[2]) {
   const args = p.toolCall?.args;
   const path = args?.AbsolutePath ?? args?.TargetFile ?? args?.FilePath;
   // HostName has no 'antigravity' yet: it logs as gemini, the closest adapter, with the real host in refs.
-  const out = (events, inject) => ({ host: 'gemini', session: p.conversationId, cwd, events, inject, refs: ['host:antigravity'] });
+  const out = (events, inject) => ({ host: 'antigravity', session: p.conversationId, cwd, events, inject });
   switch (event) {
     case 'PreInvocation': {
       // invocationNum restarts at 0 for each user turn; lastUserInput is that turn's prompt.

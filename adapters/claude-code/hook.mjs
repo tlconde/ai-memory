@@ -61,8 +61,7 @@ export function claude(p, env, host = 'claude-code') {
     : grok
       ? existsSync(rulesFile(cwd)) && ((index) => (writeRule(cwd, index), ''))
       : (index) => JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: index } });
-  // HostName has no 'grok' yet, so Grok sessions log as claude-code and name the real host in refs.
-  return { host, session: p.session_id, cwd, events, inject, ...(grok && { refs: ['host:grok'] }) };
+  return { host: grok ? 'grok' : host, session: p.session_id, cwd, events, inject };
 }
 
 export const map = (p, env) => (p.cursor_version ? cursor(p, env) : claude(p, env));

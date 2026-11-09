@@ -120,3 +120,10 @@ Strict TypeScript, ESM, validation at the boundaries, colocated tests, fixtures 
 - Dream thresholds (three sessions to promote, past-finding expiry, unverified pruning) are starting values in `src/types.ts` `BUDGETS`; the eval tunes them.
 - The six-file budget covers `src/` (types, store, search, dream, mcp, cli). Host adapters live in `adapters/<host>/` and are not counted.
 - Secret scrubbing is defined in `src/store.ts` and tested with planted secrets: API keys and tokens by known prefixes, bearer headers, private key blocks, `KEY=value` pairs whose name contains key, token, secret or password, and high-entropy strings of 32 or more characters.
+
+## 9. Decisions made while building (2026-11-09)
+
+- Ranking stays weighted rather than strict tiers: on the default replay suite weighted scored 83.3% hit rate and 0.606 MRR against 77.8% and 0.430 for tiers (`mem eval --ranking tiers`).
+- `zod` is a second runtime dependency: `McpServer.registerTool` accepts only zod schemas, the low-level server is deprecated in SDK 1.32, and zod is already a required peer of the SDK, so it installs nothing new.
+- Grok and Antigravity have their own host names. Grok runs the Claude Code hook natively and gets its index through a rules file; Antigravity gets it through `PreInvocation` on the first model call.
+- `src/` is 2,274 lines in six files; host adapters add about 690 lines in `adapters/`.

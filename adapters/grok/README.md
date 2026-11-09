@@ -1,7 +1,7 @@
 # Grok CLI
 
 Grok CLI has no adapter of its own. It runs Claude settings hooks natively, so `../claude-code` captures
-Grok sessions (logged as `claude-code` with `refs: ["host:grok"]`). Use the Claude Code install: project
+Grok sessions (logged as host `grok`). Use the Claude Code install: project
 `.claude/settings.json` (needs folder trust: `--trust` or `/hooks-trust`) or `~/.claude/settings.json`.
 Flat Cursor entries (`../cursor/hooks.json`) do not run in Grok: it runs only matcher groups.
 

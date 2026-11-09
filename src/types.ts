@@ -15,6 +15,8 @@ export type HostName =
   | 'codex'
   | 'cursor'
   | 'gemini'
+  | 'antigravity'
+  | 'grok'
   | 'hermes'
   | 'openclaw'
   | 'generic';

@@ -188,13 +188,18 @@ describe('mem index and the rest', () => {
     assert.equal(mem(['index', '--root', root]).stdout, '# Memory\n\n- a fact\n');
   });
 
-  test('unbuilt verbs exit 2 with "not implemented yet"', () => {
-    for (const verb of ['note', 'dream']) {
-    for (const verb of ['dream', 'eval']) {
-    for (const verb of ['note', 'eval']) {
-      const res = mem([verb]);
-      assert.equal(res.status, 2);
-      assert.match(res.stderr, /not implemented yet/);
+  test('a flag meant for one verb is refused by the others', () => {
+    const root = tempRoot();
+    for (const [args, flag] of [
+      [['search', 'x', '--dry-run'], '--dry-run'],
+      [['lint', '--about', 'a'], '--about'],
+      [['index', '--evidence', 's:1-1'], '--evidence'],
+      [['dream', '--suite', 'x'], '--suite'],
+      [['import-past', 'd', '--model-cmd', 'x'], '--model-cmd'],
+    ] as const) {
+      const res = mem([...args, '--root', root]);
+      assert.equal(res.status, 2, args.join(' '));
+      assert.match(res.stderr, new RegExp(`takes no ${flag}`));
     }
   });
 

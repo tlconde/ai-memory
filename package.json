@@ -12,6 +12,8 @@
   "files": [
     "dist/",
     "adapters/",
+    "STEERING.md",
+    "eval/",
     "README.md",
     "SPEC.md",
     "CREDITS.md"
@@ -33,7 +35,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"require('node:fs').chmodSync('dist/cli.js', 0o755)\"",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\" \"adapters/**/*.test.ts\""
   },

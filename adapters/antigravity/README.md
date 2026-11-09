@@ -9,7 +9,7 @@ Antigravity hook payloads name no event, so `hooks.json` passes it as an argumen
   last Stop: each PLANNER_RESPONSE text is assistant, and each output step after a tool call is its
   tool_result (error when "Command exited with code N" is non-zero). Checked against agy 1.1.12 transcripts.
 
-Logged as host `gemini` (the closest adapter) with `refs: ["host:antigravity"]`; HostName has no `antigravity`.
+Logged as host `antigravity`.
 
 Install (Node 22+, `mem` on PATH or `MEM_BIN`): copy `hooks.json` to `.agents/hooks.json`. Hooks run in the
 directory holding hooks.json, which is why the command starts `../node_modules`. A user-level location is

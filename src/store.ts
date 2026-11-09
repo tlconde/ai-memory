@@ -106,13 +106,18 @@ export function scrub(text: string): string {
   for (const [kind, pattern, replace] of RULES) {
     out = out.replace(pattern, replace ?? (() => `[REDACTED:${kind}]`));
   }
-  return out.replace(/(?<![A-Za-z0-9+/=_-])[A-Za-z0-9+/=_-]{32,}(?![A-Za-z0-9+/=_-])/g, (m) => (looksRandom(m) ? '[REDACTED:high_entropy]' : m));
+  return out.replace(/(?<![A-Za-z0-9+/=_-])[A-Za-z0-9+/=_-]{32,}(?![A-Za-z0-9+/=_-])/g, (m) => {
+    // A path such as /private/tmp/claude-501/-Users-x/... is one base64-shaped run; judge it per segment so the
+    // path survives while a random token inside it is still caught.
+    if (/^[~.]?\//.test(m)) return m.split('/').map((seg) => (seg.length >= 32 && looksRandom(seg) ? '[REDACTED:high_entropy]' : seg)).join('/');
+    return looksRandom(m) ? '[REDACTED:high_entropy]' : m;
+  });
 }
 
 // ---------------------------------------------------------------- log events
 
 // Records keyed by the union make the compiler reject a missing or extra member.
-const HOSTS: Record<HostName, true> = { 'claude-code': true, codex: true, cursor: true, gemini: true, hermes: true, openclaw: true, generic: true };
+const HOSTS: Record<HostName, true> = { 'claude-code': true, codex: true, cursor: true, gemini: true, antigravity: true, grok: true, hermes: true, openclaw: true, generic: true };
 const KINDS: Record<LogKind, true> = { user: true, assistant: true, tool_call: true, tool_result: true, error: true, session_start: true, session_end: true };
 const EVENT_KEYS = new Set(['ts', 'session', 'host', 'kind', 'tool', 'text', 'refs']);
 
@@ -444,6 +449,8 @@ export function addNote(input: AddNoteInput, root: string = memoryRoot()): AddNo
   const id = ulid();
   writeNote({ id, about, body, evidence, verified: false, seen: evidence.length > 0 ? 1 : 0, origin: 'session' }, root);
   return { id, merged: false, hypothesis: evidence.length === 0, evidence };
+}
+
 // ---------------------------------------------------------------- past findings import (mem import-past)
 
 // The old `.ai/` memory is kept only as quarantined leads: `past/`, unverified, no evidence, never in INDEX.md,

@@ -442,3 +442,10 @@ describe('importPast', () => {
     assert.match(res.stderr, /import-past needs exactly one directory/);
   });
 });
+
+test('scrub keeps long file paths but still catches a random token inside one', () => {
+  const path = '/private/tmp/claude-501/-Users-dev-Dev-Github-ai-memory/d314e2e7-9150-4b93-8bdb-b38731b759a3/scratchpad/hosts/openclaw/.openclaw/workspace/note.txt';
+  assert.equal(scrub(`read ${path}`), `read ${path}`);
+  const token = 'aZ3kQ9mX2pL7wR4tY8vB1nC6dF0gH5jK';
+  assert.equal(scrub(`/tmp/${token}/x`), '/tmp/[REDACTED:high_entropy]/x');
+});

@@ -110,9 +110,9 @@ test('the settings snippet also loads in cursor-agent and Grok: every group has 
   }
 });
 
-test('Grok CLI: logs as claude-code with refs host:grok, reads output_for_prompt, maps a non-zero exit to error', () => {
+test('Grok CLI: logs as host grok, reads output_for_prompt, maps a non-zero exit to error', () => {
   const env = { GROK_WORKSPACE_ROOT: tempDir(), GROK_HOOK_EVENT: 'x', CLAUDE_PROJECT_DIR: '' };
-  const g = { session: grok.SessionStart!.session_id as string, host: 'claude-code', refs: ['host:grok'] };
+  const g = { session: grok.SessionStart!.session_id as string, host: 'grok' };
   const cases: [string, Logged[]][] = [
     ['SessionStart', [{ ...g, kind: 'session_start', text: 'new' }]],
     ['UserPromptSubmit', [{ ...g, kind: 'user', text: grok.UserPromptSubmit!.prompt as string }]],
@@ -125,7 +125,7 @@ test('Grok CLI: logs as claude-code with refs host:grok, reads output_for_prompt
   ];
   for (const [name, expected] of cases) assert.deepEqual(logs(grok[name], env), expected, name);
   // Without GROK_* env the camelCase fields alone identify Grok.
-  assert.deepEqual(logs(grok.SessionEnd, { CLAUDE_PROJECT_DIR: tempDir() })[0]?.refs, ['host:grok']);
+  assert.equal(logs(grok.SessionEnd, { CLAUDE_PROJECT_DIR: tempDir() })[0]?.host, 'grok');
 });
 
 test('Grok CLI: SessionStart prints nothing, and refreshes .grok/rules/ai-memory-index.md only once it exists', () => {

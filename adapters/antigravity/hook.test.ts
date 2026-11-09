@@ -12,7 +12,7 @@ const p = fixtures(dir);
 const TRANSCRIPT = join(dir, 'fixtures/transcript.json');
 const at = (payload: unknown, project: string) => ({ ...(payload as object), workspacePaths: [project], transcriptPath: TRANSCRIPT });
 const run = (event: string, payload: unknown, project: string, env: Record<string, string> = {}) => runHook(HOOK, at(payload, project), env, [event]);
-const base = { session: p.PreInvocation!.conversationId as string, host: 'gemini', refs: ['host:antigravity'] } as const;
+const base = { session: p.PreInvocation!.conversationId as string, host: 'antigravity' } as const;
 const PROMPT = p.PreInvocation!.lastUserInput as string;
 
 test('the first PreInvocation starts the session, logs the prompt and injects the index once', () => {

@@ -17,8 +17,7 @@ filename-safe session ids, 8,000-character truncation, dedupe markers, and alway
 | Grok Bot.app (0.79.3, `com.anysphere.sand`) | none: not supported | Anysphere-built; its app bundle has no local `hooks.json` or Claude settings loader | None |
 | Anything else | `generic/mem-wrap` | Command line, stdout and stderr tails, exit status | `mem-wrap --index` prints INDEX.md |
 
-Hosts without a HostName of their own log under the closest adapter and name the real host in `refs`:
-Grok as `claude-code` + `host:grok`, Antigravity as `gemini` + `host:antigravity`.
+Grok sessions (run through the Claude Code adapter) log as host `grok`, and Antigravity as `antigravity`.
 
 Adapter state (dedupe markers, Antigravity transcript cursors) lives in `.memory/log/.adapters/`, which is
 gitignored with the log and never read by the store. Tests replay recorded host payloads
