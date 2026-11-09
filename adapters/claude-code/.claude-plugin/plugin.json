@@ -1,0 +1,11 @@
+{
+  "name": "ai-memory",
+  "version": "0.2.0-dev",
+  "description": "Transcript logging and INDEX.md injection for ai-memory",
+  "author": {
+    "name": "Radix AI",
+    "url": "https://github.com/tlconde"
+  },
+  "repository": "https://github.com/tlconde/ai-memory",
+  "license": "MIT"
+}

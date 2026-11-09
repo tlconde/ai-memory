@@ -10,3 +10,4 @@ Credits state what this project took from others. They do not imply endorsement,
 | ULID specification | https://github.com/ulid/spec | GPL-3.0 (repository license per the GitHub API, checked 2026-11-09); no text or code copied | Idea: the ULID format (48-bit millisecond time and 80 random bits in Crockford base32) and its same-millisecond monotonic increment, implemented from scratch in `src/store.ts` for note ids. |
 | TypeScript | https://github.com/microsoft/TypeScript | Apache-2.0 | Dev dependency: compiler. |
 | tsx | https://github.com/privatenumber/tsx | MIT | Dev dependency: runs tests. |
+| Claude Code hooks and plugins (Anthropic) | https://code.claude.com/docs/en/hooks | Proprietary: "© Anthropic PBC. All rights reserved", per https://github.com/anthropics/claude-code/blob/main/LICENSE.md; no text or code copied | Dependency: `adapters/claude-code` implements Claude Code's documented hook input and output contract and plugin layout. |
