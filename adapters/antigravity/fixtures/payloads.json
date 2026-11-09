@@ -1,0 +1,79 @@
+{
+ "PreInvocation": {
+  "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/badca33f-3e03-46c2-8d2c-8c256d46f83e",
+  "conversationId": "badca33f-3e03-46c2-8d2c-8c256d46f83e",
+  "initialNumSteps": 1,
+  "invocationNum": 0,
+  "lastUserInput": "Step by step, one tool per step: 1) shell: cat notes.txt; 2) shell: echo hello; 3) shell: ls /definitely-missing-dir. Then reply in one line that includes the project codename.",
+  "modelName": "gemini-3.8-flash-high",
+  "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/badca33f-3e03-46c2-8d2c-8c256d46f83e/.system_generated/logs/transcript_full.jsonl",
+  "workspacePaths": [
+   "/work/proj"
+  ]
+ },
+ "PreInvocation:1": {
+  "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/badca33f-3e03-46c2-8d2c-8c256d46f83e",
+  "conversationId": "badca33f-3e03-46c2-8d2c-8c256d46f83e",
+  "initialNumSteps": 4,
+  "invocationNum": 1,
+  "lastUserInput": "Step by step, one tool per step: 1) shell: cat notes.txt; 2) shell: echo hello; 3) shell: ls /definitely-missing-dir. Then reply in one line that includes the project codename.",
+  "modelName": "gemini-3.8-flash-high",
+  "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/badca33f-3e03-46c2-8d2c-8c256d46f83e/.system_generated/logs/transcript_full.jsonl",
+  "workspacePaths": [
+   "/work/proj"
+  ]
+ },
+ "PreToolUse": {
+  "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/badca33f-3e03-46c2-8d2c-8c256d46f83e",
+  "conversationId": "badca33f-3e03-46c2-8d2c-8c256d46f83e",
+  "lastUserInput": "Step by step, one tool per step: 1) shell: cat notes.txt; 2) shell: echo hello; 3) shell: ls /definitely-missing-dir. Then reply in one line, including the project codename if you know it.",
+  "modelName": "gemini-3.8-flash-high",
+  "stepIdx": 2,
+  "toolCall": {
+   "args": {
+    "CommandLine": "cat notes.txt",
+    "WaitMsBeforeAsync": 5000,
+    "toolSummary": "Read notes.txt"
+   },
+   "name": "run_command"
+  },
+  "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/badca33f-3e03-46c2-8d2c-8c256d46f83e/.system_generated/logs/transcript_full.jsonl",
+  "workspacePaths": [
+   "/work/proj"
+  ]
+ },
+ "PostToolUse": {
+  "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/badca33f-3e03-46c2-8d2c-8c256d46f83e",
+  "conversationId": "badca33f-3e03-46c2-8d2c-8c256d46f83e",
+  "error": "",
+  "lastUserInput": "Step by step, one tool per step: 1) shell: cat notes.txt; 2) shell: echo hello; 3) shell: ls /definitely-missing-dir. Then reply in one line that includes the project codename.",
+  "modelName": "gemini-3.8-flash-high",
+  "stepIdx": 3,
+  "toolCall": {
+   "args": {
+    "CommandLine": "cat notes.txt",
+    "WaitMsBeforeAsync": 5000,
+    "toolSummary": "Read notes"
+   },
+   "name": "run_command"
+  },
+  "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/badca33f-3e03-46c2-8d2c-8c256d46f83e/.system_generated/logs/transcript_full.jsonl",
+  "workspacePaths": [
+   "/work/proj"
+  ]
+ },
+ "Stop": {
+  "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/badca33f-3e03-46c2-8d2c-8c256d46f83e",
+  "conversationId": "badca33f-3e03-46c2-8d2c-8c256d46f83e",
+  "error": "",
+  "executionNum": 0,
+  "fullyIdle": true,
+  "lastUserInput": "Step by step, one tool per step: 1) shell: cat notes.txt; 2) shell: echo hello; 3) shell: ls /definitely-missing-dir. Then reply in one line that includes the project codename.",
+  "modelName": "gemini-3.8-flash-high",
+  "terminationReason": "NO_TOOL_CALL",
+  "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/badca33f-3e03-46c2-8d2c-8c256d46f83e/.system_generated/logs/transcript_full.jsonl",
+  "workspacePaths": [
+   "/work/proj"
+  ]
+ }
+}

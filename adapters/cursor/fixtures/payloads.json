@@ -1,0 +1,102 @@
+{
+ "sessionStart": {
+  "conversation_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "generation_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "model": "composer-2.5",
+  "is_background_agent": false,
+  "session_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "hook_event_name": "sessionStart",
+  "cursor_version": "2026.11.05-86047df",
+  "workspace_roots": [
+   "/work/proj"
+  ],
+  "user_email": "user@example.com",
+  "transcript_path": null
+ },
+ "preToolUse": {
+  "conversation_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "generation_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "model": "composer-2.5",
+  "tool_name": "Shell",
+  "tool_input": {
+   "command": "cat notes.txt",
+   "cwd": "/work/proj",
+   "timeout": 30000
+  },
+  "tool_use_id": "f25c4bb7-e941-43c0-af96-6698422432f3",
+  "cwd": "/work/proj",
+  "session_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "hook_event_name": "preToolUse",
+  "cursor_version": "2026.11.05-86047df",
+  "workspace_roots": [
+   "/work/proj"
+  ],
+  "user_email": "user@example.com",
+  "transcript_path": null
+ },
+ "postToolUse": {
+  "conversation_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "generation_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "model": "composer-2.5",
+  "tool_name": "Shell",
+  "tool_input": {
+   "command": "cat notes.txt",
+   "cwd": "/work/proj",
+   "timeout": 30000
+  },
+  "tool_output": "{\"output\":\"alpha beta\\ngamma\\n\",\"exitCode\":0}",
+  "duration": 175.687,
+  "tool_use_id": "f25c4bb7-e941-43c0-af96-6698422432f3",
+  "cwd": "/work/proj",
+  "session_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "hook_event_name": "postToolUse",
+  "cursor_version": "2026.11.05-86047df",
+  "workspace_roots": [
+   "/work/proj"
+  ],
+  "user_email": "user@example.com",
+  "transcript_path": "/home/user/.cursor/projects/work-proj/agent-transcripts/9f6083f9-c695-4fee-8ec0-80d4521a5ac7/9f6083f9-c695-4fee-8ec0-80d4521a5ac7.jsonl"
+ },
+ "postToolUseFailure": {
+  "conversation_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "generation_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "model": "composer-2.5",
+  "tool_name": "Shell",
+  "tool_input": {
+   "command": "ls /definitely-missing-dir",
+   "cwd": "",
+   "timeout": 30000
+  },
+  "error_message": "ls: /definitely-missing-dir: No such file or directory",
+  "failure_type": "error",
+  "duration": 80.331,
+  "tool_use_id": "3b4795cd-55f9-4d63-9be1-00bd44344024",
+  "is_interrupt": false,
+  "cwd": "",
+  "session_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "hook_event_name": "postToolUseFailure",
+  "cursor_version": "2026.11.05-86047df",
+  "workspace_roots": [
+   "/work/proj"
+  ],
+  "user_email": "user@example.com",
+  "transcript_path": "/home/user/.cursor/projects/work-proj/agent-transcripts/9f6083f9-c695-4fee-8ec0-80d4521a5ac7/9f6083f9-c695-4fee-8ec0-80d4521a5ac7.jsonl"
+ },
+ "sessionEnd": {
+  "conversation_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "generation_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "model": "composer-2.5",
+  "reason": "completed",
+  "duration_ms": 76455,
+  "is_background_agent": false,
+  "final_status": "completed",
+  "session_id": "9f6083f9-c695-4fee-8ec0-80d4521a5ac7",
+  "hook_event_name": "sessionEnd",
+  "cursor_version": "2026.11.05-86047df",
+  "workspace_roots": [
+   "/work/proj"
+  ],
+  "user_email": "user@example.com",
+  "transcript_path": "/home/user/.cursor/projects/work-proj/agent-transcripts/9f6083f9-c695-4fee-8ec0-80d4521a5ac7/9f6083f9-c695-4fee-8ec0-80d4521a5ac7.jsonl"
+ }
+}
